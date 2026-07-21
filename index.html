@@ -6437,6 +6437,21 @@ function switchSubTab(sub){
   if(sub==='pess-lanc') setTimeout(function(){
     if(typeof pessRenderLanc==='function') pessRenderLanc();
   },50);
+  // Mesma classe de bug do pess-lanc acima: acessar "Frete Terceiros" pelo menu
+  // Lançamentos só exibia o formulário (subpanel-frete-terceiros-lanc), mas nunca
+  // carregava DB_FT do localStorage nem renderizava a tabela/Kanban — por isso
+  // ficavam vazios mesmo com dado sincronizado da nuvem.
+  if(sub==='frete-terceiros-lanc') setTimeout(function(){
+    if(typeof ftInit==='function'){
+      var stored=localStorage.getItem('raguife_ft_v1');
+      var parsed=stored?JSON.parse(stored):[];
+      var userRecs=parsed.filter(function(r){return r._user;});
+      DB_FT=JSON.parse(JSON.stringify(SEED_FT)).concat(userRecs);
+      if(typeof ftPopulateFilters==='function') ftPopulateFilters();
+      if(typeof ftRenderLancTable==='function') ftRenderLancTable();
+      if(typeof ftRenderKanban==='function') ftRenderKanban();
+    }
+  },50);
 }
 
 function updateSubTabCounts(){
