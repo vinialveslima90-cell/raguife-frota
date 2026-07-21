@@ -67,6 +67,7 @@ if(typeof ChartDataLabels==='undefined') window.ChartDataLabels={id:'datalabels'
   var FB = {
     online:false, ready:false, uid:null,
     _pending:{}, _statusEl:null, _bannerShown:false,
+    _pulledKeys:{}, _earlyWrite:{},
 
     init:function(){
       if(typeof firebase==='undefined'){
@@ -139,6 +140,8 @@ if(typeof ChartDataLabels==='undefined') window.ChartDataLabels={id:'datalabels'
         if(!remote){
           // Nada na nuvem ainda: se existir dado local, sobe (primeira carga do sistema)
           if(localRaw!=null) FB._pushOne(key, localRaw);
+          FB._pulledKeys[key] = true;
+          FB._resolveEarlyWrite(key, remote);
           return;
         }
         var remoteTs = remote._ts || 0;
@@ -150,7 +153,30 @@ if(typeof ChartDataLabels==='undefined') window.ChartDataLabels={id:'datalabels'
           // (evita o aviso falso disparar em toda recarga de página)
           if(document.readyState==='complete' && localRaw) FB._notifyUpdate(key);
         }
-      }).catch(function(e){ console.warn('[FB Sync] Pull falhou', key, e.message); });
+        FB._pulledKeys[key] = true;
+        FB._resolveEarlyWrite(key, remote);
+      }).catch(function(e){
+        console.warn('[FB Sync] Pull falhou', key, e.message);
+        // Mesmo com falha, libera gravações em espera (senão travam para sempre)
+        FB._pulledKeys[key] = true;
+        FB._resolveEarlyWrite(key, null);
+      });
+    },
+    // Reavalia uma gravação local que chegou ANTES do pull terminar.
+    // Proteção principal: nunca deixa um valor vazio subir por cima de dado remoto real.
+    _resolveEarlyWrite:function(key, remoteAtPullTime){
+      if(!(key in FB._earlyWrite)) return;
+      var value = FB._earlyWrite[key];
+      delete FB._earlyWrite[key];
+      var isEmpty = (value==null) || value==='[]' || value==='{}' || value==='';
+      var remoteHasData = remoteAtPullTime && remoteAtPullTime.data && remoteAtPullTime.data!=='[]' && remoteAtPullTime.data!=='{}';
+      if(isEmpty && remoteHasData){
+        console.warn('[FB Sync] Gravação vazia de '+key+' bloqueada — já havia dado real na nuvem. Recarregando para pegar o dado correto.');
+        origSetItem(key, remoteAtPullTime.data);
+        setKnownTs(key, remoteAtPullTime._ts||Date.now());
+        return; // NÃO empurra o vazio
+      }
+      FB._pushOne(key, value);
     },
     _pushOne:function(key, value){
       if(!FB.ready){ FB._pending[key]=value; return; }
@@ -203,10 +229,19 @@ if(typeof ChartDataLabels==='undefined') window.ChartDataLabels={id:'datalabels'
     }
   };
 
-  // ── Intercepta localStorage só para as 4 bases sincronizadas ──
+  // ── Intercepta localStorage só para as bases sincronizadas ──
+  // Proteção contra corrida: enquanto o pull inicial de uma chave não terminar,
+  // qualquer gravação local fica em espera (nunca sobe "vazio" por cima do que já
+  // existe na nuvem). Isso evita que um cache local recém-limpo apague dados reais.
   localStorage.setItem = function(key, value){
     origSetItem(key, value);
-    if(isSyncKey(key)) FB._pushOne(key, value);
+    if(isSyncKey(key)){
+      if(!FB._pulledKeys[key]){
+        FB._earlyWrite[key] = value; // guarda para reavaliar depois do pull
+        return;
+      }
+      FB._pushOne(key, value);
+    }
   };
   localStorage.removeItem = function(key){
     origRemoveItem(key);
