@@ -180,18 +180,57 @@ if(typeof ChartDataLabels==='undefined') window.ChartDataLabels={id:'datalabels'
     },
     _pushOne:function(key, value){
       if(!FB.ready){ FB._pending[key]=value; return; }
-      var ts = Date.now();
-      setKnownTs(key, ts);
       if(value===null){
+        var ts0 = Date.now();
+        setKnownTs(key, ts0);
         firebase.database().ref('sync/'+fbSafeKey(key)).remove().catch(function(e){
           console.warn('[FB Sync] Remove falhou', key, e.message);
         });
         return;
       }
-      firebase.database().ref('sync/'+fbSafeKey(key)).set({ data:value, _ts:ts, _by:FB.uid||'anon' }).catch(function(e){
-        console.warn('[FB Sync] Push falhou', key, e.message);
-        FB._pending[key]=value;
+      // Proteção contra "reversão em massa": antes de gravar, compara o tamanho do
+      // que está sendo enviado com o que já existe na nuvem. Se a gravação reduzir
+      // drasticamente a quantidade de itens (ex: cache antigo sendo empurrado por
+      // engano), bloqueia e avisa em vez de sobrescrever silenciosamente.
+      function contarItens(raw){
+        try{
+          var parsed = JSON.parse(raw);
+          if(Array.isArray(parsed)) return parsed.length;
+          if(parsed && typeof parsed==='object') return Object.keys(parsed).length;
+        }catch(e){}
+        return null;
+      }
+      var novoCount = contarItens(value);
+      firebase.database().ref('sync/'+fbSafeKey(key)).once('value').then(function(snap){
+        var remote = snap.val();
+        var remoteCount = remote && remote.data ? contarItens(remote.data) : null;
+        var reducaoSuspeita = (novoCount!=null && remoteCount!=null && remoteCount>=10 && novoCount < remoteCount*0.5);
+        if(reducaoSuspeita){
+          console.warn('[FB Sync] BLOQUEADO: gravação de '+key+' reduziria de '+remoteCount+' para '+novoCount+' itens. Provável cache desatualizado — envio cancelado para proteger os dados.');
+          FB._notifyBlockedPush(key, remoteCount, novoCount);
+          return;
+        }
+        var ts = Date.now();
+        setKnownTs(key, ts);
+        firebase.database().ref('sync/'+fbSafeKey(key)).set({ data:value, _ts:ts, _by:FB.uid||'anon' }).catch(function(e){
+          console.warn('[FB Sync] Push falhou', key, e.message);
+          FB._pending[key]=value;
+        });
+      }).catch(function(e){
+        // Se não conseguir checar, envia mesmo assim (não trava o sistema por causa da proteção)
+        var ts = Date.now();
+        setKnownTs(key, ts);
+        firebase.database().ref('sync/'+fbSafeKey(key)).set({ data:value, _ts:ts, _by:FB.uid||'anon' }).catch(function(e2){
+          console.warn('[FB Sync] Push falhou', key, e2.message);
+          FB._pending[key]=value;
+        });
       });
+    },
+    _notifyBlockedPush:function(key, remoteCount, novoCount){
+      var banner = document.createElement('div');
+      banner.style.cssText='position:fixed;bottom:20px;right:20px;background:#fee2e2;border:2px solid #dc2626;color:#991b1b;padding:14px 18px;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.2);z-index:99999;font-size:13px;max-width:340px';
+      banner.innerHTML = '<b>⚠️ Gravação bloqueada</b><br>Uma tentativa de salvar '+key+' com apenas '+novoCount+' itens (a nuvem tem '+remoteCount+') foi cancelada automaticamente para proteger os dados.<br><br>Se isso não deveria ter acontecido, recarregue a página (Ctrl+Shift+R) antes de continuar trabalhando.<br><button onclick="this.parentElement.remove()" style="margin-top:8px;padding:6px 14px;border:none;border-radius:6px;background:#991b1b;color:#fff;cursor:pointer;font-weight:700">Entendi</button>';
+      if(document.body) document.body.appendChild(banner);
     },
     _attachListeners:function(){
       ALL_SYNC_KEYS.forEach(function(key){
