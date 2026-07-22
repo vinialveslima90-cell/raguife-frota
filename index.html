@@ -4876,9 +4876,21 @@ const SEED_VERSION='00d0f14e';
     localStorage.setItem('raguife_seed_version', SEED_VERSION);
   }
 })();
-let DB=JSON.parse(localStorage.getItem('raguife_v3')||'null')||JSON.parse(JSON.stringify(SEED));
+const _rawLocalV3 = localStorage.getItem('raguife_v3');
+let _dbIsSeedFallback = !_rawLocalV3; // true quando o navegador não tinha (ou não conseguiu ler) dado real salvo
+let DB=JSON.parse(_rawLocalV3||'null')||JSON.parse(JSON.stringify(SEED));
 let vsk='placa',vsd=1,ufsk='uf',ufsd=1,modalIdx=-1;
-const save=()=>localStorage.setItem('raguife_v3',JSON.stringify(DB));
+const save=()=>{
+  // Proteção contra a causa raiz de hoje: se o DB nunca foi carregado de um
+  // dado local real (por bloqueio de armazenamento do navegador, storage
+  // limpo, etc.) e ainda está do tamanho do SEED de fábrica, NÃO salva/sincroniza
+  // — evita empurrar os dados antigos de fábrica por cima do que está na nuvem.
+  if(_dbIsSeedFallback && DB.length <= SEED.length){
+    console.warn('[Proteção] save() bloqueado: DB ainda é o SEED de fábrica (armazenamento local pode estar indisponível). Recarregue a página antes de continuar.');
+    return;
+  }
+  localStorage.setItem('raguife_v3',JSON.stringify(DB));
+};
 const g=id=>document.getElementById(id);
 const R=v=>v?'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'—';
 const N=(v,d=1)=>v!=null?Number(v).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d}):'—';
@@ -5687,7 +5699,7 @@ function renderRecs(){
   g('rec-count').textContent=`${rows.length} registros`;g('rec-foot').textContent=`${rows.length} de ${DB.length} registros`;
 }
 const delRec=i=>{if(!confirm('Remover?'))return;DB.splice(i,1);save();renderRecs();renderAll();renderKanban();toast('Removido','success');};
-const restoreAll=()=>{DB=JSON.parse(JSON.stringify(SEED));save();renderRecs();renderAll();renderKanban();initFilters();toast('Dados restaurados','success');};
+const restoreAll=()=>{DB=JSON.parse(JSON.stringify(SEED));_dbIsSeedFallback=false;save();renderRecs();renderAll();renderKanban();initFilters();toast('Dados restaurados','success');};
 
 function initFilters(){
   const ms=[...new Set(DB.map(r=>GM(r.dt_carg)).filter(Boolean))].sort();
@@ -14556,7 +14568,12 @@ document.addEventListener('DOMContentLoaded',()=>{
     try { paLoad(); paUpdateBadge(); } catch(e){}
     try {
       diariaLoad();
-      diariaSave(); // persiste de volta os registros já normalizados (formatos legados corrigidos)
+      // Removido o diariaSave() automático que rodava aqui a cada carregamento
+      // de página: ele reescrevia raguife_diaria_v1 antes da sincronização com
+      // a nuvem terminar, empurrando dado desatualizado sem querer. A
+      // normalização em memória (dlNormalizarRegistro) continua acontecendo
+      // dentro de diariaLoad(); o salvamento real só acontece quando o usuário
+      // de fato adiciona, edita ou remove um lançamento.
       var _dlMesSel = document.getElementById('dl-filter-mes');
       if(_dlMesSel && !_dlMesSel.value) _dlMesSel.value = String(new Date().getMonth()+1);
     } catch(e){ console.warn('[boot] erro ao preparar filtro de Diárias:', e.message); }
