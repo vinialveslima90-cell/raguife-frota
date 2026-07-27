@@ -879,7 +879,6 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
         <div class="sb-child" id="sbch-grd-dash" onclick="selectModule('dashboard','grd-dash')"><div class="sb-dot"></div><span>GRD</span></div>
         <div class="sb-child" id="sbch-pess-dash" onclick="selectModule('dashboard','pess-dash')"><div class="sb-dot"></div><span>Gestão de Pessoas</span></div>
         <div class="sb-child" id="sbch-frota-dash" onclick="selectModule('dashboard','frota-dash')"><div class="sb-dot"></div><span>Frota</span></div>
-        <div class="sb-child" id="sbch-manut-dash" onclick="selectModule('dashboard','manut-dash')"><div class="sb-dot"></div><span>Manutenção</span></div>
         <div class="sb-child" id="sbch-caixa-logistica" onclick="selectModule('dashboard','caixa-logistica')"><div class="sb-dot"></div><span>Caixa Logística</span></div>
         <div class="sb-child" id="sbch-exec-dash" onclick="selectModule('dashboard','exec-dash')"><div class="sb-dot"></div><span>Executivo</span></div>
       </div>
@@ -2528,15 +2527,11 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
   <!-- KPIs frota geral -->
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px" id="frota-perf-kpis"></div>
 
-  <!-- Gráficos: evolução mensal 2025 vs 2026 -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+  <!-- Gráfico: evolução mensal 2025 vs 2026 -->
+  <div style="display:grid;grid-template-columns:1fr;gap:12px">
     <div style="background:#fff;border:1px solid var(--gb);border-radius:10px;padding:16px">
       <div style="font-size:12px;font-weight:700;color:var(--gd);margin-bottom:12px">📈 Evolução Mensal — Frota Total</div>
       <canvas id="ch-perf-evolucao" style="max-height:200px"></canvas>
-    </div>
-    <div style="background:#fff;border:1px solid var(--gb);border-radius:10px;padding:16px">
-      <div style="font-size:12px;font-weight:700;color:var(--gd);margin-bottom:12px">📊 KM Médio/Dia por Categoria</div>
-      <canvas id="ch-perf-categoria" style="max-height:240px"></canvas>
     </div>
   </div>
 
@@ -2755,155 +2750,7 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
   </div>
 
 </div>
-<div id="modpanel-manut-dash" style="display:none;flex-direction:column;gap:16px;padding:20px">
 
-  <!-- Header -->
-  <div style="background:linear-gradient(135deg,#7c2d12,#c2410c);border-radius:12px;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
-    <div>
-      <div style="font-size:16px;font-weight:800;color:#fff">🔧 Gestão de Manutenção</div>
-      <div style="font-size:11px;color:rgba(255,255,255,.65);margin-top:2px" id="manut-sub">Custos e indicadores · 2026</div>
-    </div>
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <select id="manut-f-mes" onchange="manutRender()" style="font-size:11px;padding:5px 10px;font-weight:700;color:#7c2d12;background:#fff;border:none;border-radius:6px;cursor:pointer">
-        <option value="">Todos os meses</option>
-        <option value="3">Março</option><option value="4">Abril</option><option value="5">Maio</option>
-      </select>
-      <select id="manut-f-cat" onchange="manutRender()" style="font-size:11px;padding:5px 10px;font-weight:700;color:#7c2d12;background:#fff;border:none;border-radius:6px;cursor:pointer">
-        <option value="">Todas categorias</option>
-        <option>BITRUCK SILO</option><option>BITRUCK</option><option>TRUCK</option>
-        <option>RODOTREM</option><option>BITREM</option><option>LS</option>
-        <option>4° EIXO</option><option>CARRETA SILO</option>
-      </select>
-      <select id="manut-f-op" onchange="manutRender()" style="font-size:11px;padding:5px 10px;font-weight:700;color:#7c2d12;background:#fff;border:none;border-radius:6px;cursor:pointer">
-        <option value="">AQUA + PET</option>
-        <option value="AQUA">AQUA</option><option value="PET">PET</option>
-      </select>
-    </div>
-  </div>
-
-  <!-- KPIs -->
-  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px" id="manut-kpis"></div>
-
-  <!-- Linha 2: Evolução + Tipo de Serviço -->
-  <div style="display:grid;grid-template-columns:1.6fr 1fr;gap:16px">
-    <div style="background:#fff;border:1px solid var(--gb);border-radius:10px;overflow:hidden">
-      <div style="padding:11px 16px;border-bottom:1px solid var(--gb);background:var(--gbg)">
-        <div style="font-size:12px;font-weight:800;color:var(--gd)">📈 Evolução Mensal de Custo</div>
-        <div style="font-size:10px;color:var(--txl)">Todos os meses · 2026</div>
-      </div>
-      <div style="padding:14px"><canvas id="ch-manut-evolucao" style="max-height:180px"></canvas></div>
-    </div>
-    <div style="background:#fff;border:1px solid var(--gb);border-radius:10px;overflow:hidden">
-      <div style="padding:11px 16px;border-bottom:1px solid var(--gb);background:var(--gbg)">
-        <div style="font-size:12px;font-weight:800;color:var(--gd)">🔩 Custo por Tipo de Serviço</div>
-        <div style="font-size:10px;color:var(--txl)">Março 2026 · referência</div>
-      </div>
-      <div style="padding:14px"><canvas id="ch-manut-tipo-servico" style="max-height:180px"></canvas></div>
-    </div>
-  </div>
-
-  <!-- Linha 3: Custo por categoria + Top fornecedores -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-    <div style="background:#fff;border:1px solid var(--gb);border-radius:10px;overflow:hidden">
-      <div style="padding:11px 16px;border-bottom:1px solid var(--gb);background:var(--gbg)">
-        <div style="font-size:12px;font-weight:800;color:var(--gd)">🚛 Custo por Categoria</div>
-        <div style="font-size:10px;color:var(--txl)">Período selecionado</div>
-      </div>
-      <div style="padding:14px"><canvas id="ch-manut-categoria" style="max-height:180px"></canvas></div>
-    </div>
-    <div style="background:#fff;border:1px solid var(--gb);border-radius:10px;overflow:hidden">
-      <div style="padding:11px 16px;border-bottom:1px solid var(--gb);background:var(--gbg)">
-        <div style="font-size:12px;font-weight:800;color:var(--gd)">🏭 Top 8 Fornecedores</div>
-        <div style="font-size:10px;color:var(--txl)">Março 2026 · por custo total</div>
-      </div>
-      <div style="padding:14px"><canvas id="ch-manut-fornecedor" style="max-height:180px"></canvas></div>
-    </div>
-  </div>
-
-  <!-- Ranking de placas -->
-  <div style="background:#fff;border:1px solid var(--gb);border-radius:10px;overflow:hidden">
-    <div style="padding:11px 16px;border-bottom:1px solid var(--gb);background:var(--gbg);display:flex;justify-content:space-between;align-items:center">
-      <div>
-        <div style="font-size:12px;font-weight:800;color:var(--gd)">🏆 Ranking — Veículos com Maior Custo</div>
-        <div style="font-size:10px;color:var(--txl)">Ordenado por custo total no período</div>
-      </div>
-    </div>
-    <div id="manut-ranking" style="padding:12px 16px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px"></div>
-  </div>
-
-  <!-- Tabela por placa -->
-  <div style="background:#fff;border:1px solid var(--gb);border-radius:10px;overflow:hidden">
-    <div style="padding:11px 16px;border-bottom:1px solid var(--gb);background:var(--gbg);display:flex;justify-content:space-between;align-items:center">
-      <div style="font-size:12px;font-weight:800;color:var(--gd)">📋 Histórico por Placa</div>
-      <input id="manut-srch" placeholder="🔍 Buscar placa..." oninput="manutRender()" style="padding:5px 10px;border:1px solid var(--gb);border-radius:6px;font-size:11px;width:180px">
-    </div>
-    <div class="tbl-scroll">
-    <table style="width:100%;border-collapse:collapse;font-size:11px">
-      <thead><tr style="background:var(--bg-chip);color:var(--brand-dark)">
-        <th style="padding:8px 12px;text-align:left;font-weight:700">#</th>
-        <th style="padding:8px 12px;text-align:left;font-weight:700">Placa</th>
-        <th style="padding:8px 12px;text-align:left;font-weight:700">Categoria</th>
-        <th style="padding:8px 12px;text-align:left;font-weight:700">OP</th>
-        <th style="padding:8px 12px;text-align:right;font-weight:700">Março</th>
-        <th style="padding:8px 12px;text-align:right;font-weight:700">Abril</th>
-        <th style="padding:8px 12px;text-align:right;font-weight:700">Maio</th>
-        <th style="padding:8px 12px;text-align:right;font-weight:700">Total</th>
-        <th style="padding:8px 12px;text-align:right;font-weight:700">Média/Mês</th>
-      </tr></thead>
-      <tbody id="manut-tbl-body"></tbody>
-    </table>
-    </div>
-  </div>
-
-  <!-- Cadastro de fornecedores -->
-  <div style="background:#fff;border:1px solid var(--gb);border-radius:10px;overflow:hidden">
-    <div onclick="var b=document.getElementById('manut-forn-body');b.style.display=b.style.display==='none'?'block':'none'"
-         style="padding:11px 16px;border-bottom:1px solid var(--gb);background:var(--gbg);cursor:pointer;display:flex;justify-content:space-between;align-items:center">
-      <div style="font-size:12px;font-weight:800;color:var(--gd)">🏭 Cadastro de Fornecedores</div>
-      <span style="font-size:10px;color:var(--txl)">Clique para expandir ▼</span>
-    </div>
-    <div id="manut-forn-body" style="display:none">
-      <!-- Formulário novo fornecedor -->
-      <div style="padding:14px 16px;border-bottom:1px solid var(--gb);background:#fafafa;display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:10px;align-items:end">
-        <div>
-          <label style="font-size:10px;font-weight:700;color:var(--gd);display:block;margin-bottom:3px">Nome do Fornecedor</label>
-          <input id="manut-forn-nome" type="text" class="form-ctrl" placeholder="Nome completo..." style="font-size:11px;padding:6px 10px">
-        </div>
-        <div>
-          <label style="font-size:10px;font-weight:700;color:var(--gd);display:block;margin-bottom:3px">Tipo de Serviço</label>
-          <select id="manut-forn-tipo" class="form-ctrl" style="font-size:11px;padding:6px 10px">
-            <option value="">Selecione...</option>
-            <option>MECÂNICA</option><option>BORRACHARIA</option><option>ELÉTRICA</option>
-            <option>PEÇAS</option><option>CARROCERIA</option><option>LUBRIFICAÇÃO</option>
-            <option>PNEUS</option><option>CONCESSIONÁRIA</option><option>OUTROS</option>
-          </select>
-        </div>
-        <div>
-          <label style="font-size:10px;font-weight:700;color:var(--gd);display:block;margin-bottom:3px">Interno / Externo</label>
-          <select id="manut-forn-local" class="form-ctrl" style="font-size:11px;padding:6px 10px">
-            <option value="EXTERNO">Externo</option>
-            <option value="INTERNO">Interno (oficina própria)</option>
-          </select>
-        </div>
-        <button onclick="manutFornSalvar()" style="padding:7px 16px;background:var(--gd);color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">+ Salvar</button>
-      </div>
-      <!-- Tabela de fornecedores -->
-      <div class="tbl-scroll">
-      <table style="width:100%;border-collapse:collapse;font-size:11px">
-        <thead><tr style="background:var(--bg-chip);color:var(--brand-dark)">
-          <th style="padding:7px 12px;text-align:left">Fornecedor</th>
-          <th style="padding:7px 12px;text-align:center">Tipo</th>
-          <th style="padding:7px 12px;text-align:center">Local</th>
-          <th style="padding:7px 12px;text-align:right">Custo Mar/26</th>
-          <th style="padding:7px 12px;text-align:center">O.S. Mar/26</th>
-          <th style="padding:7px 12px;text-align:center">Ações</th>
-        </tr></thead>
-        <tbody id="manut-forn-tbl"></tbody>
-      </table>
-      </div>
-    </div>
-  </div>
-</div>
 <!-- ══════════════════════════════════════════════════════════ -->
 
 <div class="tab-panel" id="tab-lancamento">
@@ -3305,6 +3152,7 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #22c55e">
           <div style="width:10px;height:10px;border-radius:50%;background:#22c55e"></div>
           <span style="font-size:11px;font-weight:800;color:#166534;text-transform:uppercase">100% Pago</span>
+          <span id="ft-kb-pago-periodo" style="font-size:9px;color:#166534;font-weight:600"></span>
           <span id="ft-kb-cnt-pago" style="margin-left:auto;background:#dcfce7;color:#166534;font-size:9px;font-weight:800;padding:1px 7px;border-radius:10px">0</span>
         </div>
         <div id="ft-kb-pago" style="display:flex;flex-direction:column;gap:8px;min-height:60px"></div>
@@ -5536,12 +5384,23 @@ function renderKanban(){
   var kbPanel = document.getElementById('subpanel-frete-retorno');
   if(kbPanel && kbPanel.style.display === 'none') return;
   const km=g('kb-mes').value,kc=g('kb-cat').value,kp=g('kb-placa').value;
-  const filtered=DB.filter(r=>{if(km&&GM(r.dt_carg)!==km)return false;if(kc&&r.categoria!==kc)return false;if(kp&&r.placa!==kp)return false;return true;});
+  // Concluídas: respeita o filtro de mês (reflete o desempenho do período analisado).
+  // Em Andamento / Incompletas: NUNCA filtradas por mês — uma viagem pode começar num
+  // mês e só terminar no seguinte, então a pendência precisa continuar visível até ser
+  // efetivamente concluída, independentemente do mês selecionado no filtro.
   const cols={verde:[],amarelo:[],vermelho:[]};
-  filtered.forEach(r=>{
+  DB.forEach(r=>{
+    if(kc&&r.categoria!==kc)return;
+    if(kp&&r.placa!==kp)return;
     let s=tripStatus(r);
-    // Viagens anteriores a 01/07/2026: não tratar como pendência nesta tela (histórico já encerrado)
+    // Pendências anteriores a 01/07/2026: tratadas como encerradas nesta tela (histórico
+    // já fechado), para não poluir "Em Andamento"/"Incompletas" com lixo antigo. Isso
+    // também precisa respeitar o filtro de mês abaixo — senão elas vazam para
+    // "Concluídas" mesmo quando o mês filtrado não bate com a data delas.
     if(s!=='verde' && r.dt_carg && r.dt_carg<'2026-07-01') s='verde';
+    if(s==='verde'){
+      if(km&&GM(r.dt_carg)!==km)return; // concluídas só do mês selecionado
+    }
     cols[s].push(r);
   });
   // Sort: amarelo/vermelho by date desc (newest first = most urgent); verde by date desc
@@ -5550,7 +5409,7 @@ function renderKanban(){
     g(`kb-count-${col}`).textContent=cols[col].length;
     g(`kb-${col}`).innerHTML=cols[col].length===0?'<div class="empty-col">Nenhuma viagem</div>':cols[col].map(r=>renderKanbanCard(r,col)).join('');
   });
-  const tot=filtered.length;
+  const tot=cols.verde.length+cols.amarelo.length+cols.vermelho.length;
   const sumBar=g('kanban-summary');
   if(sumBar&&tot>0){
     const v=cols.verde.length,am=cols.amarelo.length,vm=cols.vermelho.length;
@@ -6784,15 +6643,27 @@ function switchSubTab(sub){
 }
 
 function updateSubTabCounts(){
-  var v=0,tot=DB.length;
-  DB.forEach(function(r){ if(tripStatus(r)==='verde') v++; });
-  var el=document.getElementById('st-count-frete-retorno'); if(el) el.textContent=tot>0?v+'/'+tot:'';
-  var el2=document.getElementById('sb-badge-fr'); if(el2) el2.textContent=tot>0?v+'/'+tot:'';
+  // Badge do menu "Frete Retorno": Concluídas = só o mês vigente (mês atual real,
+  // não um filtro selecionado). Pendentes = saldo real de viagens ainda abertas,
+  // independentemente do mês em que começaram — nunca zeram ao virar o mês.
+  var mesVigente = GM(new Date().toISOString().slice(0,10));
+  var concluidasMes=0, pendentes=0;
+  DB.forEach(function(r){
+    var s = tripStatus(r);
+    if(s==='verde'){
+      if(GM(r.dt_carg)===mesVigente) concluidasMes++;
+    } else if(!(r.dt_carg && r.dt_carg<'2026-07-01')){
+      pendentes++;
+    }
+  });
+  var el=document.getElementById('st-count-frete-retorno'); if(el) el.textContent=(concluidasMes+pendentes)>0?concluidasMes+'/'+pendentes:'';
+  var el2=document.getElementById('sb-badge-fr'); if(el2) el2.textContent=(concluidasMes+pendentes)>0?concluidasMes+'/'+pendentes:'';
 }
 
 
 // ══ GRD ══════════════════════════════════════════════════════
 function grdKey(mes){ return 'raguife_grd_' + mes; }
+
 function grdLoad(mes){
   if(mes===undefined||mes===null||mes===''){ mes=document.getElementById('grd-mes')?document.getElementById('grd-mes').value:'5'; }
   var raw=localStorage.getItem(grdKey(mes));
@@ -8578,7 +8449,17 @@ function ftRenderKanban(){
   }
   var sem=userRecs.filter(function(r){return (r.status_pgto||'SEM_PGTO')==='SEM_PGTO';});
   var adt=userRecs.filter(function(r){return r.status_pgto==='ADIANTAMENTO';});
-  var pago=userRecs.filter(function(r){return r.status_pgto==='PAGO';});
+  // Coluna "Pago": só o mês vigente (ou o período selecionado nos filtros ft-ano/ft-mes).
+  // Pagamentos de meses anteriores continuam salvos e disponíveis em relatórios/consultas
+  // — só ficam ocultos aqui no Kanban, para não misturar períodos.
+  var ftAno = document.getElementById('ft-ano') ? document.getElementById('ft-ano').value : '2026';
+  var ftMes = document.getElementById('ft-mes') ? document.getElementById('ft-mes').value : '';
+  var pago=userRecs.filter(function(r){
+    if(r.status_pgto!=='PAGO') return false;
+    if(ftAno && r.ano && String(r.ano)!==String(ftAno)) return false;
+    if(ftMes && r.mes!==ftMes) return false;
+    return true;
+  });
   var empty='<div style="padding:20px;text-align:center;color:var(--txl);font-size:11px;font-style:italic">Nenhum</div>';
   var eS=document.getElementById('ft-kb-sem'),eA=document.getElementById('ft-kb-adt'),eP=document.getElementById('ft-kb-pago');
   var cS=document.getElementById('ft-kb-cnt-sem'),cA=document.getElementById('ft-kb-cnt-adt'),cP=document.getElementById('ft-kb-cnt-pago');
@@ -8586,6 +8467,16 @@ function ftRenderKanban(){
   if(eA) eA.innerHTML=adt.length?adt.map(function(r){return card(r,'#fffbeb','#fde68a','#f59e0b',true);}).join(''):empty;
   if(eP) eP.innerHTML=pago.length?pago.map(function(r){return card(r,'#f0fdf4','#bbf7d0','#22c55e',false);}).join(''):empty;
   if(cS) cS.textContent=sem.length; if(cA) cA.textContent=adt.length; if(cP) cP.textContent=pago.length;
+  var elPeriodo=document.getElementById('ft-kb-pago-periodo');
+  if(elPeriodo){
+    var mLbl=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    if(ftMes){
+      var mi=parseInt(ftMes.split('/')[0]||0)-1;
+      elPeriodo.textContent='· '+(mLbl[mi]||ftMes.split('/')[0])+'/'+ftMes.split('/')[1];
+    } else {
+      elPeriodo.textContent=ftAno?'· '+ftAno:'· todos os períodos';
+    }
+  }
 }
 
 function ftSwitchEtapa(n){
@@ -19510,7 +19401,6 @@ function frotaDashInit(){
     perfRenderEvolucao(cat);
     frotaDashInit._lastMes = _evKey;
   }
-  perfRenderCategoria(ranking);
   perfRenderKmDiaEvolucao(cat);
   perfRenderKmVeiculoEvolucao(cat);
   perfRenderRankKmTotal(mes);
@@ -19988,35 +19878,6 @@ function perfKmDiarioLoad(){ try{ return JSON.parse(localStorage.getItem(PERF_KM
 function perfKmDiarioSave(d){ try{ localStorage.setItem(PERF_KM_DIARIO_KEY, JSON.stringify(d)); }catch(e){} }
 function perfKmMensalLoad(){ try{ return JSON.parse(localStorage.getItem(PERF_KM_MENSAL_KEY)||'{}'); }catch(e){ return {}; } }
 function perfKmMensalSave(d){ try{ localStorage.setItem(PERF_KM_MENSAL_KEY, JSON.stringify(d)); }catch(e){} }
-
-// Pré-carga de KM Mensal (Jan-Jun/2026) a partir das planilhas PRODUTIVIDADE (Jan-Abr,
-// aba da Planilha Transporte 2026) e dos exports do rastreador (Maio, Junho). Só preenche
-// os meses que ainda não existirem na base do navegador — nunca sobrescreve dado real já
-// importado pelo usuário via "Importar Planilhas".
-(function seedKmMensalJanJun(){
-  try{
-    var SEED_KM_MENSAL = {"2026_1": {"EBK2I00": {"km": 8083.53, "cat": "TRUCK"}, "EOH0H57": {"km": 4851.07, "cat": "TRUCK"}, "FSK8E26": {"km": 5025.24, "cat": "TRUCK"}, "FZR4J59": {"km": 8978.87, "cat": "BITRUCK"}, "GAA0E42": {"km": 6714.56, "cat": "BITRUCK"}, "GAA2G22": {"km": 9133.45, "cat": "BITRUCK"}, "GAA3F91": {"km": 5927.27, "cat": "BITRUCK"}, "GAA6F11": {"km": 8145.67, "cat": "BITRUCK"}, "GAA6I31": {"km": 9973.87, "cat": "BITRUCK"}, "GAA6J73": {"km": 6256.04, "cat": "BITRUCK"}, "GIF9G20": {"km": 4241.22, "cat": "BITRUCK"}, "GJP1F30": {"km": 6195.8, "cat": "BITRUCK"}, "FOV1C88": {"km": 4058.72, "cat": "LS"}, "GAA1C62": {"km": 8780.75, "cat": "LS"}, "GAA1C54": {"km": 8697.16, "cat": "LS"}, "GAA2J62": {"km": 8426.56, "cat": "LS"}, "GAA6B62": {"km": 4818.43, "cat": "4° EIXO"}, "GAA6C64": {"km": 8810.45, "cat": "4° EIXO"}, "GAA6H21": {"km": 9781.86, "cat": "4° EIXO"}, "GAA6H61": {"km": 8900.69, "cat": "4° EIXO"}, "EBW2C85": {"km": 10516.14, "cat": "BITREM"}, "FCT5A75": {"km": 4799.15, "cat": "BITREM"}, "DUC3D40": {"km": 7677.3, "cat": "BITREM"}, "FRX7H66": {"km": 9653.25, "cat": "BITREM"}, "FWB2B34": {"km": 11189.56, "cat": "BITREM"}, "GBF7E64": {"km": 11653.79, "cat": "BITREM"}, "GAA1C63": {"km": 8915.64, "cat": "BITREM"}, "QPY8A58": {"km": 10280.87, "cat": "BITREM"}, "ENN8F53": {"km": 8515.56, "cat": "RODOTREM"}, "GAA0D77": {"km": 461.24, "cat": "RODOTREM"}, "GAA2D71": {"km": 9111.96, "cat": "RODOTREM"}, "GAA2G55": {"km": 7243.21, "cat": "RODOTREM"}, "GAA4I81": {"km": 10782.31, "cat": "RODOTREM"}, "GAA5I02": {"km": 5512.02, "cat": "RODOTREM"}, "GAA5I03": {"km": 10462.24, "cat": "RODOTREM"}, "GAA5I53": {"km": 7765.27, "cat": "RODOTREM"}, "GAA5I61": {"km": 7574.18, "cat": "RODOTREM"}, "GAA5I62": {"km": 9216.81, "cat": "RODOTREM"}, "GFI3F08": {"km": 8612.74, "cat": "RODOTREM"}, "GGS0E66": {"km": 6472.35, "cat": "RODOTREM"}, "BBG1D34": {"km": 9236.84, "cat": "BITRUCK SILO"}, "BBR9F63": {"km": 7439.51, "cat": "BITRUCK SILO"}, "FJU7I19": {"km": 6781.96, "cat": "BITRUCK SILO"}, "FRO7I25": {"km": 9832.56, "cat": "BITRUCK SILO"}, "FSG6F45": {"km": 8326.44, "cat": "BITRUCK SILO"}, "FVA7B11": {"km": 2707.64, "cat": "BITRUCK SILO"}, "FVU8I30": {"km": 2342.31, "cat": "BITRUCK SILO"}, "FDC4J75": {"km": 609.27, "cat": "BITRUCK SILO"}, "GAA6D72": {"km": 10297.86, "cat": "BITRUCK SILO"}, "GAA5F32": {"km": 7435.18, "cat": "BITRUCK SILO"}, "GAA6G71": {"km": 7902.63, "cat": "BITRUCK SILO"}, "GEJ1889": {"km": 2514.82, "cat": "BITRUCK SILO"}, "PQK3I28": {"km": 6185.5, "cat": "BITRUCK SILO"}, "CLW4A48": {"km": 6059.28, "cat": "CARRETA SILO"}, "GAA0D97": {"km": 2638.47, "cat": "CARRETA SILO"}}, "2026_2": {"EBK2I00": {"km": 6219.63, "cat": "TRUCK"}, "EOH0H57": {"km": 6729.51, "cat": "TRUCK"}, "FSK8E26": {"km": 7421.14, "cat": "TRUCK"}, "FZR4J59": {"km": 8006.21, "cat": "BITRUCK"}, "GAA0E42": {"km": 7124.51, "cat": "BITRUCK"}, "GAA2G22": {"km": 8117.25, "cat": "BITRUCK"}, "GAA3F91": {"km": 6381.15, "cat": "BITRUCK"}, "GAA6F11": {"km": 7386.39, "cat": "BITRUCK"}, "GAA6I31": {"km": 6549.6, "cat": "BITRUCK"}, "GAA6J73": {"km": 9024.2, "cat": "BITRUCK"}, "GIF9G20": {"km": 5156.21, "cat": "BITRUCK"}, "GJP1F30": {"km": 7880.97, "cat": "BITRUCK"}, "FOV1C88": {"km": 5978.15, "cat": "LS"}, "GAA1C62": {"km": 6159.68, "cat": "LS"}, "GAA1C54": {"km": 5457.42, "cat": "LS"}, "GAA2J62": {"km": 6776.76, "cat": "LS"}, "GAA6B62": {"km": 8488.86, "cat": "4° EIXO"}, "GAA6C64": {"km": 8064.04, "cat": "4° EIXO"}, "GAA6H21": {"km": 6209.84, "cat": "4° EIXO"}, "GAA6H61": {"km": 8590.03, "cat": "4° EIXO"}, "EBW2C85": {"km": 5175.36, "cat": "BITREM"}, "FCT5A75": {"km": 8973.89, "cat": "BITREM"}, "DUC3D40": {"km": 8282.06, "cat": "BITREM"}, "FRX7H66": {"km": 6368.73, "cat": "BITREM"}, "FWB2B34": {"km": 7469.54, "cat": "BITREM"}, "GBF7E64": {"km": 5328.33, "cat": "BITREM"}, "GAA1C63": {"km": 6409.24, "cat": "BITREM"}, "QPY8A58": {"km": 9457.64, "cat": "BITREM"}, "ENN8F53": {"km": 7501.83, "cat": "RODOTREM"}, "GAA0D77": {"km": 4302.88, "cat": "RODOTREM"}, "GAA2D71": {"km": 7823.64, "cat": "RODOTREM"}, "GAA2G55": {"km": 6616.15, "cat": "RODOTREM"}, "GAA4I81": {"km": 6229.79, "cat": "RODOTREM"}, "GAA5I02": {"km": 6344.77, "cat": "RODOTREM"}, "GAA5I03": {"km": 6135.22, "cat": "RODOTREM"}, "GAA5I53": {"km": 7857.66, "cat": "RODOTREM"}, "GAA5I61": {"km": 7387.89, "cat": "RODOTREM"}, "GAA5I62": {"km": 6151.59, "cat": "RODOTREM"}, "GFI3F08": {"km": 7006.47, "cat": "RODOTREM"}, "GGS0E66": {"km": 7374.88, "cat": "RODOTREM"}, "BBG1D34": {"km": 4728.41, "cat": "BITRUCK SILO"}, "BBR9F63": {"km": 7872.63, "cat": "BITRUCK SILO"}, "FJU7I19": {"km": 2662.79, "cat": "BITRUCK SILO"}, "FRO7I25": {"km": 6373.67, "cat": "BITRUCK SILO"}, "FSG6F45": {"km": 5594.4, "cat": "BITRUCK SILO"}, "FVA7B11": {"km": 5340.07, "cat": "BITRUCK SILO"}, "FVU8I30": {"km": 5763.95, "cat": "BITRUCK SILO"}, "FDC4J75": {"km": 5098.54, "cat": "BITRUCK SILO"}, "GAA6D72": {"km": 6508.33, "cat": "BITRUCK SILO"}, "GAA5F32": {"km": 6278.66, "cat": "BITRUCK SILO"}, "GAA6G71": {"km": 5545.87, "cat": "BITRUCK SILO"}, "GEJ1889": {"km": 1564.71, "cat": "BITRUCK SILO"}, "PQK3I28": {"km": 5778.28, "cat": "BITRUCK SILO"}, "CLW4A48": {"km": 6815.77, "cat": "CARRETA SILO"}, "GAA0D97": {"km": 6928.0, "cat": "CARRETA SILO"}}, "2026_3": {"EBK2I00": {"km": 6256.0, "cat": "TRUCK"}, "EOH0H57": {"km": 3413.0, "cat": "TRUCK"}, "FSK8E26": {"km": 7618.0, "cat": "TRUCK"}, "FZR4J59": {"km": 7587.0, "cat": "BITRUCK"}, "GAA0E42": {"km": 7587.0, "cat": "BITRUCK"}, "GAA2G22": {"km": 8695.0, "cat": "BITRUCK"}, "GAA3F91": {"km": 7930.0, "cat": "BITRUCK"}, "GAA6F11": {"km": 7134.0, "cat": "BITRUCK"}, "GAA6I31": {"km": 7598.0, "cat": "BITRUCK"}, "GAA6J73": {"km": 7405.0, "cat": "BITRUCK"}, "GIF9G20": {"km": 8561.0, "cat": "BITRUCK"}, "GJP1F30": {"km": 8722.0, "cat": "BITRUCK"}, "FOV1C88": {"km": 6616.0, "cat": "LS"}, "GAA1C62": {"km": 4608.0, "cat": "LS"}, "GAA1C54": {"km": 7655.0, "cat": "LS"}, "GAA2J62": {"km": 7130.0, "cat": "LS"}, "GAA6B62": {"km": 9842.0, "cat": "4° EIXO"}, "GAA6C64": {"km": 6787.0, "cat": "4° EIXO"}, "GAA6H21": {"km": 9211.0, "cat": "4° EIXO"}, "GAA6H61": {"km": 9245.0, "cat": "4° EIXO"}, "EBW2C85": {"km": 7866.0, "cat": "BITREM"}, "FCC9J95": {"km": 3334.0, "cat": "BITREM"}, "FCT5A75": {"km": 8597.0, "cat": "BITREM"}, "DUC3D40": {"km": 9960.0, "cat": "BITREM"}, "FRX7H66": {"km": 6118.0, "cat": "BITREM"}, "FWB2B34": {"km": 6917.0, "cat": "BITREM"}, "GBF7E64": {"km": 7073.0, "cat": "BITREM"}, "GAA1C63": {"km": 3052.0, "cat": "BITREM"}, "QPY8A58": {"km": 11350.0, "cat": "BITREM"}, "ENN8F53": {"km": 5233.0, "cat": "RODOTREM"}, "GAA0D77": {"km": 9273.0, "cat": "RODOTREM"}, "GAA2D71": {"km": 8448.0, "cat": "RODOTREM"}, "GAA2G55": {"km": 8645.0, "cat": "RODOTREM"}, "GAA4I81": {"km": 9731.0, "cat": "RODOTREM"}, "GAA5I02": {"km": 8891.0, "cat": "RODOTREM"}, "GAA5I03": {"km": 8714.0, "cat": "RODOTREM"}, "GAA5I53": {"km": 9429.0, "cat": "RODOTREM"}, "GAA5I61": {"km": 9785.0, "cat": "RODOTREM"}, "GAA5I62": {"km": 8213.0, "cat": "RODOTREM"}, "GFI3F08": {"km": 6756.0, "cat": "RODOTREM"}, "GGS0E66": {"km": 7993.0, "cat": "RODOTREM"}, "BBG1D34": {"km": 5948.0, "cat": "BITRUCK SILO"}, "BBR9F63": {"km": 6805.0, "cat": "BITRUCK SILO"}, "FJU7I19": {"km": 1364.0, "cat": "BITRUCK SILO"}, "FRO7I25": {"km": 5939.0, "cat": "BITRUCK SILO"}, "FSG6F45": {"km": 5600.0, "cat": "BITRUCK SILO"}, "FVA7B11": {"km": 6497.0, "cat": "BITRUCK SILO"}, "FVU8I30": {"km": 5890.0, "cat": "BITRUCK SILO"}, "FYA0E10": {"km": 836.0, "cat": "BITRUCK SILO"}, "FDC4J75": {"km": 3335.0, "cat": "BITRUCK SILO"}, "GAA6D72": {"km": 8259.0, "cat": "BITRUCK SILO"}, "GAA5F32": {"km": 5349.0, "cat": "BITRUCK SILO"}, "GAA6G71": {"km": 5263.0, "cat": "BITRUCK SILO"}, "GEJ1889": {"km": 1875.0, "cat": "BITRUCK SILO"}, "PQK3I28": {"km": 7719.0, "cat": "BITRUCK SILO"}, "CLW4A48": {"km": 8147.0, "cat": "CARRETA SILO"}, "GAA0D97": {"km": 10422.0, "cat": "CARRETA SILO"}}, "2026_4": {"EBK2I00": {"km": 7856.0, "cat": "TRUCK"}, "EOH0H57": {"km": 5809.0, "cat": "TRUCK"}, "FSK8E26": {"km": 6728.0, "cat": "TRUCK"}, "FZR4J59": {"km": 8336.0, "cat": "BITRUCK"}, "GAA0E42": {"km": 6731.0, "cat": "BITRUCK"}, "GAA2G22": {"km": 9700.0, "cat": "BITRUCK"}, "GAA3F91": {"km": 6901.0, "cat": "BITRUCK"}, "GAA6F11": {"km": 8228.0, "cat": "BITRUCK"}, "GAA6I31": {"km": 6402.0, "cat": "BITRUCK"}, "GAA6J73": {"km": 7614.0, "cat": "BITRUCK"}, "GIF9G20": {"km": 6118.0, "cat": "BITRUCK"}, "GJP1F30": {"km": 8406.0, "cat": "BITRUCK"}, "FOV1C88": {"km": 8039.0, "cat": "LS"}, "GAA1C62": {"km": 9587.0, "cat": "LS"}, "GAA1C54": {"km": 7292.0, "cat": "LS"}, "GAA2J62": {"km": 8406.0, "cat": "LS"}, "GAA6B62": {"km": 7580.0, "cat": "4° EIXO"}, "GAA6C64": {"km": 7318.0, "cat": "4° EIXO"}, "GAA6H21": {"km": 7903.0, "cat": "4° EIXO"}, "GAA6H61": {"km": 5619.0, "cat": "4° EIXO"}, "EBW2C85": {"km": 5956.0, "cat": "BITREM"}, "FCC9J95": {"km": 7170.0, "cat": "BITREM"}, "FCT5A75": {"km": 7438.0, "cat": "BITREM"}, "DUC3D40": {"km": 2229.0, "cat": "BITREM"}, "FRX7H66": {"km": 6110.0, "cat": "BITREM"}, "FWB2B34": {"km": 3851.0, "cat": "BITREM"}, "GBF7E64": {"km": 9960.0, "cat": "BITREM"}, "GAA1C63": {"km": 7562.0, "cat": "BITREM"}, "QPY8A58": {"km": 6784.0, "cat": "BITREM"}, "ENN8F53": {"km": 7552.0, "cat": "RODOTREM"}, "GAA0D77": {"km": 7836.0, "cat": "RODOTREM"}, "GAA2D71": {"km": 7500.0, "cat": "RODOTREM"}, "GAA2G55": {"km": 5435.0, "cat": "RODOTREM"}, "GAA4I81": {"km": 6533.0, "cat": "RODOTREM"}, "GAA5I02": {"km": 6027.0, "cat": "RODOTREM"}, "GAA5I03": {"km": 5162.0, "cat": "RODOTREM"}, "GAA5I53": {"km": 5927.0, "cat": "RODOTREM"}, "GAA5I61": {"km": 7934.0, "cat": "RODOTREM"}, "GAA5I62": {"km": 1849.0, "cat": "RODOTREM"}, "GFI3F08": {"km": 6403.0, "cat": "RODOTREM"}, "GGS0E66": {"km": 5899.0, "cat": "RODOTREM"}, "BBG1D34": {"km": 4781.0, "cat": "BITRUCK SILO"}, "BBR9F63": {"km": 6947.0, "cat": "BITRUCK SILO"}, "FJU7I19": {"km": 2570.0, "cat": "BITRUCK SILO"}, "FRO7I25": {"km": 3465.0, "cat": "BITRUCK SILO"}, "FSG6F45": {"km": 3522.0, "cat": "BITRUCK SILO"}, "FVA7B11": {"km": 4742.0, "cat": "BITRUCK SILO"}, "FVU8I30": {"km": 5412.0, "cat": "BITRUCK SILO"}, "FYA0E10": {"km": 1225.0, "cat": "BITRUCK SILO"}, "FDC4J75": {"km": 3614.0, "cat": "BITRUCK SILO"}, "GAA6D72": {"km": 6231.0, "cat": "BITRUCK SILO"}, "GAA5F32": {"km": 4108.0, "cat": "BITRUCK SILO"}, "GAA6G71": {"km": 5447.0, "cat": "BITRUCK SILO"}, "GEJ1889": {"km": 1411.0, "cat": "BITRUCK SILO"}, "PQK3I28": {"km": 5126.0, "cat": "BITRUCK SILO"}, "CLW4A48": {"km": 6310.0, "cat": "CARRETA SILO"}, "GAA0D97": {"km": 8430.0, "cat": "CARRETA SILO"}}, "2026_5": {"FSK8E26": {"km": 4925.8, "cat": "TRUCK"}, "GAA5I03": {"km": 10607.38, "cat": "RODOTREM"}, "GAA5I61": {"km": 6696.23, "cat": "RODOTREM"}, "GAA5I62": {"km": 2790.96, "cat": "RODOTREM"}, "GAA5I02": {"km": 2912.49, "cat": "RODOTREM"}, "GAA0D77": {"km": 8182.2, "cat": "RODOTREM"}, "FJU7I19": {"km": 4160.85, "cat": "BITRUCK SILO"}, "FVU8I30": {"km": 3995.61, "cat": "BITRUCK SILO"}, "GAA5I53": {"km": 1582.33, "cat": "RODOTREM"}, "FSG6F45": {"km": 3691.28, "cat": "BITRUCK SILO"}, "GAA2J62": {"km": 7151.39, "cat": "LS"}, "FDC4J75": {"km": 4235.57, "cat": "BITRUCK SILO"}, "FRX7H66": {"km": 8844.5, "cat": "BITREM"}, "NSB3G46": {"km": 2769.91, "cat": "NSB3G46 "}, "GAA4I81": {"km": 8982.93, "cat": "RODOTREM"}, "GAA6E91": {"km": 4184.89, "cat": "3"}, "GAA6B62": {"km": 8587.66, "cat": "4° EIXO"}, "GAA6C64": {"km": 6840.12, "cat": "4° EIXO"}, "GAA6H21": {"km": 7880.98, "cat": "4° EIXO"}, "GAA6H61": {"km": 6606.1, "cat": "4° EIXO"}, "EBW2C85": {"km": 3201.22, "cat": "BITREM"}, "FCC9995": {"km": 2659.32, "cat": "BITREM"}, "FCT5A75": {"km": 7533.88, "cat": "BITREM"}, "FWB2B34": {"km": 6359.77, "cat": "BITREM"}, "GBF7E64": {"km": 7619.54, "cat": "BITREM"}, "QPY8A58": {"km": 4205.39, "cat": "BITREM"}, "DUC3D40": {"km": 7098.53, "cat": "BITREM"}, "GAA1C63": {"km": 5486.44, "cat": "BITREM"}, "FZR4J59": {"km": 5290.6, "cat": "BITRUCK"}, "GAA0E42": {"km": 9843.9, "cat": "BITRUCK"}, "GAA2G22": {"km": 7332.02, "cat": "BITRUCK"}, "GAA3F91": {"km": 5755.52, "cat": "BITRUCK"}, "GAA6F11": {"km": 6587.94, "cat": "BITRUCK"}, "GAA6I31": {"km": 8734.06, "cat": "BITRUCK"}, "GAA6J73": {"km": 6217.19, "cat": "BITRUCK"}, "GIF9G20": {"km": 6468.2, "cat": "BITRUCK"}, "GJP1F30": {"km": 5067.0, "cat": "BITRUCK"}, "BBG1D34": {"km": 4146.48, "cat": "BITRUCK SILO"}, "BBR9F63": {"km": 5246.36, "cat": "BITRUCK SILO"}, "FRO7I25": {"km": 1006.78, "cat": "BITRUCK SILO"}, "FVA7B11": {"km": 6538.92, "cat": "BITRUCK SILO"}, "FYA0E10": {"km": 1501.39, "cat": "BITRUCK SILO"}, "GAA6G71": {"km": 6528.02, "cat": "BITRUCK SILO"}, "GEJ1889": {"km": 838.57, "cat": "BITRUCK SILO"}, "PQK3I28": {"km": 4886.31, "cat": "BITRUCK SILO"}, "CLW4A48": {"km": 7063.02, "cat": "CARRETA SILO"}, "GAA0D97": {"km": 5036.69, "cat": "CARRETA SILO"}, "GAA7B93": {"km": 427.58, "cat": "GAA7B93 "}, "FOV1C88": {"km": 2703.59, "cat": "LS"}, "GAA1C62": {"km": 7217.31, "cat": "LS"}, "GAA1C54": {"km": 6105.27, "cat": "LS"}, "ENN8F53": {"km": 5139.96, "cat": "RODOTREM"}, "GAA2D71": {"km": 9150.7, "cat": "RODOTREM"}, "GAA2G55": {"km": 6247.48, "cat": "RODOTREM"}, "GFI3F08": {"km": 5003.94, "cat": "RODOTREM"}, "GGS0E66": {"km": 9571.53, "cat": "RODOTREM"}, "EOH0H57": {"km": 7706.36, "cat": "TRUCK"}, "EBK2I00": {"km": 4302.22, "cat": "TRUCK"}}, "2026_6": {"GBF7E64": {"km": 2079.93, "cat": "BITREM"}, "FSK8E26": {"km": 2465.01, "cat": "TRUCK"}, "GAA5I03": {"km": 6651.49, "cat": "RODOTREM"}, "GAA5I61": {"km": 6879.59, "cat": "RODOTREM"}, "GAA0D77": {"km": 8866.66, "cat": "RODOTREM"}, "GAA5I02": {"km": 6655.23, "cat": "RODOTREM"}, "BBG1D34": {"km": 4564.48, "cat": "BITRUCK SILO"}, "FVA7B11": {"km": 2184.99, "cat": "BITRUCK SILO"}, "FDC4J75": {"km": 2051.48, "cat": "BITRUCK SILO"}, "FVU8I30": {"km": 1917.12, "cat": "BITRUCK SILO"}, "GJP1F30": {"km": 7270.61, "cat": "BITRUCK"}, "DUC3D40": {"km": 6773.58, "cat": "BITREM"}, "FOV1C88": {"km": 4522.98, "cat": "LS"}, "FCC9995": {"km": 7283.23, "cat": "BITREM"}, "GAA4I81": {"km": 8954.65, "cat": "RODOTREM"}, "EBW2C85": {"km": 9639.49, "cat": "BITREM"}, "GAA6E91": {"km": 3231.61, "cat": "3"}, "GAA6B62": {"km": 7727.86, "cat": "4° EIXO"}, "GAA6C64": {"km": 7038.94, "cat": "4° EIXO"}, "GAA6H21": {"km": 5185.15, "cat": "4° EIXO"}, "GAA6H61": {"km": 7491.03, "cat": "4° EIXO"}, "FCT5A75": {"km": 9535.52, "cat": "BITREM"}, "FRX7H66": {"km": 7983.13, "cat": "BITREM"}, "FWB2B34": {"km": 3610.18, "cat": "BITREM"}, "QPY8A58": {"km": 8384.15, "cat": "BITREM"}, "GAA1C63": {"km": 9015.23, "cat": "BITREM"}, "GAA0E42": {"km": 3499.28, "cat": "BITRUCK"}, "GAA2G22": {"km": 5249.31, "cat": "BITRUCK"}, "GAA3F91": {"km": 6138.01, "cat": "BITRUCK"}, "GAA6F11": {"km": 2368.88, "cat": "BITRUCK"}, "GAA6I31": {"km": 4317.77, "cat": "BITRUCK"}, "GAA6J73": {"km": 5746.97, "cat": "BITRUCK"}, "GIF9G20": {"km": 4151.93, "cat": "BITRUCK"}, "BBR9F63": {"km": 4317.31, "cat": "BITRUCK SILO"}, "FJU7I19": {"km": 2139.42, "cat": "BITRUCK SILO"}, "FRO7I25": {"km": 3571.16, "cat": "BITRUCK SILO"}, "FSG6F45": {"km": 1975.11, "cat": "BITRUCK SILO"}, "FYA0E10": {"km": 833.18, "cat": "BITRUCK SILO"}, "GAA6G71": {"km": 2410.89, "cat": "BITRUCK SILO"}, "GEJ1889": {"km": 704.74, "cat": "BITRUCK SILO"}, "PQK3I28": {"km": 734.08, "cat": "BITRUCK SILO"}, "CLW4A48": {"km": 6019.34, "cat": "CARRETA SILO"}, "GAA0D97": {"km": 7531.27, "cat": "CARRETA SILO"}, "GAA7B93": {"km": 7820.82, "cat": "GAA7B93 "}, "GAA1C62": {"km": 6767.98, "cat": "LS"}, "GAA2J62": {"km": 9066.8, "cat": "LS"}, "GAA1C54": {"km": 2358.61, "cat": "LS"}, "NSB3G46": {"km": 483.17, "cat": "NSB3G46 "}, "ENN8F53": {"km": 9671.23, "cat": "RODOTREM"}, "GAA2D71": {"km": 8551.64, "cat": "RODOTREM"}, "GAA2G55": {"km": 7753.48, "cat": "RODOTREM"}, "GFI3F08": {"km": 6831.46, "cat": "RODOTREM"}, "GGS0E66": {"km": 7289.53, "cat": "RODOTREM"}, "EOH0H57": {"km": 5753.74, "cat": "TRUCK"}, "EBK2I00": {"km": 5046.74, "cat": "TRUCK"}}};
-    var atual = perfKmMensalLoad();
-    var SEED_VERSION = 'v2-fix-bitruck-truck';
-    var VERSION_KEY = 'raguife_km_mensal_seed_version';
-    var versaoAplicada = localStorage.getItem(VERSION_KEY);
-    var alterado = false;
-    Object.keys(SEED_KM_MENSAL).forEach(function(mesKey){
-      // Mês nunca visto: aplica a semente normalmente.
-      // Mês já presente, mas veio de uma versão anterior desta MESMA semente (não de uma
-      // importação real do usuário): reaplica para propagar a correção.
-      if(!atual[mesKey] || versaoAplicada !== SEED_VERSION){
-        atual[mesKey] = SEED_KM_MENSAL[mesKey];
-        alterado = true;
-      }
-    });
-    if(alterado){
-      perfKmMensalSave(atual);
-      localStorage.setItem(VERSION_KEY, SEED_VERSION);
-      console.info('[Raguife] KM Mensal Jan-Jun/2026 pré-carregado/atualizado — versão '+SEED_VERSION+'.');
-    }
-  }catch(e){ console.error('[Raguife] Erro ao pré-carregar KM Mensal', e); }
-})();
 
 
 // ── Abre/fecha modal ──────────────────────────────────────────
