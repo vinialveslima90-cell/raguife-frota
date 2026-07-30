@@ -316,6 +316,25 @@ if(typeof ChartDataLabels==='undefined') window.ChartDataLabels={id:'datalabels'
       });
     },
     _notifyUpdate:function(key){
+      // Atualização silenciosa e segura: se o dado que chegou da nuvem for do
+      // cadastro de Frota ou Pessoas, e o usuário estiver justamente olhando o
+      // Quadro Geral, recalcula e redesenha os cards na hora — sem recarregar a
+      // página inteira (que poderia atrapalhar alguém no meio de outro lançamento).
+      // O aviso "Novos dados sincronizados" continua aparecendo normalmente pros
+      // demais casos, mas essa tela específica não fica mais presa no passado
+      // esperando alguém clicar em "Atualizar agora".
+      if(key==='raguife_frota_cad_v1' || key==='raguife_pess_v1'){
+        try{
+          var painelQuadro = document.getElementById('gpd-panel-quadro');
+          var visivel = painelQuadro && painelQuadro.offsetParent !== null;
+          if(visivel){
+            if(typeof frotaLoad==='function') frotaLoad();
+            if(typeof pessSyncFromStorage==='function') pessSyncFromStorage();
+            if(typeof gpAtualizarResumo==='function') gpAtualizarResumo();
+            if(typeof pessRenderQuadro==='function') pessRenderQuadro();
+          }
+        }catch(e){ console.warn('[FB Sync] atualização silenciosa do Quadro Geral falhou:', e.message); }
+      }
       if(FB._bannerShown) return;
       FB._bannerShown = true;
       var banner = document.createElement('div');
@@ -7621,7 +7640,7 @@ function freteDieselRefCarregar(){
     var s = JSON.parse(localStorage.getItem(FRETE_DIESEL_REF_KEY)||'null');
     if(s && s.mes && s.ano) return s;
   }catch(e){}
-  var hoje = new Date('2026-05-18'); // mesma data de referência fixa usada no resto do sistema
+  var hoje = new Date(); // data real de hoje
   return {mes: hoje.getMonth()+1, ano: hoje.getFullYear()};
 }
 function freteDieselRefSalvar(mes, ano){
@@ -12621,76 +12640,97 @@ function pessAbrirDetalheCategoria(cat){
 }
 
 function pessRenderQuadro(){
+  var hoje = new Date();
+  var mesAtual = hoje.getMonth()+1;
+
+  // "Em Férias" vem direto do calendário (PESS_FER) do mês atual — nome normalizado
+  // (maiúsculo/espaços) na comparação, pelo mesmo motivo que a categoria precisou de
+  // normalização antes: nome gravado em lugares diferentes do sistema pode ter
+  // pequenas diferenças de formatação (espaço duplo, acentuação etc.) que fariam a
+  // comparação exata falhar silenciosamente e o motorista sumir da contagem.
+  function normNome(n){ return String(n||'').trim().toUpperCase().replace(/\s+/g,' '); }
+  var emFeriasAgora = {};
+  (PESS_FER||[]).forEach(function(f){ if(f.mes===mesAtual) emFeriasAgora[normNome(f.nome)]=true; });
+
+  var resSel = ['3/4','TRUCK','BITRUCK','LS','4° EIXO','BITREM','RODOTREM','BITRUCK SILO','CARRETA SILO'].map(function(cat){
+    var mot = PESS_MOT.filter(function(m){return pessNormCat(m.cat)===cat;});
+    var afast = mot.filter(function(m){return m.status==='AFASTADO';}).length;
+    var fer = mot.filter(function(m){return m.status!=='AFASTADO' && emFeriasAgora[normNome(m.nome)];}).length;
+    var ativos = mot.length-afast;
+    return {cat:cat, frota:mot.length, ativos:ativos, afastado:afast, ferias:fer, total_mot:mot.length};
+  }).filter(function(r){return r.frota>0;});
+
   // KPIs
-  var total = PESS_RES.reduce(function(a,r){return a+r.frota;},0);
-  var ativos = PESS_RES.reduce(function(a,r){return a+r.ativos;},0);
-  var afast  = PESS_RES.reduce(function(a,r){return a+r.afastado;},0);
-  var fer    = PESS_RES.reduce(function(a,r){return a+r.ferias;},0);
+  var total = resSel.reduce(function(a,r){return a+r.frota;},0);
+  var ativos = resSel.reduce(function(a,r){return a+r.ativos;},0);
+  var afast  = resSel.reduce(function(a,r){return a+r.afastado;},0);
+  var fer    = resSel.reduce(function(a,r){return a+r.ferias;},0);
   var sv30   = PESS_MOT.filter(function(m){return m.saldo_venc>=30;}).length;
   var kpiEl = document.getElementById('pess-kpi-row');
   if(kpiEl) kpiEl.innerHTML = [
-    {l:'Total Veículos',v:total,c:'#024f2b',ic:'🚛'},
-    {l:'Motoristas Ativos',v:ativos,c:'#16a34a',ic:'✅'},
-    {l:'Em Férias',v:fer,c:'#2563eb',ic:'🏖️'},
-    {l:'Afastados',v:afast,c:'#dc2626',ic:'⚠️'},
-    {l:'Férias Vencidas',v:sv30,c:'#d97706',ic:'⏰'}
+    {l:'Total Veículos',v:total,cor:'neutro'},
+    {l:'Motoristas Ativos',v:ativos,cor:'gd'},
+    {l:'Em Férias',v:fer,cor:'go'},
+    {l:'Afastados',v:afast,cor:afast>0?'rd':'neutro'},
+    {l:'Férias Vencidas',v:sv30,cor:'neutro'}
   ].map(function(k){
-    return '<div class="kpi-card" style="border-top:3px solid '+k.c+'">' +
-      '<div class="kpi-lbl">'+k.ic+' '+k.l+'</div>' +
-      '<div class="kpi-val" style="color:'+k.c+'">'+k.v+'</div>' +
+    var corTexto = k.cor==='gd'?'var(--gd)':k.cor==='go'?'var(--go)':k.cor==='rd'?'#b91c1c':'var(--txt)';
+    return '<div style="background:#fff;border:1px solid var(--gb);border-radius:8px;padding:14px 16px">' +
+      '<div style="font-size:10px;font-weight:700;color:var(--txl);text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px">'+k.l+'</div>' +
+      '<div style="font-size:24px;font-weight:800;color:'+corTexto+'">'+k.v+'</div>' +
       '</div>';
   }).join('');
 
-  // Grid categorias
-  var catColors = {'TRUCK':'#2563eb','BITRUCK':'#7c3aed','LS':'#d97706','4° EIXO':'#16a34a','BITREM':'#dc2626','RODOTREM':'#0891b2','BITRUCK SILO':'#024f2b','CARRETA SILO':'#739630'};
+  // Grid categorias — estilo executivo neutro: um único acento (borda esquerda fina)
+  // por categoria, sem blocos de cor cheios; hierarquia por peso de fonte, não por cor.
+  var catAccent = {'TRUCK':'#024f2b','BITRUCK':'#024f2b','LS':'#739630','4° EIXO':'#739630','BITREM':'#024f2b','RODOTREM':'#739630','BITRUCK SILO':'#024f2b','CARRETA SILO':'#739630','3/4':'#9ca3af'};
   var grid = document.getElementById('pess-cat-grid');
-  if(grid) grid.innerHTML = PESS_RES.map(function(r){
-    var cor = catColors[r.cat]||'#6b7280';
+  if(grid) grid.innerHTML = resSel.map(function(r){
+    var accent = catAccent[r.cat]||'#9ca3af';
     var pct = r.frota>0 ? Math.round(r.ativos/r.frota*100) : 0;
-    var status = pct===100 ? '✅ Completo' : pct>=75 ? '⚠️ Quase' : '🔴 Vaga';
-    var statusC = pct===100 ? '#16a34a' : pct>=75 ? '#d97706' : '#dc2626';
-    return '<div class="pess-cat-card" onclick="pessAbrirDetalheCategoria(\''+r.cat.replace(/'/g,"\\'")+'\')" style="background:#fff;border:1px solid var(--gb);border-radius:10px;overflow:hidden;border-top:3px solid '+cor+'">' +
-      '<div style="padding:12px 14px;background:'+cor+';display:flex;justify-content:space-between;align-items:center">' +
-        '<div style="font-size:12px;font-weight:800;color:#fff">'+r.cat+'</div>' +
-        '<div style="font-size:18px;font-weight:900;color:#fff">'+r.ativos+'/'+r.frota+'</div>' +
+    var status = pct===100 ? 'Completo' : pct>=75 ? 'Quase completo' : 'Vaga em aberto';
+    var statusC = pct===100 ? 'var(--gd)' : pct>=75 ? '#92400e' : '#b91c1c';
+    return '<div class="pess-cat-card" onclick="pessAbrirDetalheCategoria(\''+r.cat.replace(/'/g,"\\'")+'\')" style="background:#fff;border:1px solid var(--gb);border-left:3px solid '+accent+';border-radius:8px;padding:14px 16px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">' +
+        '<div style="font-size:11.5px;font-weight:700;color:var(--txt);text-transform:uppercase;letter-spacing:.02em">'+r.cat+'</div>' +
+        '<div style="font-size:16px;font-weight:800;color:var(--txt)">'+r.ativos+'<span style="color:var(--txl);font-weight:400">/'+r.frota+'</span></div>' +
       '</div>' +
-      '<div style="padding:10px 14px;display:flex;flex-direction:column;gap:6px">' +
-        '<div style="background:#f3f4f6;border-radius:4px;height:6px"><div style="width:'+pct+'%;height:100%;background:'+cor+';border-radius:4px"></div></div>' +
-        '<div style="display:flex;justify-content:space-between;font-size:10.5px">' +
-          '<span style="color:var(--txl)">'+r.total_mot+' motoristas</span>' +
-          '<span style="color:'+statusC+';font-weight:700">'+status+'</span>' +
-        '</div>' +
-        '<div style="display:flex;gap:8px;font-size:10px">' +
-          (r.ferias>0?'<span style="background:#dbeafe;color:#1e40af;padding:2px 7px;border-radius:10px;font-weight:700">🏖 Férias: '+r.ferias+'</span>':'') +
-          (r.afastado>0?'<span style="background:#fee2e2;color:#991b1b;padding:2px 7px;border-radius:10px;font-weight:700">⚠️ Afastado: '+r.afastado+'</span>':'') +
-        '</div>' +
+      '<div style="background:#f1f3f0;border-radius:3px;height:4px;margin-bottom:8px"><div style="width:'+pct+'%;height:100%;background:'+accent+';border-radius:3px"></div></div>' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;font-size:10.5px">' +
+        '<span style="color:var(--txl)">'+r.total_mot+' motorista'+(r.total_mot!==1?'s':'')+'</span>' +
+        '<span style="color:'+statusC+';font-weight:600">'+status+'</span>' +
       '</div>' +
+      ((r.ferias>0||r.afastado>0) ? '<div style="display:flex;gap:12px;font-size:10px;color:var(--txl);margin-top:6px;padding-top:6px;border-top:1px dashed var(--gb)">' +
+          (r.ferias>0?'<span>🏖 '+r.ferias+' em férias</span>':'') +
+          (r.afastado>0?'<span>⚠ '+r.afastado+' afastado'+(r.afastado!==1?'s':'')+'</span>':'') +
+        '</div>' : '') +
     '</div>';
   }).join('');
 
-  // Alertas
-  var hoje = new Date('2026-05-18');
+  // Alertas (sempre atuais — vencimento de saldo não depende do mês em análise)
   var alertas = PESS_MOT.filter(function(m){
     if(m.saldo_venc>=30) return true;
     if(m.dt_limite && new Date(m.dt_limite) < hoje) return true;
     return false;
   }).sort(function(a,b){return (b.saldo_venc||0)-(a.saldo_venc||0);}).slice(0,8);
-  
+
   var aEl = document.getElementById('pess-alertas');
   if(aEl && alertas.length){
-    aEl.innerHTML = '<div style="font-size:12px;font-weight:800;color:#d97706;margin-bottom:8px">⏰ Alertas de Férias — '+alertas.length+' motoristas com saldo vencido ou próximo ao limite</div>' +
+    aEl.innerHTML = '<div style="font-size:11.5px;font-weight:700;color:var(--txm);margin-bottom:8px;text-transform:uppercase;letter-spacing:.02em">⏰ Alertas de Férias — '+alertas.length+' motorista'+(alertas.length!==1?'s':'')+' com saldo vencido ou próximo ao limite</div>' +
       '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">' +
       alertas.map(function(m){
         var lim = m.dt_limite ? new Date(m.dt_limite) : null;
         var venc = lim && lim < hoje;
-        var cor = m.saldo_venc>=30 ? '#dc2626' : '#d97706';
-        return '<div style="background:#fff;border:1px solid '+(venc?'#fca5a5':'#fde68a')+';border-radius:8px;padding:10px 12px;border-left:3px solid '+cor+'">' +
-          '<div style="font-size:10px;font-weight:800;color:'+cor+'">'+m.cat+'</div>' +
+        var cor = venc ? '#b91c1c' : '#92400e';
+        return '<div style="background:#fff;border:1px solid var(--gb);border-radius:8px;padding:10px 12px;border-left:3px solid '+cor+'">' +
+          '<div style="font-size:9.5px;font-weight:700;color:var(--txl);text-transform:uppercase">'+m.cat+'</div>' +
           '<div style="font-size:11px;font-weight:700;color:var(--txt);margin:3px 0">'+m.nome+'</div>' +
           '<div style="font-size:10px;color:var(--txl)">Saldo: <b style="color:'+cor+'">'+m.saldo_venc+' dias</b></div>' +
           (m.dt_limite?'<div style="font-size:10px;color:var(--txl)">Limite: '+FD(m.dt_limite.replace(/-/g,'/'))+'</div>':'') +
         '</div>';
       }).join('') + '</div>';
+  } else if(aEl){
+    aEl.innerHTML = '';
   }
 }
 
@@ -12699,7 +12739,7 @@ function pessRenderMotoristas(){
   q = q.toLowerCase();
   var catF = (document.getElementById('pess-cat-filter')||{}).value||'';
   var stF  = (document.getElementById('pess-status-filter')||{}).value||'';
-  var hoje = new Date('2026-05-18');
+  var hoje = new Date();
   
   var rows = PESS_MOT.filter(function(m){
     if(q && !m.nome.toLowerCase().includes(q) && !m.placa.toLowerCase().includes(q)) return false;
@@ -12764,7 +12804,7 @@ function pessRenderFerias(){
   }).join('');
 
   // Alertas de saldo vencido
-  var hoje = new Date('2026-05-18');
+  var hoje = new Date();
   var sv = PESS_MOT.filter(function(m){return m.saldo_venc>0;}).sort(function(a,b){return (b.saldo_venc||0)-(a.saldo_venc||0);});
   var aEl = document.getElementById('pess-ferias-alertas');
   if(aEl) aEl.innerHTML = '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">' +
@@ -13253,11 +13293,21 @@ function pessNormCat(c){
 }
 function gpAtualizarResumo(){
   var cats=['3/4','TRUCK','BITRUCK','LS','4° EIXO','BITREM','RODOTREM','BITRUCK SILO','CARRETA SILO'];
+  // "Em Férias" agora vem DIRETO do calendário (PESS_FER) do mês atual — não mais do
+  // campo m.status. O status só era atualizado automaticamente quando a férias
+  // lançada batia com o mês corrente no momento do lançamento; qualquer férias
+  // lançada pra outro mês nunca voltava a marcar/desmarcar o status depois, deixando
+  // o Quadro Geral com números presos no passado, sem bater com o calendário real
+  // (foi exatamente essa divergência entre Quadro Geral e aba Férias que apareceu).
+  var hoje = new Date();
+  var mesAtual = hoje.getMonth()+1;
+  var emFeriasAgora = {};
+  (PESS_FER||[]).forEach(function(f){ if(f.mes===mesAtual) emFeriasAgora[f.nome]=true; });
   PESS_RES = cats.map(function(cat){
     var mot=PESS_MOT.filter(function(m){return pessNormCat(m.cat)===cat;});
-    var ativos=mot.filter(function(m){return m.status==='ATIVO'||m.status==='FÉRIAS';}).length;
     var afast=mot.filter(function(m){return m.status==='AFASTADO';}).length;
-    var fer=mot.filter(function(m){return m.status==='FÉRIAS';}).length;
+    var fer=mot.filter(function(m){return m.status!=='AFASTADO' && emFeriasAgora[m.nome];}).length;
+    var ativos=mot.length-afast;
     return{cat:cat,frota:mot.length,ativos:ativos,afastado:afast,ferias:fer,total_mot:mot.length};
   }).filter(function(r){return r.frota>0;});
 }
@@ -13367,7 +13417,7 @@ function gpSalvarFerias(){
   if(existing>=0) PESS_FER[existing]=rec;
   else PESS_FER.push(rec);
   // Atualizar status do motorista se o mês lançado for o mês corrente
-  var hoje=new Date('2026-05-18'); var mesAtual=hoje.getMonth()+1;
+  var hoje=new Date(); var mesAtual=hoje.getMonth()+1;
   if(mes===mesAtual&&mot){ mot.status='FÉRIAS'; }
   // O resumo do Quadro Geral precisa refletir TODO lançamento de férias, não só
   // quando o mês bate com o mês atual — antes, lançar férias pra qualquer mês
