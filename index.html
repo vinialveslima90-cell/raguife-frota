@@ -241,7 +241,22 @@ if(typeof ChartDataLabels==='undefined') window.ChartDataLabels={id:'datalabels'
         var limite = Math.max(limiteAbs, limitePct);
         var reducaoSuspeita = (novoCount!=null && remoteCount!=null && remoteCount>=10 && (remoteCount-novoCount) > limite);
         if(reducaoSuspeita){
-          console.warn('[FB Sync] BLOQUEADO: gravação de '+key+' reduziria de '+remoteCount+' para '+novoCount+' itens. Provável cache desatualizado — envio cancelado para proteger os dados.');
+          var merged = FB._mergeValues(value, remote.data);
+          var mergedCount = merged!=null ? contarItens(merged) : null;
+          if(merged!=null && mergedCount!=null && mergedCount>=remoteCount){
+            console.warn('[FB Sync] AUTO-MESCLADO: '+key+' — local tinha '+novoCount+', nuvem tinha '+remoteCount+', combinados em '+mergedCount+'.');
+            FB._salvarHistorico(key, remote.data);
+            var tsM = Date.now();
+            setKnownTs(key, tsM);
+            origSetItem(key, merged);
+            firebase.database().ref('sync/'+fbSafeKey(key)).set({ data:merged, _ts:tsM, _by:FB.uid||'anon' }).catch(function(e){
+              console.warn('[FB Sync] Push (merge) falhou', key, e.message);
+            });
+            FB._notifyAutoMerge(key, novoCount, remoteCount, mergedCount);
+            return;
+          }
+          console.warn('[FB Sync] BLOQUEADO: gravação de '+key+' reduziria de '+remoteCount+' para '+novoCount+' itens e não foi possível mesclar com segurança. Envio cancelado para proteger os dados.');
+          FB._salvarHistorico(key, remote.data);
           FB._notifyBlockedPush(key, remoteCount, novoCount);
           return;
         }
@@ -300,9 +315,21 @@ if(typeof ChartDataLabels==='undefined') window.ChartDataLabels={id:'datalabels'
           var limite = Math.max(limiteAbs, limitePct);
           var reducaoSuspeita = (localCount!=null && remoteCount!=null && localCount>=10 && (localCount-remoteCount) > limite);
           if(reducaoSuspeita){
-            console.warn('[FB Sync] REJEITADO puxar '+key+' da nuvem: reduziria de '+localCount+' para '+remoteCount+' itens localmente. Provável dado corrompido na nuvem — reenviando o valor local correto para corrigir.');
+            var merged = FB._mergeValues(atual, remote.data);
+            var mergedCount = merged!=null ? FB._contarItens(merged) : null;
+            if(merged!=null && mergedCount!=null && mergedCount>=localCount){
+              console.warn('[FB Sync] AUTO-MESCLADO (recebendo da nuvem): '+key+' — local tinha '+localCount+', nuvem tinha '+remoteCount+', combinados em '+mergedCount+'.');
+              FB._salvarHistorico(key, atual);
+              origSetItem(key, merged);
+              setKnownTs(key, Date.now());
+              FB._pushOne(key, merged);
+              FB._notifyAutoMerge(key, localCount, remoteCount, mergedCount);
+              return;
+            }
+            console.warn('[FB Sync] REJEITADO puxar '+key+' da nuvem: reduziria de '+localCount+' para '+remoteCount+' itens localmente e não foi possível mesclar com segurança. Reenviando o valor local para corrigir a nuvem.');
+            FB._salvarHistorico(key, remote.data);
             setKnownTs(key, Date.now());
-            FB._pushOne(key, atual); // autocura a nuvem com o dado local, que está correto
+            FB._pushOne(key, atual); // autocura a nuvem com o dado local
             return;
           }
 
@@ -314,6 +341,67 @@ if(typeof ChartDataLabels==='undefined') window.ChartDataLabels={id:'datalabels'
       Object.keys(FB._pending).forEach(function(k){
         var v = FB._pending[k]; delete FB._pending[k]; FB._pushOne(k, v);
       });
+    },
+    // ── Contagem de itens compartilhada (evita duplicar a mesma função em 3 lugares) ──
+    _contarItens:function(raw){
+      try{
+        var parsed = JSON.parse(raw);
+        if(Array.isArray(parsed)) return parsed.length;
+        if(parsed && typeof parsed==='object') return Object.keys(parsed).length;
+      }catch(e){}
+      return null;
+    },
+    // ── Mesclagem automática (em vez de bloquear e exigir ação manual) ──
+    // Quando local e remoto divergem (alguém editou em outro computador enquanto este
+    // navegador estava com cache desatualizado), tenta UNIR os dois em vez de descartar
+    // um dos dois. Arrays: união por conteúdo (nenhum registro se perde, mesmo que
+    // duplicado por engano em algum momento — duplicata exata é automaticamente
+    // eliminada). Objetos: mescla chave a chave. Se as formas forem incompatíveis,
+    // devolve null e quem chamou cai no bloqueio de segurança como antes.
+    _mergeValues:function(localRaw, remoteRaw){
+      try{
+        var a = JSON.parse(localRaw), b = JSON.parse(remoteRaw);
+        if(Array.isArray(a) && Array.isArray(b)){
+          var seen = {}, out = [];
+          b.concat(a).forEach(function(item){
+            var k = JSON.stringify(item);
+            if(!seen[k]){ seen[k]=true; out.push(item); }
+          });
+          return JSON.stringify(out);
+        }
+        if(a && b && typeof a==='object' && typeof b==='object' && !Array.isArray(a) && !Array.isArray(b)){
+          return JSON.stringify(Object.assign({}, b, a));
+        }
+      }catch(e){}
+      return null;
+    },
+    // ── Histórico de versões (para recuperação) ──
+    // Antes de qualquer resolução de conflito (mesclagem ou bloqueio), guarda uma cópia
+    // do valor anterior em sync_history/<chave>, com timestamp. Mantém só os últimos 20
+    // snapshots por chave para não crescer sem limite. Não é um histórico de toda
+    // gravação (isso geraria escrita demais no Firebase) — é especificamente o "seguro"
+    // para os momentos em que dados de dois usuários estavam divergindo.
+    _salvarHistorico:function(key, valorAnterior){
+      if(valorAnterior==null || typeof firebase==='undefined') return;
+      try{
+        var ref = firebase.database().ref('sync_history/'+fbSafeKey(key));
+        ref.push({ data:valorAnterior, _ts:Date.now() });
+        ref.orderByChild('_ts').once('value').then(function(snap){
+          var chaves = [];
+          snap.forEach(function(c){ chaves.push(c.key); });
+          if(chaves.length > 20){
+            chaves.slice(0, chaves.length-20).forEach(function(k){ ref.child(k).remove(); });
+          }
+        }).catch(function(){});
+      }catch(e){ console.warn('[FB Sync] histórico falhou', key, e.message); }
+    },
+    _notifyAutoMerge:function(key, countA, countB, countFinal){
+      var banner = document.createElement('div');
+      banner.style.cssText='position:fixed;bottom:20px;right:20px;background:#dcfce7;border:2px solid #16a34a;color:#166534;padding:12px 16px;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.2);z-index:99999;font-size:12.5px;max-width:320px';
+      banner.innerHTML = '<b>🔀 Dados combinados automaticamente</b><br>'+key+': '+countA+' + '+countB+' registros de origens diferentes foram unidos em '+countFinal+' — nada foi perdido.'
+        + '<br><button onclick="this.parentElement.remove()" style="margin-top:8px;padding:5px 12px;border:none;border-radius:6px;background:#16a34a;color:#fff;cursor:pointer;font-weight:700;font-size:11px">OK</button>';
+      if(document.body) document.body.appendChild(banner);
+      setTimeout(function(){ if(banner.parentElement) banner.remove(); }, 12000);
     },
     _notifyUpdate:function(key){
       // Atualização silenciosa e segura: se o dado que chegou da nuvem for do
