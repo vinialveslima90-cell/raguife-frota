@@ -457,6 +457,18 @@ if(typeof ChartDataLabels==='undefined') window.ChartDataLabels={id:'datalabels'
           }
           if(pFinA && pFinA.offsetParent!==null && typeof finRenderAnalise==='function') finRenderAnalise();
         }catch(e){ console.warn('[FB Sync] atualização silenciosa do Financeiro falhou:', e.message); }
+
+        // BUG CORRIGIDO: raguife_v3 (viagens) só atualizava automaticamente o painel
+        // "Dashboard > Frete Frota" — o Kanban de Lançamentos (Concluídas/Em Andamento/
+        // Incompletas) nunca fazia parte dessa lista. Resultado: uma viagem podia estar
+        // com o status certo na base (confirmado via console — tripStatus batia "verde"),
+        // mas o Kanban continuava mostrando o desenho antigo, feito antes do dado mais
+        // recente da nuvem chegar, e nunca era refeito. Mesmo raciocínio do bloco do
+        // Financeiro acima: só redesenha se o Kanban estiver realmente na tela agora.
+        try{
+          if(typeof renderKanban==='function') renderKanban();
+          if(typeof renderRecs==='function') renderRecs();
+        }catch(e){ console.warn('[FB Sync] atualização silenciosa do Kanban de Lançamentos falhou:', e.message); }
       }
       var mapeados = FB._DASH_MAP[key];
       if(mapeados){
@@ -2807,6 +2819,66 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
     <div id="pess-trein-footer" style="font-size:11px;color:var(--txl)"></div>
   </div>
 </div>
+<!-- Detecção e revisão de Viagens Duplicadas (mesma placa + mesma data de carregamento).
+     FORA de qualquer modpanel-* de propósito: precisa abrir de Lançamentos, que é um
+     módulo diferente de onde essa ferramenta foi originalmente construída (Gestão de
+     Pessoas) — colocado dentro de um painel específico, ficava invisível (0x0 na tela)
+     sempre que esse painel não fosse o módulo ativo no momento do clique. -->
+<div class="modal-overlay hidden" id="vdup-modal-overlay" onclick="vdupFechar(event)">
+  <div class="modal" style="max-width:900px" onclick="event.stopPropagation()">
+    <div class="modal-top">
+      <div>
+        <div class="modal-title">Viagens Duplicadas</div>
+        <div class="modal-sub" id="vdup-sub">Mesma placa + mesma data de carregamento aparecendo mais de uma vez</div>
+      </div>
+      <button class="modal-close" onclick="vdupFechar()">✕</button>
+    </div>
+    <div class="modal-body" style="max-height:76vh;overflow:auto">
+      <div id="vdup-toolbar" style="display:flex;gap:10px;align-items:center;margin-bottom:14px;padding:12px;background:var(--bg-chip);border-radius:8px"></div>
+      <div id="vdup-body"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Arquivar Viagens Antigas Incompletas — viagens "Em Andamento" (Etapa 2 nunca
+     preenchida) antes de uma data de corte, que não fazem mais parte da operação
+     vigente e distorcem KPIs/custos/dashboards. Move pra um arquivo histórico
+     separado (não apaga o dado) e some da base ativa. -->
+<div class="modal-overlay hidden" id="arq-modal-overlay" onclick="arqFechar(event)">
+  <div class="modal" style="max-width:820px" onclick="event.stopPropagation()">
+    <div class="modal-top">
+      <div>
+        <div class="modal-title">Arquivar Viagens Antigas Incompletas</div>
+        <div class="modal-sub">Viagens "Em Andamento" antes de uma data de corte — saem da base ativa, mas ficam guardadas num histórico separado</div>
+      </div>
+      <button class="modal-close" onclick="arqFechar()">✕</button>
+    </div>
+    <div class="modal-body" style="max-height:76vh;overflow:auto">
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;padding:12px;background:var(--bg-chip);border-radius:8px;flex-wrap:wrap">
+        <div class="form-grp" style="margin:0"><label class="form-lbl">Categoria</label>
+          <select id="arq-cat" class="form-ctrl" onchange="arqRender()" style="min-width:180px">
+            <option value="">Todas categorias</option>
+            <option value="BITRUCK SILO">Bitruck Silo</option>
+            <option value="CARRETA SILO">Carreta Silo</option>
+            <option value="TRUCK">Truck</option>
+            <option value="BITRUCK">Bitruck</option>
+            <option value="LS">LS</option>
+            <option value="4° EIXO">4° Eixo</option>
+            <option value="BITREM">Bitrem</option>
+            <option value="RODOTREM">Rodotrem</option>
+          </select>
+        </div>
+        <div class="form-grp" style="margin:0"><label class="form-lbl">Anteriores a</label>
+          <input type="date" id="arq-data-corte" class="form-ctrl" onchange="arqRender()">
+        </div>
+        <div style="flex:1"></div>
+        <button class="btn-prim" id="arq-btn-aplicar" onclick="arqAplicar()" style="white-space:nowrap">📦 Arquivar selecionadas</button>
+      </div>
+      <div id="arq-resumo" style="font-size:12px;color:var(--txm);margin-bottom:10px"></div>
+      <div id="arq-body"></div>
+    </div>
+  </div>
+</div>
 <div id="modpanel-frota-dash" style="display:none;flex-direction:column;gap:16px;padding:20px">
   <!-- Header -->
   <div style="background:linear-gradient(135deg,#024f2b,#1a6b3a);border-radius:12px;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
@@ -3815,6 +3887,8 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
     <div class="f-group"><span class="f-label">Placa</span><select class="f-select" id="kb-placa" onchange="renderKanban()"><option value="">Todas</option></select></div>
     <div class="f-sep"></div>
     <button class="btn-reset" onclick="resetKbFilters()"><svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 2A5 5 0 102 10"/><polyline points="10,2 10,5 7,5"/></svg>Limpar</button>
+    <button onclick="vdupAbrir()" style="padding:7px 14px;background:#fff;border:1px solid var(--gb);color:var(--txm);border-radius:6px;cursor:pointer;font-size:11px;font-weight:700">🔁 Viagens Duplicadas</button>
+    <button onclick="arqAbrir()" style="padding:7px 14px;background:#fff;border:1px solid var(--gb);color:var(--txm);border-radius:6px;cursor:pointer;font-size:11px;font-weight:700">📦 Arquivar Antigas</button>
     <button onclick="recOpenReport('Retorno')" style="margin-left:auto;padding:7px 14px;background:var(--gd);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700">📋 Consulta de Fretes Retorno</button>
   </div>
 
@@ -7417,55 +7491,49 @@ function saidImpLerArquivo(input){
 
       if(!linhas.length){ toast('Nenhuma linha válida encontrada na planilha','error'); return; }
 
-      // 2) Agrupar por placa+dia
-      var grupos = {};
-      linhas.forEach(function(l){
-        var key = l.placa+'|'+l.data;
-        if(!grupos[key]) grupos[key] = [];
-        grupos[key].push(l);
-      });
-
-      // 3) Montar lançamentos consolidados (1 por placa+dia)
-      var dados = Object.keys(grupos).map(function(key){
-        var entregas = grupos[key];
-        var maiorDist = entregas.reduce(function(a,b){ return b.dist>a.dist ? b : a; }, entregas[0]);
-        var pesoTotal = entregas.reduce(function(s,e){ return s+e.peso; }, 0);
-        var freteTotal = entregas.reduce(function(s,e){ return s+e.frete; }, 0);
-        var destinosUnicos = [];
-        entregas.forEach(function(e){ if(e.destinoCidade && destinosUnicos.indexOf(e.destinoCidade)<0) destinosUnicos.push(e.destinoCidade); });
-
-        var catFrota = getCatFromFrota(entregas[0].placa);
-        var km = maiorDist.dist;
+      // 2) CADA LINHA DA PLANILHA VIRA SEU PRÓPRIO LANÇAMENTO — SEM CONSOLIDAR.
+      // BUG CORRIGIDO: antes, linhas com a mesma placa+dia eram agrupadas e o peso/frete
+      // de todas elas era somado num único lançamento, assumindo que era sempre a mesma
+      // viagem com múltiplas entregas. Um caso real (placa FRO7I25, duas linhas na mesma
+      // data e mesmo destino) provou que isso é uma suposição arriscada — eram duas
+      // viagens DISTINTAS, e a soma gerou pesos acima da capacidade física da categoria
+      // (ex: 32.680 kg numa categoria de 18 toneladas). Cada linha da planilha é uma
+      // viagem própria; se depois descobrir que duas linhas eram de fato a mesma viagem,
+      // isso é uma decisão de revisão manual (ferramenta "Viagens Duplicadas" em
+      // Lançamentos), não uma suposição automática na importação.
+      var dados = linhas.map(function(l){
+        var catFrota = getCatFromFrota(l.placa);
+        var km = l.dist;
         var kmg = Math.min(40, Math.max(1, Math.ceil(km/100) || 1));
 
-        // Verificar se já existe lançamento desse placa+dia no DB.
-        // Se existir, a importação ATUALIZA os dados (frete, peso, km) em vez de duplicar —
-        // cobre o caso de reimportar a mesma planilha depois de preencher o frete.
+        // Verificar se já existe exatamente ESSA linha importada antes (mesma placa+dia+
+        // destino+documento) — cobre reimportar a mesma planilha sem duplicar de novo.
         var idxExistente = -1;
         (DB||[]).some(function(r,i){
-          if(r.placa===entregas[0].placa && r.dt_carg===entregas[0].data && r._importado){ idxExistente=i; return true; }
+          if(r.placa===l.placa && r.dt_carg===l.data && r.destino_cidade===l.destinoCidade
+             && r._docOrigem===l.doc && r._importado){ idxExistente=i; return true; }
           return false;
         });
 
+        // TRAVA DE SEGURANÇA — nunca criar um registro NOVO (potencialmente incompleto)
+        // se já existe uma viagem CONCLUÍDA pra essa mesma placa+dia, mesmo que o destino/
+        // documento não bata exatamente. Era exatamente isso que fazia viagens já
+        // finalizadas "voltarem" pra Em Andamento: a reimportação criava uma segunda
+        // linha incompleta pro mesmo dia, e o Kanban passava a mostrar as duas.
+        var jaTemConcluidaNoDia = idxExistente<0 && (DB||[]).some(function(r){
+          return r.placa===l.placa && r.dt_carg===l.data && typeof tripStatus==='function' && tripStatus(r)==='verde';
+        });
+
         return {
-          placa: entregas[0].placa,
-          data: entregas[0].data,
-          origemCidade: entregas[0].origemCidade || 'SANTA FE DO SUL',
-          ufOrigem: entregas[0].ufOrigem || 'SP',
-          destinoCidade: destinosUnicos.length===1 ? destinosUnicos[0] : ('MÚLTIPLOS DESTINOS ('+destinosUnicos.length+')'),
-          ufDestino: maiorDist.ufDestino || '',
-          destinosDetalhe: destinosUnicos,
-          km: km,
-          kmGrupo: kmg,
-          peso: pesoTotal,
-          frete: freteTotal,
-          nEntregas: entregas.length,
-          categoria: catFrota,
-          semCategoria: !catFrota,
-          freteIncompleto: entregas.some(function(e){ return e.dist===0 && e.frete===0; }),
-          idxExistente: idxExistente,
-          jaExiste: idxExistente>=0,
-          docs: entregas.map(function(e){ return e.doc; })
+          placa: l.placa, data: l.data,
+          origemCidade: l.origemCidade || 'SANTA FE DO SUL', ufOrigem: l.ufOrigem || 'SP',
+          destinoCidade: l.destinoCidade, ufDestino: l.ufDestino,
+          km: km, kmGrupo: kmg, peso: l.peso, frete: l.frete,
+          categoria: catFrota, semCategoria: !catFrota,
+          freteIncompleto: l.dist===0 && l.frete===0,
+          idxExistente: idxExistente, jaExiste: idxExistente>=0,
+          bloqueadoConcluida: jaTemConcluidaNoDia,
+          doc: l.doc
         };
       });
 
@@ -7544,7 +7612,7 @@ function saidImpRenderPreview(dados){
         : d.freteIncompleto
         ? '<span style="background:#fffbeb;color:#92400e;padding:2px 8px;border-radius:4px;font-size:9px;font-weight:700">🔸 Frete pendente</span>'
         : '<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:4px;font-size:9px;font-weight:700">✅ Novo</span>';
-      var destinoTxt = d.destinoCidade + (d.nEntregas>1 ? ' <span style="color:var(--txl);font-weight:400">('+d.nEntregas+' entregas)</span>' : '');
+      var destinoTxt = d.destinoCidade;
       return '<tr style="background:'+bg+'">'
         +'<td style="padding:6px 10px">'+d.data.split('-').reverse().join('/')+'</td>'
         +'<td style="padding:6px 10px;font-weight:700;color:var(--gd)">'+d.placa+'</td>'
@@ -7564,22 +7632,25 @@ function saidImpRenderPreview(dados){
 
 function saidImpConfirmar(){
   if(!_saidImpDados || !_saidImpDados.length){ toast('Nenhum dado para importar','error'); return; }
-  var importados = 0, atualizados = 0, ignoradosSemCat = 0;
+  var importados = 0, atualizados = 0, ignoradosSemCat = 0, bloqueados = 0;
 
   _saidImpDados.forEach(function(d){
     if(d.semCategoria){ ignoradosSemCat++; return; }
+    if(d.bloqueadoConcluida){ bloqueados++; return; }
     var kmLow = (d.kmGrupo-1)*100;
-    var obs = d.nEntregas>1 ? ('Importado — '+d.nEntregas+' entregas no dia: '+d.destinosDetalhe.join(', ')) : 'Importado da planilha';
+    var obs = 'Importado da planilha' + (d.doc ? ' — doc. '+d.doc : '');
 
     if(d.jaExiste && d.idxExistente>=0 && DB[d.idxExistente]){
-      // Lançamento já existe (mesma placa+dia) — ATUALIZA com os dados mais recentes da planilha,
-      // cobrindo o caso de reimportar depois de preencher o frete que antes estava pendente.
+      // Essa exata linha (placa+dia+destino+documento) já tinha sido importada —
+      // ATUALIZA com os dados mais recentes da planilha, cobrindo o caso de reimportar
+      // depois de preencher o frete que antes estava pendente. Nunca soma com outras
+      // linhas — cada linha continua sendo seu próprio lançamento.
       var r = DB[d.idxExistente];
       r.km_grupo = d.kmGrupo; r.km_grupo_label = 'GRUPO '+d.kmGrupo+' ('+kmLow+' a '+(kmLow+99)+')';
       r.km = d.km; r.peso_ent = d.peso; r.vl_ent = d.frete;
       r.destino_cidade = d.destinoCidade; r.destino_uf = d.ufDestino;
       r.destino = d.destinoCidade+'-'+d.ufDestino;
-      r.obs = obs; r._docsOrigem = d.docs;
+      r.obs = obs; r._docOrigem = d.doc;
       atualizados++;
       return;
     }
@@ -7598,7 +7669,7 @@ function saidImpConfirmar(){
       cliente:'', vl_ent: d.frete, is_terceiro:false,
       ft_origem:'', ft_destino:'', ft_peso:0, ft_vton:0, ft_valor:0, ft_pgto:'', ft_conta:'',
       ft_vl_total:0, ft_vl_pago:0, ft_pct_pago:0, ft_dt_pgto:'',
-      _importado: true, _docsOrigem: d.docs
+      _importado: true, _docOrigem: d.doc
     });
     importados++;
   });
@@ -7624,8 +7695,10 @@ function saidImpConfirmar(){
   }
   toast(importados+' novo(s)'
     +(atualizados>0?' · '+atualizados+' atualizado(s)':'')
-    +(ignoradosSemCat>0?' · '+ignoradosSemCat+' ignorado(s) por falta de categoria':''),
+    +(ignoradosSemCat>0?' · '+ignoradosSemCat+' ignorado(s) por falta de categoria':'')
+    +(bloqueados>0?' · ⚠️ '+bloqueados+' linha(s) NÃO importada(s) — já existe viagem Concluída pra essa placa+dia, veja o console':''),
     (importados>0||atualizados>0) ? 'success' : 'error');
+  if(bloqueados>0) console.warn('[Importação] '+bloqueados+' linha(s) da planilha não foram importadas porque já existe uma viagem Concluída pra mesma placa+dia — isso evita criar duplicata que derrubaria o status. Revise manualmente se alguma dessas linhas precisava mesmo entrar.');
 
   saidImpCancelar();
 }
@@ -9204,14 +9277,18 @@ function custoRealCalcularViagem(r){
   });
   if(!cat) return { erro:'Categoria "'+r.categoria+'" não encontrada em FRETE_CATEGORIAS.' };
 
-  // Km real total da viagem: hodômetro (mais preciso) ou, na falta dele, Km Exato ida x2
-  // + deslocamento do retorno já calculado na Etapa 2.
+  // Km real total da viagem: hodômetro (mais preciso) ou, na falta dele, estimativa
+  // pelo Km padrão do grupo — com ou sem deslocamento de retorno, dependendo do caso.
   var kmReal = null, kmFonte = null;
   if(r.km_saida!=null && r.km_final!=null && r.km_final>r.km_saida){
     kmReal = r.km_final - r.km_saida; kmFonte = 'hodômetro (Km Final − Km Saída)';
   } else if(r.km!=null && r.km_desloc_retorno!=null){
     var kmPadrao = (r.km_grupo||0)*100*2;
     kmReal = kmPadrao + r.km_desloc_retorno; kmFonte = 'estimado (Km padrão do grupo + deslocamento)';
+  } else if(r.retorno==='Não' && r.km_grupo!=null){
+    // Retorno vazio sem hodômetro preenchido — usa só o Km padrão de ida e volta do
+    // grupo, sem nenhum ajuste de retorno (não existe perna de retorno pra ajustar).
+    kmReal = (r.km_grupo||0)*100*2; kmFonte = 'estimado (Km padrão do grupo, ida e volta — sem hodômetro registrado)';
   }
 
   // Autonomia: real do mês anterior (Abastecimento) se existir, senão padrão da categoria —
@@ -9225,9 +9302,15 @@ function custoRealCalcularViagem(r){
   var precoDieselReal = precoDiesel!==FRETE_CUSTOS_PADRAO.diesel;
 
   // Dias reais da viagem (Carregamento → Chegada Base) — usado pra ratear custo fixo.
+  // Blindado contra data inválida/malformada: antes, uma data quebrada virava NaN aqui
+  // e contaminava custo total, lucro e margem em cascata (aparecia como "R$ NaN" na
+  // tela inteira, mesmo em viagens sem nenhum problema de verdade).
   var dias = null;
   if(r.dt_carg && r.dt_base){
-    dias = Math.max(1, Math.round((new Date(r.dt_base) - new Date(r.dt_carg)) / 86400000));
+    var _dCarg = new Date(r.dt_carg), _dBase = new Date(r.dt_base);
+    if(!isNaN(_dCarg.getTime()) && !isNaN(_dBase.getTime())){
+      dias = Math.max(1, Math.round((_dBase - _dCarg) / 86400000));
+    }
   }
 
   var itens = {};
@@ -9493,9 +9576,23 @@ function finFiltrosMudaram(){
 // históricas importadas, das quais 278 já tinham as 3 datas preenchidas desde antes desta
 // etapa — sem Km/Motorista, entravam todas juntas na Tabela Executiva, afogando as 4
 // viagens de teste reais e distorcendo os indicadores com dado incompleto.
+// Corte temporário — nesta fase de validação do Financeiro, só entram viagens
+// carregadas a partir desta data. Fácil de remover depois: é só apagar a linha do
+// filtro abaixo (ou mudar a data) quando o histórico anterior for validado também.
+var FIN_DATA_CORTE = '2026-08-01';
 function finViagensFinalizadas(){
+  // BUG CORRIGIDO: exigia motorista + km_saida + km_final preenchidos, mas o critério
+  // de "Concluída" em Lançamentos (tripStatus/tripFields) NUNCA checou esses 3 campos —
+  // então uma viagem podia aparecer como "Concluída (Etapa 1+2 OK)" em Lançamentos e
+  // ficar completamente invisível no Financeiro, sem nenhum aviso. Agora os dois
+  // módulos usam exatamente a mesma definição de "viagem finalizada" (tripStatus).
+  // Motorista/hodômetro continuam melhorando a precisão do custo quando disponíveis
+  // (custoRealCalcularViagem já lida bem com a ausência deles), só não são mais
+  // pré-requisito pra a viagem aparecer no Financeiro.
   return (typeof DB!=='undefined'?DB:[]).filter(function(r){
-    return r.dt_carg && r.dt_desc && r.dt_base && r.motorista && r.km_saida!=null && r.km_final!=null;
+    if(!(typeof tripStatus==='function' && tripStatus(r)==='verde')) return false;
+    if(r.dt_carg && r.dt_carg < FIN_DATA_CORTE) return false;
+    return true;
   });
 }
 function finPopularFiltros(){
@@ -9515,6 +9612,16 @@ function finPopularFiltros(){
   }
   if(selStatus && selStatus.options.length<=1){
     selStatus.innerHTML = selStatus.options[0].outerHTML + FIN_FAIXAS.slice().sort(function(a,b){return b.min-a.min;}).map(function(f){return '<option value="'+f.label+'">'+f.emoji+' '+f.label+'</option>';}).join('');
+  }
+  // Padroniza a visualização inicial pro mês/ano vigente — só na primeira vez que os
+  // filtros são montados (não força toda hora, senão o usuário nunca consegue manter
+  // "Todos os meses" selecionado de propósito depois de escolher).
+  if(!window._finFiltrosDefaultAplicado){
+    window._finFiltrosDefaultAplicado = true;
+    var hoje = new Date();
+    var anoAtual = String(hoje.getFullYear()), mesAtual = String(hoje.getMonth()+1);
+    if(selAno && anos[anoAtual]) selAno.value = anoAtual;
+    if(selMes && meses[mesAtual]) selMes.value = mesAtual;
   }
 }
 function finRenderTabela(){
@@ -15579,6 +15686,409 @@ function mdupMesclar(idxA, idxB, keepLado){
   if(typeof pessRenderQuadro==='function') pessRenderQuadro();
   toast('Motoristas mesclados ✅','success');
   mdupRender();
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   VIAGENS DUPLICADAS — mesma placa + mesma data de carregamento aparecendo
+   mais de uma vez em DB (geralmente uma versão completa/mais avançada no
+   fluxo e outra incompleta/mais antiga). Sugere automaticamente qual manter
+   (prioriza status mais avançado — Concluída > Em Andamento > Incompleta —
+   e, empatado, quem tem mais campos preenchidos), mas SEMPRE deixa o
+   usuário revisar e confirmar antes de remover qualquer coisa, seja um
+   grupo por vez ou tudo de uma vez.
+   ══════════════════════════════════════════════════════════════════════ */
+function vdupPontuar(r){
+  var statusScore = {verde:2, amarelo:1, vermelho:0}[typeof tripStatus==='function' ? tripStatus(r) : ''] || 0;
+  var camposCheios = ['dt_desc','dt_base','km_final','km_saida','motorista','pedagio_real','consumo_real','obs','vl_total','dest_ret_cidade'].filter(function(c){ return r[c]!=null && r[c]!==''; }).length;
+  return statusScore*1000 + camposCheios;
+}
+var VDUP_IGNORE_KEY = 'raguife_vdup_ignorados_v1';
+function vdupIgnoradosCarregar(){
+  try{ return JSON.parse(localStorage.getItem(VDUP_IGNORE_KEY)||'{}'); }catch(e){ return {}; }
+}
+function vdupIgnoradosSalvar(obj){
+  try{ localStorage.setItem(VDUP_IGNORE_KEY, JSON.stringify(obj)); }catch(e){}
+}
+// Peso é o sinal mais confiável pra saber QUANTAS viagens reais existem dentro de um
+// mesmo placa+data: registros com o mesmo peso são quase sempre fragmentos da MESMA
+// viagem (destino/campos preenchidos de formas diferentes por causa de reimportações);
+// registros com peso DIFERENTE são viagens comerciais distintas de verdade, mesmo que
+// aconteçam no mesmo dia. Por isso o agrupamento agora é em dois níveis: placa+data
+// primeiro, depois peso dentro de cada um — cada peso resolvido separadamente, sem
+// nunca misturar dois pesos diferentes na mesma decisão de "manter/mesclar".
+function vdupDetectar(){
+  var gruposPai = {};
+  var ignorados = vdupIgnoradosCarregar();
+  DB.forEach(function(r, i){
+    if(!r.placa || !r.dt_carg) return;
+    var chavePai = r.placa+'_'+r.dt_carg;
+    if(!gruposPai[chavePai]) gruposPai[chavePai] = [];
+    gruposPai[chavePai].push(i);
+  });
+  var resultado = [];
+  Object.keys(gruposPai).forEach(function(chavePai){
+    var indicesPai = gruposPai[chavePai];
+    if(indicesPai.length<=1) return;
+
+    var porPeso = {};
+    indicesPai.forEach(function(i){
+      var pesoChave = (DB[i].peso_ent!=null && DB[i].peso_ent!=='') ? String(Math.round(DB[i].peso_ent)) : 'sem_peso';
+      if(!porPeso[pesoChave]) porPeso[pesoChave] = [];
+      porPeso[pesoChave].push(i);
+    });
+
+    var subgrupos = [];
+    Object.keys(porPeso).forEach(function(pesoChave){
+      var indices = porPeso[pesoChave];
+      if(indices.length<=1) return; // esse peso já só tem 1 registro — não é duplicata
+      var chave = chavePai+'_p'+pesoChave;
+      if(ignorados[chave]) return;
+      var melhorIdx = indices.slice().sort(function(a,b){ return vdupPontuar(DB[b])-vdupPontuar(DB[a]); })[0];
+
+      // Restauração de status é SEGURA quando existe exatamente uma versão Concluída
+      // dentro desse peso e as demais são claramente sobras vazias (sem Data Descarga/
+      // Chegada Base) — nunca mistura pesos diferentes nessa decisão.
+      var verdes = indices.filter(function(i){ return tripStatus(DB[i])==='verde'; });
+      var statusRestauracaoSegura = false;
+      if(verdes.length===1){
+        statusRestauracaoSegura = indices.filter(function(i){ return i!==verdes[0]; })
+          .every(function(i){ var o=DB[i]; return !o.dt_desc && !o.dt_base; });
+      }
+      subgrupos.push({chave:chave, indices:indices, sugestaoManter:melhorIdx, statusRestauracaoSegura:statusRestauracaoSegura, peso:pesoChave});
+    });
+
+    if(subgrupos.length){
+      resultado.push({chavePai:chavePai, totalNoDia:indicesPai.length, subgrupos:subgrupos});
+    }
+  });
+  return resultado;
+}
+function vdupAbrir(){
+  var ov = document.getElementById('vdup-modal-overlay');
+  if(ov) ov.classList.remove('hidden');
+  window._vdupGrupos = vdupDetectar();
+  window._vdupEscolhas = {};
+  window._vdupCapacidade = vdupCapacidadeDetectar();
+  vdupRender();
+}
+// Detecta viagens com peso de entrega ACIMA da capacidade cadastrada da categoria —
+// forte indício de que a importação antiga somou peso de mais de uma viagem/entrega
+// num único registro (mesma causa raiz do problema do FRO7I25, só que sem
+// necessariamente ter outro registro duplicado por placa+data pra comparar).
+// Diferente da detecção de duplicados: aqui não dá pra "desfazer" automaticamente —
+// não sabemos qual era o peso de cada entrega original — então essa seção é só um
+// alerta de auditoria, pra você decidir caso a caso (editar manualmente, ou re-enviar
+// a planilha original de origem pra eu tentar reconstruir).
+function vdupCapacidadeDetectar(){
+  var ignorados = vdupCapIgnoradosCarregar();
+  var achados = [];
+  DB.forEach(function(r, i){
+    if(!r.peso_ent || !r.categoria) return;
+    var cat = (typeof FRETE_CATEGORIAS!=='undefined') ? FRETE_CATEGORIAS.find(function(c){return c.nome.toUpperCase()===String(r.categoria).toUpperCase();}) : null;
+    if(!cat || !cat.capacidade) return;
+    var capKg = cat.capacidade*1000;
+    if(r.peso_ent <= capKg) return;
+    var chave = 'cap_'+i+'_'+r.placa+'_'+r.dt_carg;
+    if(ignorados[chave]) return;
+    achados.push({idx:i, chave:chave, capKg:capKg});
+  });
+  return achados;
+}
+var VDUP_CAP_IGNORE_KEY = 'raguife_vdup_cap_ignorados_v1';
+function vdupCapIgnoradosCarregar(){
+  try{ return JSON.parse(localStorage.getItem(VDUP_CAP_IGNORE_KEY)||'{}'); }catch(e){ return {}; }
+}
+function vdupCapIgnoradosSalvar(obj){
+  try{ localStorage.setItem(VDUP_CAP_IGNORE_KEY, JSON.stringify(obj)); }catch(e){}
+}
+function vdupCapIgnorar(chave){
+  var ign = vdupCapIgnoradosCarregar();
+  ign[chave] = true;
+  vdupCapIgnoradosSalvar(ign);
+  window._vdupCapacidade = vdupCapacidadeDetectar();
+  vdupRender();
+}
+function vdupFechar(e){
+  if(e && e.target!==document.getElementById('vdup-modal-overlay')) return;
+  document.getElementById('vdup-modal-overlay').classList.add('hidden');
+}
+function vdupEscolher(chave, idx){
+  window._vdupEscolhas[chave] = idx;
+  vdupRender();
+}
+function vdupRender(){
+  var grupos = window._vdupGrupos || [];
+  var todosSubgrupos = [];
+  grupos.forEach(function(g){ g.subgrupos.forEach(function(sg){ todosSubgrupos.push(sg); }); });
+  var segurosCount = todosSubgrupos.filter(function(sg){ return sg.statusRestauracaoSegura; }).length;
+  var sub = document.getElementById('vdup-sub');
+  if(sub) sub.textContent = todosSubgrupos.length ? todosSubgrupos.length+' viagem(ns) duplicada(s) encontrada(s), em '+grupos.length+' dia(s)/placa(s) — revise antes de aplicar' : 'Nenhuma duplicidade encontrada — base limpa ✅';
+  var toolbar = document.getElementById('vdup-toolbar');
+  if(toolbar){
+    var msgPeso = '<div style="font-size:12px;color:var(--txm)">Cada placa+data pode ter mais de uma viagem real no mesmo dia — por isso agora agrupamos por <b>peso</b> também: pesos diferentes nunca são tratados como a mesma viagem. Revise cada peso antes de mesclar.</div>';
+    var btnSeguro = segurosCount>0 ? (
+      '<button class="btn-prim" style="white-space:nowrap;flex-shrink:0" onclick="vdupRestaurarStatusSeguros()">✅ Restaurar status em '+segurosCount+' viagem(ns) (marcadas 🔵 abaixo)</button>'
+    ) : '';
+    toolbar.innerHTML = grupos.length ? (msgPeso + btnSeguro) : '';
+    if(segurosCount>0){
+      toolbar.innerHTML += '<div style="font-size:11px;color:#1e40af;margin-top:6px;flex-basis:100%">🔵 1 versão Concluída + sobra(s) vazia(s) sem Data Descarga/Chegada Base, mesmo peso — restaurar só remove a sobra, não mexe em peso nem receita.</div>';
+    }
+  }
+  var body = document.getElementById('vdup-body');
+  if(!body) return;
+  if(!grupos.length){
+    body.innerHTML = '<div style="padding:32px;text-align:center;color:var(--txl)">✅ Nenhuma viagem duplicada (mesma placa+data) encontrada.</div>';
+  } else {
+  var STATUS_LABEL = {verde:'Concluída', amarelo:'Em Andamento', vermelho:'Incompleta'};
+  var STATUS_COR = {verde:'#166534', amarelo:'#92400e', vermelho:'#991b1b'};
+  var STATUS_BG = {verde:'#dcfce7', amarelo:'#fef3c7', vermelho:'#fee2e2'};
+  body.innerHTML = grupos.map(function(grupo){
+    var primeiroUnderscore = grupo.chavePai.indexOf('_');
+    var placa = grupo.chavePai.slice(0, primeiroUnderscore), data = grupo.chavePai.slice(primeiroUnderscore+1);
+
+    var blocosSubgrupo = grupo.subgrupos.map(function(sg, si){
+      var escolhaAtual = window._vdupEscolhas[sg.chave] != null ? window._vdupEscolhas[sg.chave] : sg.sugestaoManter;
+      var linhas = sg.indices.map(function(i){
+        var r = DB[i];
+        var st = tripStatus(r);
+        var camposCheios = ['dt_desc','dt_base','km_final','km_saida','motorista'].filter(function(c){return r[c]!=null && r[c]!=='';}).length;
+        var sel = i===escolhaAtual;
+        return '<label style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:6px;cursor:pointer;background:'+(sel?'#eff6ff':'transparent')+'" onclick="vdupEscolher(\''+sg.chave.replace(/'/g,"\\'")+'\','+i+')">'
+          +'<input type="radio" '+(sel?'checked':'')+' style="pointer-events:none;flex-shrink:0">'
+          +'<span style="font-size:9.5px;font-weight:700;padding:2px 8px;border-radius:10px;background:'+STATUS_BG[st]+';color:'+STATUS_COR[st]+';flex-shrink:0;white-space:nowrap">'+STATUS_LABEL[st]+'</span>'
+          +'<span style="font-size:11px;flex:1;color:var(--txm)">'+(r.destino_cidade||'—')+'/'+(r.destino_uf||'')+' · desc: '+(r.dt_desc||'—')+' · base: '+(r.dt_base||'—')+' · '+camposCheios+' campo(s) preenchido(s)</span>'
+        +'</label>';
+      }).join('');
+      var acoes = '<div style="display:flex;gap:8px;margin:6px 0 2px 20px">'
+        +'<button type="button" class="btn-sec" style="font-size:10px;padding:4px 9px" onclick="vdupAplicarGrupo(\''+sg.chave.replace(/'/g,"\\'")+'\')">✅ Mesma viagem — manter só a marcada</button>'
+        +'<button type="button" class="btn-sec" style="font-size:10px;padding:4px 9px" onclick="vdupIgnorarGrupo(\''+sg.chave.replace(/'/g,"\\'")+'\')">➡️ Ignorar este peso</button>'
+      +'</div>';
+      var tagSeguro = sg.statusRestauracaoSegura ? '<span style="font-size:9px;font-weight:700;color:#1e40af;margin-left:6px">🔵 restauração segura</span>' : '';
+      var pesoLbl = sg.peso==='sem_peso' ? 'sem peso' : N(parseFloat(sg.peso),0)+' kg';
+      return '<div style="border-left:3px solid #cbd5e1;padding:8px 0 8px 12px;margin-top:8px">'
+        +'<div style="font-size:10.5px;font-weight:700;color:var(--txm);margin-bottom:4px">Peso: <b style="color:var(--gd)">'+pesoLbl+'</b> — '+sg.indices.length+' registro(s)'+tagSeguro+'</div>'
+        +linhas
+        +acoes
+      +'</div>';
+    }).join('');
+
+    return '<div style="border:1px solid var(--gb);border-radius:8px;padding:12px;margin-bottom:12px">'
+      +'<div style="font-size:12px;font-weight:700;color:var(--gd)">'+placa+' · '+data+' <span style="font-weight:400;color:var(--txl);font-size:10.5px">— '+grupo.totalNoDia+' registro(s) nesse dia, '+grupo.subgrupos.length+' peso(s) distinto(s) com duplicata</span></div>'
+      +blocosSubgrupo
+    +'</div>';
+  }).join('');
+  }
+
+  // Seção 2: peso acima da capacidade da categoria — auditoria, não tem "aplicar
+  // automático" porque não sabemos qual era o peso de cada entrega original.
+  var cap = window._vdupCapacidade || [];
+  var capHtml = '';
+  if(cap.length){
+    capHtml = '<div style="margin-top:24px;padding-top:16px;border-top:2px solid var(--gb)">'
+      +'<div style="font-size:12px;font-weight:700;color:#991b1b;margin-bottom:6px">⚠️ '+cap.length+' viagem(ns) com peso acima da capacidade da categoria</div>'
+      +'<div style="font-size:11px;color:var(--txl);margin-bottom:12px">Forte indício de que a importação antiga somou peso de mais de uma entrega num só registro — mesma causa raiz do caso FRO7I25, mesmo sem ter outro registro duplicado por placa+data pra comparar. Não dá pra desfazer automaticamente (não sabemos o peso de cada entrega original) — precisa de revisão manual, ou reenviar a planilha de origem.</div>'
+      +cap.map(function(item){
+        var r = DB[item.idx];
+        return '<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid #fecaca;background:#fef2f2;border-radius:6px;margin-bottom:6px">'
+          +'<span style="font-size:11px;font-weight:700;color:var(--gd)">'+r.placa+'</span>'
+          +'<span style="font-size:11px;color:var(--txm);flex:1">'+(r.dt_carg||'—')+' · '+(r.destino_cidade||'—')+'/'+(r.destino_uf||'')+' · '+r.categoria+' (cap. '+N(item.capKg,0)+' kg)</span>'
+          +'<span style="font-size:11px;font-weight:700;color:#dc2626">'+N(r.peso_ent,0)+' kg</span>'
+          +'<button type="button" class="btn-sec" style="font-size:10px;padding:4px 8px" onclick="openModal('+item.idx+')">Editar</button>'
+          +'<button type="button" class="btn-sec" style="font-size:10px;padding:4px 8px" onclick="vdupCapIgnorar(\''+item.chave+'\')">Já revisei — ignorar</button>'
+        +'</div>';
+      }).join('')
+    +'</div>';
+  }
+  document.getElementById('vdup-body').innerHTML += capHtml;
+}
+// Mescla os campos que faltarem no registro escolhido a partir dos outros do grupo
+// (nunca sobrescreve o que ele já tem), depois remove os demais.
+//
+// IMPORTANTE — peso e receita de entrega NÃO são somados automaticamente. O caso
+// FRO7I25 (mesma placa, mesma data, mesmo destino) mostrou que nem essa combinação
+// garante que são entregas da mesma viagem — podem ser duas viagens distintas de
+// verdade. Sem um campo confiável pra diferenciar os dois casos (ex: número do
+// documento, horário de saída), a decisão de somar peso vira uma aposta arriscada
+// em massa. Por segurança, esta ferramenta serve só pra escolher qual registro
+// manter quando for claramente a mesma viagem (dado duplicado de importação) —
+// consolidar peso de múltiplas entregas de uma mesma viagem é uma decisão que
+// precisa de revisão manual, caso a caso, não automação em lote.
+function vdupMesclarGrupo(grupo, manterIdx, indicesRemoverOut){
+  var manter = DB[manterIdx];
+  grupo.indices.forEach(function(i){
+    if(i===manterIdx) return;
+    var outro = DB[i];
+    Object.keys(outro).forEach(function(campo){
+      if((manter[campo]==null || manter[campo]==='') && outro[campo]!=null && outro[campo]!=='') manter[campo]=outro[campo];
+    });
+    indicesRemoverOut.push(i);
+  });
+}
+function vdupBuscarSubgrupo(chave){
+  var grupos = window._vdupGrupos || [];
+  for(var i=0;i<grupos.length;i++){
+    var sg = grupos[i].subgrupos.find(function(s){ return s.chave===chave; });
+    if(sg) return sg;
+  }
+  return null;
+}
+function vdupAplicarGrupo(chave){
+  var grupo = vdupBuscarSubgrupo(chave);
+  if(!grupo) return;
+  var manterIdx = window._vdupEscolhas[chave] != null ? window._vdupEscolhas[chave] : grupo.sugestaoManter;
+  var manter = DB[manterIdx];
+  if(!confirm('Confirma que os '+grupo.indices.length+' registros desse peso são a MESMA viagem duplicada?\n\n'
+    +'Vai manter o registro '+(manter.destino_cidade||'')+'/'+(manter.destino_uf||'')+' e remover os outros '+(grupo.indices.length-1)+', preenchendo com o que faltar entre eles.\n\n'
+    +'Essa ação não pode ser desfeita automaticamente.')) return;
+
+  var indicesRemover = [];
+  vdupMesclarGrupo(grupo, manterIdx, indicesRemover);
+  indicesRemover.sort(function(a,b){return b-a;}).forEach(function(i){ DB.splice(i,1); });
+
+  save();
+  toast('Viagem duplicada resolvida ✅','success');
+  if(typeof renderKanban==='function') renderKanban();
+  if(typeof renderRecs==='function') renderRecs();
+  if(typeof renderAll==='function') renderAll();
+
+  window._vdupGrupos = vdupDetectar();
+  vdupRender();
+}
+function vdupIgnorarGrupo(chave){
+  var ign = vdupIgnoradosCarregar();
+  ign[chave] = true;
+  vdupIgnoradosSalvar(ign);
+  window._vdupGrupos = vdupDetectar();
+  vdupRender();
+}
+// Restauração de status em massa — só aplica nos sub-grupos (peso) marcados como
+// "statusRestauracaoSegura" (1 versão Concluída + sobra(s) vazia(s) da importação,
+// dentro do MESMO peso). Diferente de mesclar peso: aqui a sobra realmente não
+// carrega informação própria, então remover ela não perde nada — só restaura a viagem
+// pro status que já era antes da importação bagunçar.
+function vdupRestaurarStatusSeguros(){
+  var todosSubgrupos = [];
+  (window._vdupGrupos||[]).forEach(function(g){ g.subgrupos.forEach(function(sg){ todosSubgrupos.push(sg); }); });
+  var seguros = todosSubgrupos.filter(function(sg){ return sg.statusRestauracaoSegura; });
+  if(!seguros.length) return;
+  if(!confirm('Restaurar o status de '+seguros.length+' viagem(ns)?\n\n'
+    +'Cada uma tem 1 versão já Concluída e outra(s) versão(ões) vazia(s), do mesmo peso, que sobraram de uma importação — as vazias serão removidas, a Concluída fica como está.\n\n'
+    +'Isso não mexe em peso nem receita de nenhuma viagem.')) return;
+
+  var indicesRemover = [];
+  seguros.forEach(function(sg){
+    var manterIdx = sg.indices.find(function(i){ return tripStatus(DB[i])==='verde'; });
+    if(manterIdx==null) return;
+    sg.indices.forEach(function(i){ if(i!==manterIdx) indicesRemover.push(i); });
+  });
+  indicesRemover.sort(function(a,b){return b-a;}).forEach(function(i){ DB.splice(i,1); });
+
+  save();
+  toast(seguros.length+' viagem(ns) com status restaurado ✅','success');
+  if(typeof renderKanban==='function') renderKanban();
+  if(typeof renderRecs==='function') renderRecs();
+  if(typeof renderAll==='function') renderAll();
+  if(typeof finRefreshSeVisivel==='function') finRefreshSeVisivel();
+
+  window._vdupGrupos = vdupDetectar();
+  vdupRender();
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   ARQUIVAR VIAGENS ANTIGAS INCOMPLETAS — viagens "Em Andamento" (Etapa 2
+   nunca preenchida) de antes de uma data de corte, que não fazem mais
+   parte da operação vigente e distorcem KPIs/custos/dashboards (peso,
+   receita e contagem de viagem entram nos totais mesmo sem a viagem ter
+   sido concluída de verdade). Diferente de excluir: o registro é movido
+   pra um arquivo histórico separado em localStorage — sai do caminho dos
+   cálculos ativos, mas nunca é apagado de verdade, recuperável se precisar.
+   ══════════════════════════════════════════════════════════════════════ */
+var ARQ_HISTORICO_KEY = 'raguife_arquivo_historico_v1';
+function arqHistoricoCarregar(){
+  try{ return JSON.parse(localStorage.getItem(ARQ_HISTORICO_KEY)||'[]'); }catch(e){ return []; }
+}
+function arqHistoricoSalvar(arr){
+  try{ localStorage.setItem(ARQ_HISTORICO_KEY, JSON.stringify(arr)); }catch(e){}
+}
+function arqAbrir(){
+  var ov = document.getElementById('arq-modal-overlay');
+  if(ov) ov.classList.remove('hidden');
+  var catSel = document.getElementById('arq-cat');
+  var dataSel = document.getElementById('arq-data-corte');
+  if(catSel && !catSel.value) catSel.value = 'BITRUCK SILO';
+  if(dataSel && !dataSel.value) dataSel.value = '2026-08-01';
+  arqRender();
+}
+function arqFechar(e){
+  if(e && e.target!==document.getElementById('arq-modal-overlay')) return;
+  document.getElementById('arq-modal-overlay').classList.add('hidden');
+}
+function arqDetectar(){
+  var cat = (document.getElementById('arq-cat')||{}).value || '';
+  var corte = (document.getElementById('arq-data-corte')||{}).value || '';
+  if(!corte) return [];
+  var achados = [];
+  DB.forEach(function(r, i){
+    if(typeof tripStatus!=='function' || tripStatus(r)!=='amarelo') return;
+    if(!r.dt_carg || r.dt_carg >= corte) return;
+    if(cat && String(r.categoria||'').toUpperCase()!==cat.toUpperCase()) return;
+    achados.push(i);
+  });
+  return achados;
+}
+function arqRender(){
+  var indices = arqDetectar();
+  window._arqIndices = indices;
+  var resumo = document.getElementById('arq-resumo');
+  var corte = (document.getElementById('arq-data-corte')||{}).value || '';
+  if(resumo) resumo.textContent = corte
+    ? indices.length+' viagem(ns) "Em Andamento" encontrada(s), carregadas antes de '+corte.split('-').reverse().join('/')
+    : 'Escolha uma data de corte pra ver o que seria arquivado.';
+  var btn = document.getElementById('arq-btn-aplicar');
+  if(btn) btn.disabled = indices.length===0;
+
+  var body = document.getElementById('arq-body');
+  if(!body) return;
+  if(!indices.length){
+    body.innerHTML = '<div style="padding:24px;text-align:center;color:var(--txl)">Nenhuma viagem encontrada com esse filtro.</div>';
+    return;
+  }
+  body.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:11.5px">'
+    +'<thead><tr style="background:var(--bg-chip)"><th style="padding:6px 10px;text-align:left">Placa</th><th style="padding:6px 10px;text-align:left">Categoria</th><th style="padding:6px 10px;text-align:left">Data Carg.</th><th style="padding:6px 10px;text-align:left">Destino</th><th style="padding:6px 10px;text-align:right">Peso</th></tr></thead>'
+    +'<tbody>'+indices.map(function(i){
+      var r = DB[i];
+      return '<tr><td style="padding:5px 10px;font-weight:700;color:var(--gd)">'+r.placa+'</td>'
+        +'<td style="padding:5px 10px">'+(r.categoria||'—')+'</td>'
+        +'<td style="padding:5px 10px">'+(r.dt_carg||'—')+'</td>'
+        +'<td style="padding:5px 10px">'+(r.destino_cidade||'—')+'/'+(r.destino_uf||'')+'</td>'
+        +'<td style="padding:5px 10px;text-align:right">'+(r.peso_ent?N(r.peso_ent,0)+' kg':'—')+'</td></tr>';
+    }).join('')+'</tbody></table>';
+}
+function arqAplicar(){
+  var indices = window._arqIndices || [];
+  if(!indices.length) return;
+  if(!confirm('Arquivar '+indices.length+' viagem(ns)?\n\n'
+    +'Elas saem da base ativa (não entram mais em Kanban, Dashboard, custos, Financeiro) e vão pra um histórico separado — nada é apagado de verdade, fica recuperável se precisar depois.\n\n'
+    +'Confirma?')) return;
+
+  var historico = arqHistoricoCarregar();
+  var dtArquivamento = new Date().toISOString();
+  indices.slice().sort(function(a,b){return a-b;}).forEach(function(i){
+    var r = DB[i];
+    historico.push(Object.assign({}, r, {_arquivadoEm:dtArquivamento, _motivoArquivamento:'Em Andamento antiga, fora da operação vigente'}));
+  });
+  arqHistoricoSalvar(historico);
+
+  indices.slice().sort(function(a,b){return b-a;}).forEach(function(i){ DB.splice(i,1); });
+
+  save();
+  toast(indices.length+' viagem(ns) arquivada(s) ✅','success');
+  if(typeof renderKanban==='function') renderKanban();
+  if(typeof renderRecs==='function') renderRecs();
+  if(typeof renderAll==='function') renderAll();
+  if(typeof finRefreshSeVisivel==='function') finRefreshSeVisivel();
+
+  arqRender();
 }
 
 function pessRenderQuadro(){
