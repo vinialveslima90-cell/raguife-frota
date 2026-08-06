@@ -15697,6 +15697,98 @@ function mdupMesclar(idxA, idxB, keepLado){
    usuário revisar e confirmar antes de remover qualquer coisa, seja um
    grupo por vez ou tudo de uma vez.
    ══════════════════════════════════════════════════════════════════════ */
+// ══════════════════════════════════════════════════════════════════════
+// CASOS CONHECIDOS — Bitruck Silo com peso duplicado, confirmados contra a
+// planilha comercial original (TESTE_VINICIUS_01_a_04_08.xlsx, período
+// 01/07 a 04/08/2026). Cada entrada tem os dados exatos de cada perna
+// (destino, peso, valor, documento) — não é heurística, é o dado real.
+// ══════════════════════════════════════════════════════════════════════
+var BITRUCK_SILO_CASOS_CONHECIDOS = [{"placa": "FJU7I19", "dt_carg": "2026-07-01", "pernas": [{"destino_cidade": "SANTA FE DO SUL", "destino_uf": "SP", "peso_ent": 16580.0, "vl_ent": 1326.4, "doc": "125605"}, {"destino_cidade": "TRES FRONTEIRAS", "destino_uf": "SP", "peso_ent": 16580.0, "vl_ent": 1326.4, "doc": "125640"}]}, {"placa": "GAA6D72", "dt_carg": "2026-07-02", "pernas": [{"destino_cidade": "SANTA FE DO SUL", "destino_uf": "SP", "peso_ent": 15500.0, "vl_ent": 1240.0, "doc": "125643"}, {"destino_cidade": "TRES FRONTEIRAS", "destino_uf": "SP", "peso_ent": 15500.0, "vl_ent": 1240.0, "doc": "125644"}]}, {"placa": "GAA6D72", "dt_carg": "2026-07-03", "pernas": [{"destino_cidade": "SANTA FE DO SUL", "destino_uf": "SP", "peso_ent": 14980.0, "vl_ent": 1198.4, "doc": "125773"}, {"destino_cidade": "TRES FRONTEIRAS", "destino_uf": "SP", "peso_ent": 14980.0, "vl_ent": 1198.4, "doc": "125774"}]}, {"placa": "BBR9F63", "dt_carg": "2026-07-06", "pernas": [{"destino_cidade": "RUBINEIA", "destino_uf": "SP", "peso_ent": 36200.0, "vl_ent": 1448.0, "doc": "125824"}, {"destino_cidade": "BOM DESPACHO", "destino_uf": "MG", "peso_ent": 28520.0, "vl_ent": 0.0, "doc": "125853"}]}, {"placa": "FRO7I25", "dt_carg": "2026-07-06", "pernas": [{"destino_cidade": "SANTA FE DO SUL", "destino_uf": "SP", "peso_ent": 16960.0, "vl_ent": 1356.8, "doc": "125830"}, {"destino_cidade": "SANTA FE DO SUL", "destino_uf": "SP", "peso_ent": 15480.0, "vl_ent": 1238.4, "doc": "125862"}, {"destino_cidade": "SANTA FE DO SUL", "destino_uf": "SP", "peso_ent": 15480.0, "vl_ent": 1238.4, "doc": "125863"}]}, {"placa": "FSG6F45", "dt_carg": "2026-07-06", "pernas": [{"destino_cidade": "SANTA FE DO SUL", "destino_uf": "SP", "peso_ent": 15060.0, "vl_ent": 1204.8, "doc": "125833"}, {"destino_cidade": "TRES FRONTEIRAS", "destino_uf": "SP", "peso_ent": 15060.0, "vl_ent": 1204.8, "doc": "125834"}]}, {"placa": "FVA7B11", "dt_carg": "2026-07-06", "pernas": [{"destino_cidade": "SANTA ALBERTINA", "destino_uf": "SP", "peso_ent": 17180.0, "vl_ent": 1374.4, "doc": "125827"}, {"destino_cidade": "ILHA SOLTEIRA", "destino_uf": "SP", "peso_ent": 17180.0, "vl_ent": 1374.4, "doc": "125828"}]}, {"placa": "FDC4J75", "dt_carg": "2026-07-07", "pernas": [{"destino_cidade": "RUBINEIA", "destino_uf": "SP", "peso_ent": 16940.0, "vl_ent": 1355.2, "doc": "125912"}, {"destino_cidade": "PANORAMA", "destino_uf": "SP", "peso_ent": 15820.0, "vl_ent": 2056.6, "doc": "125932"}]}, {"placa": "GAA5F32", "dt_carg": "2026-07-07", "pernas": [{"destino_cidade": "RUBINEIA", "destino_uf": "SP", "peso_ent": 18740.0, "vl_ent": 1499.2, "doc": "125910"}, {"destino_cidade": "EUCLIDES DA CUNHA PAULISTA", "destino_uf": "SP", "peso_ent": 15540.0, "vl_ent": 3729.6, "doc": "125934"}]}, {"placa": "GAA6D72", "dt_carg": "2026-07-07", "pernas": [{"destino_cidade": "SANTA FE DO SUL", "destino_uf": "SP", "peso_ent": 16140.0, "vl_ent": 1291.2, "doc": "125920"}, {"destino_cidade": "TRES FRONTEIRAS", "destino_uf": "SP", "peso_ent": 16140.0, "vl_ent": 1291.2, "doc": "125921"}]}, {"placa": "BBR9F63", "dt_carg": "2026-07-08", "pernas": [{"destino_cidade": "BOM DESPACHO", "destino_uf": "MG", "peso_ent": 30440.0, "vl_ent": 0.0, "doc": "125964"}, {"destino_cidade": "CACHOEIRA DOURADA", "destino_uf": "MG", "peso_ent": 1000.0, "vl_ent": 120.0, "doc": "125965"}]}, {"placa": "FJU7I19", "dt_carg": "2026-07-08", "pernas": [{"destino_cidade": "RUBINEIA", "destino_uf": "SP", "peso_ent": 16500.0, "vl_ent": 1320.0, "doc": "125956"}, {"destino_cidade": "RUBINEIA", "destino_uf": "SP", "peso_ent": 16800.0, "vl_ent": 1344.0, "doc": "125987"}]}, {"placa": "GEJ1889", "dt_carg": "2026-07-08", "pernas": [{"destino_cidade": "RUBINEIA", "destino_uf": "SP", "peso_ent": 17080.0, "vl_ent": 1366.4, "doc": "125943"}, {"destino_cidade": "RUBINEIA", "destino_uf": "SP", "peso_ent": 17540.0, "vl_ent": 1403.2, "doc": "125969"}]}, {"placa": "BBG1D34", "dt_carg": "2026-07-10", "pernas": [{"destino_cidade": "RUBINEIA", "destino_uf": "SP", "peso_ent": 16980.0, "vl_ent": 1358.4, "doc": "126019"}, {"destino_cidade": "RUBINEIA", "destino_uf": "SP", "peso_ent": 16100.0, "vl_ent": 1288.0, "doc": "126078"}]}, {"placa": "FJU7I19", "dt_carg": "2026-07-10", "pernas": [{"destino_cidade": "SANTA FE DO SUL", "destino_uf": "SP", "peso_ent": 16400.0, "vl_ent": 1312.0, "doc": "126075"}, {"destino_cidade": "TRES FRONTEIRAS", "destino_uf": "SP", "peso_ent": 16400.0, "vl_ent": 1312.0, "doc": "126076"}]}, {"placa": "FRO7I25", "dt_carg": "2026-07-10", "pernas": [{"destino_cidade": "SANTA FE DO SUL", "destino_uf": "SP", "peso_ent": 16260.0, "vl_ent": 1300.8, "doc": "126015"}, {"destino_cidade": "TRES FRONTEIRAS", "destino_uf": "SP", "peso_ent": 16260.0, "vl_ent": 1300.8, "doc": "126016"}, {"destino_cidade": "SANTA FE DO SUL", "destino_uf": "SP", "peso_ent": 16120.0, "vl_ent": 1289.6, "doc": "126069"}]}, {"placa": "GEJ1889", "dt_carg": "2026-07-10", "pernas": [{"destino_cidade": "RUBINEIA", "destino_uf": "SP", "peso_ent": 17060.0, "vl_ent": 1364.8, "doc": "126012"}, {"destino_cidade": "RUBINEIA", "destino_uf": "SP", "peso_ent": 17020.0, "vl_ent": 1361.6, "doc": "126070"}]}, {"placa": "BBR9F63", "dt_carg": "2026-07-13", "pernas": [{"destino_cidade": "SANTA FE DO SUL", "destino_uf": "SP", "peso_ent": 35800.0, "vl_ent": 1432.0, "doc": "126190"}, {"destino_cidade": "TRES FRONTEIRAS", "destino_uf": "SP", "peso_ent": 35800.0, "vl_ent": 1432.0, "doc": "126191"}]}, {"placa": "GAA5F32", "dt_carg": "2026-07-13", "pernas": [{"destino_cidade": "SANTA ALBERTINA", "destino_uf": "SP", "peso_ent": 15860.0, "vl_ent": 1268.8, "doc": "126160"}, {"destino_cidade": "ILHA SOLTEIRA", "destino_uf": "SP", "peso_ent": 15860.0, "vl_ent": 1268.8, "doc": "126161"}]}, {"placa": "FJU7I19", "dt_carg": "2026-07-14", "pernas": [{"destino_cidade": "SANTA FE DO SUL", "destino_uf": "SP", "peso_ent": 16640.0, "vl_ent": 1331.2, "doc": "126203"}, {"destino_cidade": "TRES FRONTEIRAS", "destino_uf": "SP", "peso_ent": 16640.0, "vl_ent": 1331.2, "doc": "126204"}, {"destino_cidade": "SANTA FE DO SUL", "destino_uf": "SP", "peso_ent": 16380.0, "vl_ent": 1310.4, "doc": "126229"}, {"destino_cidade": "TRES FRONTEIRAS", "destino_uf": "SP", "peso_ent": 16380.0, "vl_ent": 1310.4, "doc": "126230"}]}, {"placa": "FVA7B11", "dt_carg": "2026-07-16", "pernas": [{"destino_cidade": "SANTA FE DO SUL", "destino_uf": "SP", "peso_ent": 14880.0, "vl_ent": 1190.4, "doc": "126295"}, {"destino_cidade": "SANTA FE DO SUL", "destino_uf": "SP", "peso_ent": 14880.0, "vl_ent": 1190.4, "doc": "126296"}]}, {"placa": "FRO7I25", "dt_carg": "2026-07-17", "pernas": [{"destino_cidade": "RUBINEIA", "destino_uf": "SP", "peso_ent": 15960.0, "vl_ent": 1276.8, "doc": "126399"}, {"destino_cidade": "RUBINEIA", "destino_uf": "SP", "peso_ent": 16620.0, "vl_ent": 1329.6, "doc": "126475"}]}, {"placa": "FSG6F45", "dt_carg": "2026-07-17", "pernas": [{"destino_cidade": "SANTA FE DO SUL", "destino_uf": "SP", "peso_ent": 16760.0, "vl_ent": 1340.8, "doc": "126470"}, {"destino_cidade": "TRES FRONTEIRAS", "destino_uf": "SP", "peso_ent": 16760.0, "vl_ent": 1340.8, "doc": "126471"}]}, {"placa": "FVU8I30", "dt_carg": "2026-07-17", "pernas": [{"destino_cidade": "SANTA FE DO SUL", "destino_uf": "SP", "peso_ent": 16660.0, "vl_ent": 1332.8, "doc": "126463"}, {"destino_cidade": "TRES FRONTEIRAS", "destino_uf": "SP", "peso_ent": 16660.0, "vl_ent": 1332.8, "doc": "126464"}]}, {"placa": "FJU7I19", "dt_carg": "2026-07-20", "pernas": [{"destino_cidade": "SANTA ALBERTINA", "destino_uf": "SP", "peso_ent": 16300.0, "vl_ent": 1304.0, "doc": "126479"}, {"destino_cidade": "ILHA SOLTEIRA", "destino_uf": "SP", "peso_ent": 16300.0, "vl_ent": 1304.0, "doc": "126480"}]}, {"placa": "GAA6D72", "dt_carg": "2026-07-20", "pernas": [{"destino_cidade": "INDIAPORA", "destino_uf": "SP", "peso_ent": 18520.0, "vl_ent": 1481.6, "doc": "126478"}, {"destino_cidade": "PANORAMA", "destino_uf": "SP", "peso_ent": 16740.0, "vl_ent": 2176.2, "doc": "126517"}]}, {"placa": "FJU7I19", "dt_carg": "2026-07-22", "pernas": [{"destino_cidade": "SANTA FE DO SUL", "destino_uf": "SP", "peso_ent": 16600.0, "vl_ent": 1328.0, "doc": "126569"}, {"destino_cidade": "TRES FRONTEIRAS", "destino_uf": "SP", "peso_ent": 16600.0, "vl_ent": 1328.0, "doc": "126570"}]}, {"placa": "BBR9F63", "dt_carg": "2026-07-23", "pernas": [{"destino_cidade": "BOM DESPACHO", "destino_uf": "MG", "peso_ent": 30560.0, "vl_ent": 0.0, "doc": "126599"}, {"destino_cidade": "CACHOEIRA DOURADA", "destino_uf": "MG", "peso_ent": 1000.0, "vl_ent": 120.0, "doc": "126603"}]}, {"placa": "GAA6D72", "dt_carg": "2026-07-23", "pernas": [{"destino_cidade": "INDIAPORA", "destino_uf": "SP", "peso_ent": 19780.0, "vl_ent": 1582.4, "doc": "126594"}, {"destino_cidade": "SANTA FE DO SUL", "destino_uf": "SP", "peso_ent": 17640.0, "vl_ent": 1411.2, "doc": "126652"}, {"destino_cidade": "TRES FRONTEIRAS", "destino_uf": "SP", "peso_ent": 17640.0, "vl_ent": 1411.2, "doc": "126653"}]}, {"placa": "FJU7I19", "dt_carg": "2026-07-27", "pernas": [{"destino_cidade": "SANTA FE DO SUL", "destino_uf": "SP", "peso_ent": 16060.0, "vl_ent": 1284.8, "doc": "126751"}, {"destino_cidade": "TRES FRONTEIRAS", "destino_uf": "SP", "peso_ent": 16060.0, "vl_ent": 1284.8, "doc": "126752"}]}, {"placa": "FRO7I25", "dt_carg": "2026-07-27", "pernas": [{"destino_cidade": "SANTA ALBERTINA", "destino_uf": "SP", "peso_ent": 16460.0, "vl_ent": 1316.8, "doc": "126789"}, {"destino_cidade": "ILHA SOLTEIRA", "destino_uf": "SP", "peso_ent": 16460.0, "vl_ent": 1316.8, "doc": "126790"}]}, {"placa": "FSG6F45", "dt_carg": "2026-07-27", "pernas": [{"destino_cidade": "SANTA FE DO SUL", "destino_uf": "SP", "peso_ent": 17100.0, "vl_ent": 1368.0, "doc": "126738"}, {"destino_cidade": "TRES FRONTEIRAS", "destino_uf": "SP", "peso_ent": 17100.0, "vl_ent": 1368.0, "doc": "126739"}, {"destino_cidade": "SUD MENNUCCI", "destino_uf": "SP", "peso_ent": 18140.0, "vl_ent": 1451.2, "doc": "126830"}]}, {"placa": "FJU7I19", "dt_carg": "2026-07-28", "pernas": [{"destino_cidade": "SANTA CLARA D'OESTE", "destino_uf": "SP", "peso_ent": 15860.0, "vl_ent": 1268.8, "doc": "126889"}, {"destino_cidade": "INDIAPORA", "destino_uf": "SP", "peso_ent": 18080.0, "vl_ent": 1446.4, "doc": "126909"}]}, {"placa": "FVA7B11", "dt_carg": "2026-07-28", "pernas": [{"destino_cidade": "RUBINEIA", "destino_uf": "SP", "peso_ent": 18480.0, "vl_ent": 1478.4, "doc": "126891"}, {"destino_cidade": "SUD MENNUCCI", "destino_uf": "SP", "peso_ent": 16880.0, "vl_ent": 1350.4, "doc": "126903"}]}, {"placa": "FSG6F45", "dt_carg": "2026-07-29", "pernas": [{"destino_cidade": "SANTA FE DO SUL", "destino_uf": "SP", "peso_ent": 15260.0, "vl_ent": 1220.8, "doc": "126924"}, {"destino_cidade": "SANTA FE DO SUL", "destino_uf": "SP", "peso_ent": 15260.0, "vl_ent": 1220.8, "doc": "126925"}]}, {"placa": "GAA5F32", "dt_carg": "2026-07-30", "pernas": [{"destino_cidade": "SANTA FE DO SUL", "destino_uf": "SP", "peso_ent": 17260.0, "vl_ent": 1380.8, "doc": "126967"}, {"destino_cidade": "TRES FRONTEIRAS", "destino_uf": "SP", "peso_ent": 17260.0, "vl_ent": 1380.8, "doc": "126968"}]}, {"placa": "BBR9F63", "dt_carg": "2026-07-31", "pernas": [{"destino_cidade": "SANTA FE DO SUL", "destino_uf": "SP", "peso_ent": 32320.0, "vl_ent": 1292.8, "doc": "127030"}, {"destino_cidade": "TRES FRONTEIRAS", "destino_uf": "SP", "peso_ent": 32320.0, "vl_ent": 1292.8, "doc": "127031"}]}, {"placa": "FRO7I25", "dt_carg": "2026-07-31", "pernas": [{"destino_cidade": "SANTA FE DO SUL", "destino_uf": "SP", "peso_ent": 16180.0, "vl_ent": 1294.4, "doc": "127004"}, {"destino_cidade": "RUBINEIA", "destino_uf": "SP", "peso_ent": 16240.0, "vl_ent": 1299.2, "doc": "127026"}]}, {"placa": "GAA5F32", "dt_carg": "2026-07-31", "pernas": [{"destino_cidade": "SANTA FE DO SUL", "destino_uf": "SP", "peso_ent": 17980.0, "vl_ent": 1438.4, "doc": "127006"}, {"destino_cidade": "TRES FRONTEIRAS", "destino_uf": "SP", "peso_ent": 17980.0, "vl_ent": 1438.4, "doc": "127007"}, {"destino_cidade": "PAULICEIA", "destino_uf": "SP", "peso_ent": 16000.0, "vl_ent": 2880.0, "doc": "127021"}]}, {"placa": "BBR9F63", "dt_carg": "2026-08-03", "pernas": [{"destino_cidade": "APARECIDA DE GOIANIA", "destino_uf": "GO", "peso_ent": 33160.0, "vl_ent": 11540.0, "doc": "127066"}, {"destino_cidade": "APARECIDA DE GOIANIA", "destino_uf": "GO", "peso_ent": 1000.0, "vl_ent": 348.0, "doc": "127067"}]}, {"placa": "FRO7I25", "dt_carg": "2026-08-03", "pernas": [{"destino_cidade": "RUBINEIA", "destino_uf": "SP", "peso_ent": 16300.0, "vl_ent": 1304.0, "doc": "127058"}, {"destino_cidade": "RUBINEIA", "destino_uf": "SP", "peso_ent": 16380.0, "vl_ent": 1310.4, "doc": "127069"}]}, {"placa": "FVA7B11", "dt_carg": "2026-08-03", "pernas": [{"destino_cidade": "RUBINEIA", "destino_uf": "SP", "peso_ent": 18860.0, "vl_ent": 1508.8, "doc": "127059"}, {"destino_cidade": "RIOLANDIA", "destino_uf": "SP", "peso_ent": 18060.0, "vl_ent": 2347.8, "doc": "127068"}]}, {"placa": "BBG1D34", "dt_carg": "2026-08-04", "pernas": [{"destino_cidade": "SANTA FE DO SUL", "destino_uf": "SP", "peso_ent": 17300.0, "vl_ent": 1384.0, "doc": "127080"}, {"destino_cidade": "RUBINEIA", "destino_uf": "SP", "peso_ent": 16600.0, "vl_ent": 1328.0, "doc": "127092"}]}, {"placa": "GAA6G71", "dt_carg": "2026-08-04", "pernas": [{"destino_cidade": "RUBINEIA", "destino_uf": "SP", "peso_ent": 20480.0, "vl_ent": 1638.4, "doc": "127082"}, {"destino_cidade": "ITAI", "destino_uf": "SP", "peso_ent": 18620.0, "vl_ent": 2420.6, "doc": "127107"}]}];
+
+// Corrige os casos conhecidos de Bitruck Silo — remove TODAS as cópias
+// (mesmo se a viagem estiver duplicada mais de uma vez) e insere as pernas
+// corretas, uma por documento da planilha original. Se algum dos registros
+// removidos já tinha dado operacional (Km Final, motorista, datas), esse
+// dado vai pra perna de MAIOR peso; as demais nascem "Em Andamento" limpas.
+function vdupCorrigirSiloConhecidos(){
+  if(typeof BITRUCK_SILO_CASOS_CONHECIDOS==='undefined' || !BITRUCK_SILO_CASOS_CONHECIDOS.length) return;
+  var CAMPOS_OPERACIONAIS = ['dt_desc','dt_base','km_final','km_saida','motorista',
+    'retorno','dest_ret','dest_ret_cidade','dest_ret_uf','tipo_ret','peso_ret','vl_ton',
+    'vl_total','pagamento','conta','pedagio_real','consumo_real','fretes_retorno'];
+
+  var relatorio = [];
+  var indicesParaRemover = [];
+  var linhasParaInserir = [];
+
+  BITRUCK_SILO_CASOS_CONHECIDOS.forEach(function(caso){
+    var idxsExistentes = [];
+    DB.forEach(function(r, i){ if(r.placa===caso.placa && r.dt_carg===caso.dt_carg) idxsExistentes.push(i); });
+    if(!idxsExistentes.length){ relatorio.push({placa:caso.placa, data:caso.dt_carg, status:'não encontrada', copias:0}); return; }
+
+    var template = idxsExistentes.map(function(i){ return DB[i]; }).sort(function(a,b){
+      var pa = ['dt_desc','dt_base','km_final','motorista'].filter(function(c){return a[c];}).length;
+      var pb = ['dt_desc','dt_base','km_final','motorista'].filter(function(c){return b[c];}).length;
+      return pb-pa;
+    })[0];
+    var temDadoOperacional = !!(template.dt_desc || template.dt_base || template.km_final);
+    var pernaMaior = caso.pernas.slice().sort(function(a,b){ return b.peso_ent-a.peso_ent; })[0];
+    var pesoTotalPlanilha = caso.pernas.reduce(function(s,p){return s+p.peso_ent;},0);
+    var pesoTotalDB = idxsExistentes.reduce(function(s,i){return s+(DB[i].peso_ent||0);},0);
+
+    var novasLinhas = caso.pernas.map(function(perna){
+      var linha = Object.assign({}, JSON.parse(JSON.stringify(template)), {
+        destino_cidade: perna.destino_cidade, destino_uf: perna.destino_uf,
+        destino: perna.destino_cidade+'-'+perna.destino_uf,
+        peso_ent: perna.peso_ent, vl_ent: perna.vl_ent,
+        obs: 'Corrigido — dividido de importação consolidada (doc. '+perna.doc+')',
+        _docOrigem: perna.doc
+      });
+      if(!(temDadoOperacional && perna.doc===pernaMaior.doc)){
+        CAMPOS_OPERACIONAIS.forEach(function(campo){
+          if(campo==='retorno') linha[campo] = 'Não';
+          else if(campo==='peso_ret' || campo==='vl_ton' || campo==='vl_total') linha[campo] = 0;
+          else if(campo==='fretes_retorno') linha[campo] = [];
+          else linha[campo] = (typeof linha[campo]==='string') ? '' : null;
+        });
+      }
+      return linha;
+    });
+
+    idxsExistentes.forEach(function(i){ indicesParaRemover.push(i); });
+    novasLinhas.forEach(function(l){ linhasParaInserir.push(l); });
+    relatorio.push({
+      placa: caso.placa, data: caso.dt_carg,
+      status: idxsExistentes.length>1 ? 'dividida (tinha '+idxsExistentes.length+' cópias!)' : 'dividida',
+      copias: idxsExistentes.length,
+      bateuPeso: Math.abs(pesoTotalDB-pesoTotalPlanilha)<1
+    });
+  });
+
+  var divergentes = relatorio.filter(function(r){ return r.bateuPeso===false; });
+  var naoEncontradas = relatorio.filter(function(r){ return r.status==='não encontrada'; });
+  var comCopiasExtras = relatorio.filter(function(r){ return r.copias>1; });
+
+  if(!confirm('Corrigir '+BITRUCK_SILO_CASOS_CONHECIDOS.length+' viagens de Bitruck Silo usando os dados exatos da planilha original?\n\n'
+    +'Registros a remover: '+indicesParaRemover.length+' (inclui '+comCopiasExtras.length+' caso(s) com cópias duplicadas escondidas)\n'
+    +'Registros novos a inserir: '+linhasParaInserir.length+'\n'
+    +(naoEncontradas.length ? '\n'+naoEncontradas.length+' caso(s) não encontrados na base (já foram corrigidos antes, ou não existem mais)\n' : '')
+    +(divergentes.length ? '\n⚠ '+divergentes.length+' caso(s) com peso na base diferente do esperado pela planilha — serão corrigidos mesmo assim, mas vale conferir depois.\n' : '')
+    +'\nConfirma?')) return;
+
+  indicesParaRemover.sort(function(a,b){return b-a;}).forEach(function(i){ DB.splice(i,1); });
+  linhasParaInserir.forEach(function(l){ DB.push(l); });
+
+  save();
+  toast(indicesParaRemover.length+' removido(s), '+linhasParaInserir.length+' inserido(s) ✅','success');
+  if(typeof renderKanban==='function') renderKanban();
+  if(typeof renderRecs==='function') renderRecs();
+  if(typeof renderAll==='function') renderAll();
+  if(typeof finRefreshSeVisivel==='function') finRefreshSeVisivel();
+
+  window._vdupGrupos = vdupDetectar();
+  vdupRender();
+}
+
 function vdupPontuar(r){
   var statusScore = {verde:2, amarelo:1, vermelho:0}[typeof tripStatus==='function' ? tripStatus(r) : ''] || 0;
   var camposCheios = ['dt_desc','dt_base','km_final','km_saida','motorista','pedagio_real','consumo_real','obs','vl_total','dest_ret_cidade'].filter(function(c){ return r[c]!=null && r[c]!==''; }).length;
@@ -15754,7 +15846,14 @@ function vdupDetectar(){
         statusRestauracaoSegura = indices.filter(function(i){ return i!==verdes[0]; })
           .every(function(i){ var o=DB[i]; return !o.dt_desc && !o.dt_base; });
       }
-      subgrupos.push({chave:chave, indices:indices, sugestaoManter:melhorIdx, statusRestauracaoSegura:statusRestauracaoSegura, peso:pesoChave});
+      // Duplicata pura: 2+ registros TODOS Concluídos com o MESMO peso (já garantido
+      // pelo sub-agrupamento) — peso idêntico entre viagens realmente distintas é
+      // praticamente impossível, então isso já é suficiente pra saber que é o mesmo
+      // lançamento repetido/corrigido, mesmo que as datas operacionais não batam
+      // (pode ter sido re-lançada/corrigida depois). Mantém o mais completo, remove
+      // as outras. Nunca mexe em peso nem receita.
+      var duplicataPuraSegura = (!statusRestauracaoSegura && verdes.length>=2 && verdes.length===indices.length);
+      subgrupos.push({chave:chave, indices:indices, sugestaoManter:melhorIdx, statusRestauracaoSegura:statusRestauracaoSegura, duplicataPuraSegura:duplicataPuraSegura, peso:pesoChave});
     });
 
     if(subgrupos.length){
@@ -15821,6 +15920,7 @@ function vdupRender(){
   var todosSubgrupos = [];
   grupos.forEach(function(g){ g.subgrupos.forEach(function(sg){ todosSubgrupos.push(sg); }); });
   var segurosCount = todosSubgrupos.filter(function(sg){ return sg.statusRestauracaoSegura; }).length;
+  var duplicataPuraCount = todosSubgrupos.filter(function(sg){ return sg.duplicataPuraSegura; }).length;
   var sub = document.getElementById('vdup-sub');
   if(sub) sub.textContent = todosSubgrupos.length ? todosSubgrupos.length+' viagem(ns) duplicada(s) encontrada(s), em '+grupos.length+' dia(s)/placa(s) — revise antes de aplicar' : 'Nenhuma duplicidade encontrada — base limpa ✅';
   var toolbar = document.getElementById('vdup-toolbar');
@@ -15829,9 +15929,25 @@ function vdupRender(){
     var btnSeguro = segurosCount>0 ? (
       '<button class="btn-prim" style="white-space:nowrap;flex-shrink:0" onclick="vdupRestaurarStatusSeguros()">✅ Restaurar status em '+segurosCount+' viagem(ns) (marcadas 🔵 abaixo)</button>'
     ) : '';
-    toolbar.innerHTML = grupos.length ? (msgPeso + btnSeguro) : '';
+    var btnDuplicataPura = duplicataPuraCount>0 ? (
+      '<button class="btn-prim" style="white-space:nowrap;flex-shrink:0;background:#7c3aed" onclick="vdupResolverDuplicataPura()">🟣 Remover '+duplicataPuraCount+' duplicata(s) idêntica(s) (marcadas 🟣 abaixo)</button>'
+    ) : '';
+    var btnSiloConhecido = (typeof BITRUCK_SILO_CASOS_CONHECIDOS!=='undefined' && BITRUCK_SILO_CASOS_CONHECIDOS.length) ? (
+      '<button class="btn-prim" style="white-space:nowrap;flex-shrink:0;background:#c2410c" onclick="vdupCorrigirSiloConhecidos()">🟠 Corrigir '+BITRUCK_SILO_CASOS_CONHECIDOS.length+' Bitruck Silo (planilha original, 01/07-04/08)</button>'
+    ) : '';
+    var btnResolverTudo = todosSubgrupos.length ? (
+      '<button class="btn-prim" style="white-space:nowrap;flex-shrink:0;background:#991b1b" onclick="vdupResolverTudoRestante()">🔴 Resolver tudo que sobrar ('+todosSubgrupos.length+' grupo(s), sugestão automática)</button>'
+    ) : '';
+    toolbar.innerHTML = grupos.length ? (msgPeso + btnSeguro + btnDuplicataPura) : '';
+    toolbar.innerHTML += btnSiloConhecido + btnResolverTudo;
     if(segurosCount>0){
       toolbar.innerHTML += '<div style="font-size:11px;color:#1e40af;margin-top:6px;flex-basis:100%">🔵 1 versão Concluída + sobra(s) vazia(s) sem Data Descarga/Chegada Base, mesmo peso — restaurar só remove a sobra, não mexe em peso nem receita.</div>';
+    }
+    if(duplicataPuraCount>0){
+      toolbar.innerHTML += '<div style="font-size:11px;color:#6d28d9;margin-top:4px;flex-basis:100%">🟣 2+ registros TODOS Concluídos com o MESMO peso — peso idêntico entre viagens de verdade distintas é praticamente impossível, então é o mesmo lançamento repetido/corrigido depois. Mantém o mais completo, remove os demais.</div>';
+    }
+    if(todosSubgrupos.length){
+      toolbar.innerHTML += '<div style="font-size:11px;color:#991b1b;margin-top:4px;flex-basis:100%">🔴 "Resolver tudo" mescla até os grupos com <b>peso diferente</b> (a decisão mais arriscada) — mantém a versão sugerida (mais completa) de cada grupo e descarta o resto, sem checagem contra planilha nenhuma. Use só se aceitar esse risco pra fechar tudo de uma vez.</div>';
     }
   }
   var body = document.getElementById('vdup-body');
@@ -15863,7 +15979,8 @@ function vdupRender(){
         +'<button type="button" class="btn-sec" style="font-size:10px;padding:4px 9px" onclick="vdupAplicarGrupo(\''+sg.chave.replace(/'/g,"\\'")+'\')">✅ Mesma viagem — manter só a marcada</button>'
         +'<button type="button" class="btn-sec" style="font-size:10px;padding:4px 9px" onclick="vdupIgnorarGrupo(\''+sg.chave.replace(/'/g,"\\'")+'\')">➡️ Ignorar este peso</button>'
       +'</div>';
-      var tagSeguro = sg.statusRestauracaoSegura ? '<span style="font-size:9px;font-weight:700;color:#1e40af;margin-left:6px">🔵 restauração segura</span>' : '';
+      var tagSeguro = sg.statusRestauracaoSegura ? '<span style="font-size:9px;font-weight:700;color:#1e40af;margin-left:6px">🔵 restauração segura</span>'
+        : sg.duplicataPuraSegura ? '<span style="font-size:9px;font-weight:700;color:#6d28d9;margin-left:6px">🟣 duplicata idêntica</span>' : '';
       var pesoLbl = sg.peso==='sem_peso' ? 'sem peso' : N(parseFloat(sg.peso),0)+' kg';
       return '<div style="border-left:3px solid #cbd5e1;padding:8px 0 8px 12px;margin-top:8px">'
         +'<div style="font-size:10.5px;font-weight:700;color:var(--txm);margin-bottom:4px">Peso: <b style="color:var(--gd)">'+pesoLbl+'</b> — '+sg.indices.length+' registro(s)'+tagSeguro+'</div>'
@@ -15985,6 +16102,73 @@ function vdupRestaurarStatusSeguros(){
 
   save();
   toast(seguros.length+' viagem(ns) com status restaurado ✅','success');
+  if(typeof renderKanban==='function') renderKanban();
+  if(typeof renderRecs==='function') renderRecs();
+  if(typeof renderAll==='function') renderAll();
+  if(typeof finRefreshSeVisivel==='function') finRefreshSeVisivel();
+
+  window._vdupGrupos = vdupDetectar();
+  vdupRender();
+}
+// Duplicata pura: 2+ registros TODOS Concluídos com Data Descarga/Chegada Base
+// idênticas — mesmo lançamento repetido de verdade. Mantém o mais completo
+// (mais campos preenchidos), remove os demais. Nunca mexe em peso/receita porque
+// todos os registros do grupo já têm o mesmo peso (garantido pelo sub-agrupamento).
+function vdupResolverDuplicataPura(){
+  var todosSubgrupos = [];
+  (window._vdupGrupos||[]).forEach(function(g){ g.subgrupos.forEach(function(sg){ todosSubgrupos.push(sg); }); });
+  var alvos = todosSubgrupos.filter(function(sg){ return sg.duplicataPuraSegura; });
+  if(!alvos.length) return;
+  if(!confirm('Remover '+alvos.length+' duplicata(s) idêntica(s)?\n\n'
+    +'Cada grupo tem 2 ou mais registros Concluídos com o MESMO peso — peso idêntico entre viagens realmente distintas é praticamente impossível, então é o mesmo lançamento repetido/corrigido depois. Mantém o registro mais completo de cada grupo, remove os demais.\n\n'
+    +'Isso não mexe em peso nem receita — só remove cópias.')) return;
+
+  var indicesRemover = [];
+  alvos.forEach(function(sg){
+    var manterIdx = sg.indices.slice().sort(function(a,b){ return vdupPontuar(DB[b])-vdupPontuar(DB[a]); })[0];
+    sg.indices.forEach(function(i){ if(i!==manterIdx) indicesRemover.push(i); });
+  });
+  indicesRemover.sort(function(a,b){return b-a;}).forEach(function(i){ DB.splice(i,1); });
+
+  save();
+  toast(alvos.length+' duplicata(s) idêntica(s) removida(s) ✅','success');
+  if(typeof renderKanban==='function') renderKanban();
+  if(typeof renderRecs==='function') renderRecs();
+  if(typeof renderAll==='function') renderAll();
+  if(typeof finRefreshSeVisivel==='function') finRefreshSeVisivel();
+
+  window._vdupGrupos = vdupDetectar();
+  vdupRender();
+}
+// Última linha de defesa: resolve TODOS os grupos que sobrarem, inclusive os de peso
+// diferente entre si — usa a sugestão automática já calculada (prioriza status mais
+// avançado, e em empate quem tem mais campos preenchidos) pra cada grupo. Diferente
+// dos outros botões, este mescla mesmo quando o peso diverge entre os registros —
+// risco assumido explicitamente pelo usuário, sem checagem contra planilha original.
+function vdupResolverTudoRestante(){
+  var todosSubgrupos = [];
+  (window._vdupGrupos||[]).forEach(function(g){ g.subgrupos.forEach(function(sg){ sg.chavePai=g.chavePai; todosSubgrupos.push(sg); }); });
+  if(!todosSubgrupos.length) return;
+
+  if(!confirm('⚠️ ATENÇÃO — Resolver TODOS os '+todosSubgrupos.length+' grupo(s) restantes de uma vez?\n\n'
+    +'Isso inclui grupos com PESO DIFERENTE entre os registros — a decisão mais arriscada, já que peso diferente pode ser viagem distinta de verdade (já aconteceu num caso real).\n\n'
+    +'Cada grupo vai manter só a versão sugerida (status mais avançado / mais completa) e descartar o resto, SEM comparar com planilha nenhuma.\n\n'
+    +'Confirma que quer aplicar mesmo assim?')) return;
+  if(!confirm('Última confirmação: essa ação NÃO pode ser desfeita automaticamente. Recomendo ter feito backup do publicado antes. Confirma?')) return;
+
+  var indicesRemover = [];
+  todosSubgrupos.forEach(function(sg){
+    var manterIdx = window._vdupEscolhas[sg.chave] != null ? window._vdupEscolhas[sg.chave] : sg.sugestaoManter;
+    var manter = DB[manterIdx];
+    var indicesRemoverGrupo = [];
+    vdupMesclarGrupo(sg, manterIdx, indicesRemoverGrupo);
+    indicesRemoverGrupo.forEach(function(i){ indicesRemover.push(i); });
+  });
+  indicesRemover = Array.from(new Set(indicesRemover)).sort(function(a,b){return b-a;});
+  indicesRemover.forEach(function(i){ DB.splice(i,1); });
+
+  save();
+  toast(todosSubgrupos.length+' grupo(s) resolvido(s), '+indicesRemover.length+' registro(s) removido(s) ✅','success');
   if(typeof renderKanban==='function') renderKanban();
   if(typeof renderRecs==='function') renderRecs();
   if(typeof renderAll==='function') renderAll();
