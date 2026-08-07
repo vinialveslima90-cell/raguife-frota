@@ -3889,6 +3889,7 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
     <button class="btn-reset" onclick="resetKbFilters()"><svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 2A5 5 0 102 10"/><polyline points="10,2 10,5 7,5"/></svg>Limpar</button>
     <button onclick="vdupAbrir()" style="padding:7px 14px;background:#fff;border:1px solid var(--gb);color:var(--txm);border-radius:6px;cursor:pointer;font-size:11px;font-weight:700">🔁 Viagens Duplicadas</button>
     <button onclick="arqAbrir()" style="padding:7px 14px;background:#fff;border:1px solid var(--gb);color:var(--txm);border-radius:6px;cursor:pointer;font-size:11px;font-weight:700">📦 Arquivar Antigas</button>
+    <button onclick="forcarSincronizacaoLimpeza(this)" style="padding:7px 14px;background:#fef2f2;border:1px solid #fca5a5;color:#991b1b;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700">🚨 Forçar Envio da Base Limpa</button>
     <button onclick="recOpenReport('Retorno')" style="margin-left:auto;padding:7px 14px;background:var(--gd);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700">📋 Consulta de Fretes Retorno</button>
   </div>
 
@@ -16273,6 +16274,57 @@ function arqAplicar(){
   if(typeof finRefreshSeVisivel==='function') finRefreshSeVisivel();
 
   arqRender();
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   FORÇAR ENVIO DA BASE LIMPA — a proteção de sincronização (que bloqueia/
+   mescla automaticamente quando uma gravação REDUZ muito a quantidade de
+   registros) foi pensada pra evitar perda acidental de dado — mas ela
+   também bloqueia limpezas INTENCIONAIS de duplicidade, como as que essa
+   sessão inteira fez. Esse botão consulta primeiro quantos registros tem
+   na nuvem vs. localmente, mostra pra você antes de qualquer coisa, e só
+   envia se você confirmar explicitamente — contornando a proteção só
+   dessa vez, de propósito.
+   ══════════════════════════════════════════════════════════════════════ */
+function forcarSincronizacaoLimpeza(btn){
+  if(typeof firebase==='undefined' || !firebase.database){
+    alert('Não consegui acessar o Firebase — confira se está online e sincronizado antes de tentar de novo.');
+    return;
+  }
+  var localCount = DB.length;
+  if(btn){ btn.disabled = true; btn.textContent = '⏳ Consultando a nuvem...'; }
+
+  firebase.database().ref('sync/'+(typeof fbSafeKey==='function' ? fbSafeKey('raguife_v3') : 'raguife_v3')).once('value').then(function(snap){
+    var remote = snap.val();
+    var remoteCount = 0;
+    try{ var parsed = remote && remote.data ? JSON.parse(remote.data) : []; remoteCount = Array.isArray(parsed) ? parsed.length : 0; }catch(e){}
+
+    if(btn){ btn.disabled = false; btn.textContent = '🚨 Forçar Envio da Base Limpa'; }
+
+    var diferenca = remoteCount - localCount;
+    var msg = 'Comparação antes de enviar:\n\n'
+      +'  Na nuvem agora: '+remoteCount+' viagem(ns)\n'
+      +'  Na sua tela (limpa): '+localCount+' viagem(ns)\n'
+      +(diferenca>0 ? '  Diferença: '+diferenca+' registro(s) a menos (esperado, é a limpeza de duplicidade)\n' : diferenca<0 ? '  Diferença: '+Math.abs(diferenca)+' registro(s) a MAIS na sua tela (inesperado — confira antes de continuar)\n' : '  Sem diferença de quantidade.\n')
+      +'\n⚠️ Isso vai SUBSTITUIR a base inteira da nuvem pela que está na sua tela agora — de propósito, ignorando a proteção automática que normalmente bloquearia essa redução.\n\n'
+      +'Só confirme se tiver certeza de que a base local (com as correções de hoje) está mais correta que a da nuvem.\n\nConfirma o envio?';
+
+    if(!confirm(msg)) return;
+    if(diferenca<0 && !confirm('Atenção: sua tela tem MAIS registros que a nuvem (o contrário do esperado numa limpeza). Confirma mesmo assim que quer sobrescrever?')) return;
+
+    var ts = Date.now();
+    var valor = JSON.stringify(DB);
+    if(typeof setKnownTs==='function') setKnownTs('raguife_v3', ts);
+    firebase.database().ref('sync/'+(typeof fbSafeKey==='function' ? fbSafeKey('raguife_v3') : 'raguife_v3')).set({ data:valor, _ts:ts, _by:(window.FB_SYNC&&FB_SYNC.uid)||'anon' }).then(function(){
+      alert('✅ Enviado! A nuvem agora tem '+localCount+' viagem(ns), igual à sua tela.\n\nPeça pra equipe recarregar a página (F5) pra ver a base atualizada.');
+      toast('Base limpa enviada pra nuvem ✅','success');
+    }).catch(function(e){
+      alert('❌ Erro ao enviar: '+e.message+'\n\nTenta de novo, ou verifica sua conexão.');
+    });
+  }).catch(function(e){
+    if(btn){ btn.disabled = false; btn.textContent = '🚨 Forçar Envio da Base Limpa'; }
+    alert('Não consegui consultar a nuvem: '+e.message);
+  });
 }
 
 function pessRenderQuadro(){
