@@ -529,36 +529,46 @@ if(typeof ChartDataLabels==='undefined') window.ChartDataLabels={id:'datalabels'
     //     genuinamente novo, que é o objetivo original dessa proteção).
     // Devolve uma Promise pra poder consultar as lápides no Firebase antes de decidir.
     _mergeComLapides:function(key, localRaw, remoteRaw){
-      var semLapide = function(){ return Promise.resolve(FB._mergeValues(localRaw, remoteRaw)); };
-      if(typeof firebase==='undefined') return semLapide();
+      var semLapide = function(motivo){
+        console.warn('[FB Sync][diag] '+key+' caiu no merge antigo (por JSON), motivo: '+motivo);
+        return Promise.resolve(FB._mergeValues(localRaw, remoteRaw));
+      };
+      if(typeof firebase==='undefined') return semLapide('firebase indisponível');
       var a, b;
-      try{ a = JSON.parse(localRaw); b = JSON.parse(remoteRaw); }catch(e){ return semLapide(); }
-      if(!Array.isArray(a) || !Array.isArray(b)) return semLapide();
+      try{ a = JSON.parse(localRaw); b = JSON.parse(remoteRaw); }catch(e){ return semLapide('JSON inválido: '+e.message); }
+      if(!Array.isArray(a) || !Array.isArray(b)) return semLapide('não são arrays (a='+typeof a+', b='+typeof b+')');
       var usaId = (a.length && a[0] && a[0]._id) || (b.length && b[0] && b[0]._id);
-      if(!usaId) return semLapide();
+      if(!usaId) return semLapide('nenhum item tem _id (a[0]='+JSON.stringify(a[0]&&a[0]._id)+', b[0]='+JSON.stringify(b[0]&&b[0]._id)+')');
       return firebase.database().ref('sync/_tomb_'+fbSafeKey(key)).once('value').then(function(snap){
         var lapides = snap.val() || {};
         var porId = {}; var semId = [];
+        var aComId=0, aSemId=0, bComId=0, bSemId=0, lapidadosB=0;
         b.forEach(function(item){
-          if(item && item._id){ if(!lapides[item._id]) porId[item._id] = item; }
-          else semId.push(item);
+          if(item && item._id){ bComId++; if(!lapides[item._id]) porId[item._id] = item; else lapidadosB++; }
+          else { bSemId++; semId.push(item); }
         });
+        // Itens LOCAIS nunca são excluídos por lápide — a lápide serve só pra
+        // impedir que um _id removido de propósito seja RESSUSCITADO vindo da
+        // nuvem; ela nunca deve apagar o que está ativo na sua tela agora. Bug
+        // anterior: um _id local que coincidisse com uma lápide antiga (de uma
+        // limpeza anterior) sumia da mesclagem silenciosamente, encolhendo o
+        // resultado abaixo do esperado e disparando o bloqueio por engano.
         a.forEach(function(item){
-          if(item && item._id){ if(!lapides[item._id]) porId[item._id] = item; } // local prevalece (sobrescreve remoto no assign abaixo)
-          else semId.push(item);
+          if(item && item._id){ aComId++; porId[item._id] = item; }
+          else { aSemId++; semId.push(item); }
         });
         var out = Object.keys(porId).map(function(id){ return porId[id]; });
-        // Itens sem _id (registros legados anteriores à migração): cai no dedup
-        // antigo por igualdade exata, só entre eles, como rede de segurança.
+        var semIdDedupCount = 0;
         if(semId.length){
-          var seen = {}; 
+          var seen = {};
           semId.forEach(function(item){
             var k = JSON.stringify(item);
-            if(!seen[k]){ seen[k]=true; out.push(item); }
+            if(!seen[k]){ seen[k]=true; out.push(item); semIdDedupCount++; }
           });
         }
+        console.warn('[FB Sync][diag] '+key+' merge por ID — local: '+a.length+' ('+aComId+' c/id, '+aSemId+' s/id) | remoto: '+b.length+' ('+bComId+' c/id, '+bSemId+' s/id, '+lapidadosB+' bloqueados por lápide) | lápides na nuvem: '+Object.keys(lapides).length+' | porId final: '+Object.keys(porId).length+' | semId após dedup: '+semIdDedupCount+' | TOTAL MESCLADO: '+out.length);
         return JSON.stringify(out);
-      }).catch(function(){ return semLapide(); });
+      }).catch(function(e){ return semLapide('erro ao buscar lápides: '+e.message); });
     },
     // ── Histórico de versões (para recuperação) ──
     // Antes de qualquer resolução de conflito (mesclagem ou bloqueio), guarda uma cópia
@@ -2822,6 +2832,7 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
     <button class="gp-dash-tab"        id="gpd-tab-trein"       onclick="gpDashTab('trein')"       style="padding:11px 16px;border:none;background:none;font-size:11.5px;font-weight:700;color:var(--txl);cursor:pointer;margin-bottom:-2px;display:flex;align-items:center;gap:5px">📋 Treinamentos</button>
     <div style="flex:1"></div>
     <button class="btn-sec" style="margin-bottom:6px;font-size:11px;padding:6px 12px" onclick="mdupAbrir()">🔍 Detectar Motoristas Duplicados</button>
+    <button class="btn-sec" style="margin-bottom:6px;font-size:11px;padding:6px 12px" onclick="vvdupExecutar()">🚚 Detectar Veículos Duplicados</button>
   </div>
   <!-- Quadro -->
   <div id="gpd-panel-quadro" style="padding:20px;display:flex;flex-direction:column;gap:16px">
@@ -4599,6 +4610,7 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
               <option value="ATIVO">Ativo</option>
               <option value="AFASTADO">Afastado</option>
               <option value="FÉRIAS">Em Férias</option>
+              <option value="DESLIGADO">Desligado</option>
             </select>
           </div>
           <div class="form-grp"><label class="form-lbl">Saldo Férias Vencido (dias)</label><input type="number" id="gpl-mot-saldo" class="form-ctrl" placeholder="0" min="0"></div>
@@ -6077,6 +6089,27 @@ const save=()=>{
   localStorage.setItem('raguife_v3',JSON.stringify(DB));
 };
 const g=id=>document.getElementById(id);
+
+// ── Auto-import: Km Mensal Jan-Jul/2026 (planilhas KM_JAN_26 a KM_JUL_26) ──
+// Roda uma única vez por navegador (flag local, não sincronizada). Faz MERGE
+// com o que já existir em raguife_perf_km_mensal_v1 — nunca sobrescreve outros
+// meses/anos que já estejam lá. Passa pelo localStorage.setItem interceptado,
+// então sincroniza para a nuvem normalmente, igual a uma importação manual.
+(function(){
+  var FLAG = 'raguife_km_auto_import_jan_jul_2026_v1';
+  if(localStorage.getItem(FLAG)) return;
+  try{
+    var KM_IMPORT = {"2026_1":{"FSK8E26":{"km":5024.9,"cat":"TRUCK"},"GAA5I61":{"km":7573.9,"cat":"RODOTREM"},"GAA5I03":{"km":10462.24,"cat":"RODOTREM"},"GJP1F30":{"km":6194.51,"cat":"BITRUCK"},"GAA5I62":{"km":9216.8,"cat":"RODOTREM"},"FVU8I30":{"km":2340.39,"cat":"BITRUCK SILO"},"FVA7B11":{"km":2701.89,"cat":"BITRUCK SILO"},"GAA5I53":{"km":7764.47,"cat":"RODOTREM"},"GAA5I02":{"km":5511.91,"cat":"RODOTREM"},"FRX7H66":{"km":9652.78,"cat":"BITREM"},"FSG6F45":{"km":8324.26,"cat":"BITRUCK SILO"},"GAA4I81":{"km":10780.66,"cat":"RODOTREM"},"FDC4J75":{"km":9987.75,"cat":"BITRUCK SILO"},"GAA2J62":{"km":8426.08,"cat":"LS"},"GAA1C63":{"km":8914.97,"cat":"LS"},"FOV1C88":{"km":4058.11,"cat":"LS"},"GAA2D71":{"km":9111.82,"cat":"RODOTREM"},"GAA1C62":{"km":8778.76,"cat":"LS"},"GAA6B62":{"km":4817.85,"cat":"4° EIXO"},"GAA6C64":{"km":8810.33,"cat":"4° EIXO"},"GAA6H21":{"km":9775.35,"cat":"4° EIXO"},"GAA6H61":{"km":8889.59,"cat":"4° EIXO"},"EBW2C85":{"km":10516.03,"cat":"BITREM"},"FCT5A75":{"km":4798.9,"cat":"BITREM"},"FWB2B34":{"km":11189.56,"cat":"BITREM"},"GBF7E64":{"km":11653.15,"cat":"BITREM"},"QPY8A58":{"km":10280.51,"cat":"BITREM"},"FZR4J59":{"km":8978.77,"cat":"BITRUCK"},"GAA0E42":{"km":6708.74,"cat":"BITRUCK"},"GAA2G22":{"km":9131.76,"cat":"BITRUCK"},"GAA3F91":{"km":5927.26,"cat":"BITRUCK"},"GAA6F11":{"km":8145.66,"cat":"BITRUCK"},"GAA6I31":{"km":9973.85,"cat":"BITRUCK"},"GAA6J73":{"km":6253.44,"cat":"BITRUCK"},"GIF9G20":{"km":4238.19,"cat":"BITRUCK"},"BBG1D34":{"km":9236.33,"cat":"BITRUCK SILO"},"BBR9F63":{"km":7438.94,"cat":"BITRUCK SILO"},"FJU7I19":{"km":6778.48,"cat":"BITRUCK SILO"},"FRO7I25":{"km":9831.83,"cat":"BITRUCK SILO"},"FYA0E10":{"km":707.89,"cat":"BITRUCK SILO"},"GAA6G71":{"km":7902.56,"cat":"BITRUCK SILO"},"GEJ1889":{"km":2512.22,"cat":"BITRUCK SILO"},"PQK3I28":{"km":6185.43,"cat":"BITRUCK SILO"},"CLW4A48":{"km":6058.68,"cat":"CARRETA SILO"},"GAA0D97":{"km":5021.15,"cat":"CARRETA SILO"},"GAA1C54":{"km":8697.07,"cat":"CARRETA SILO"},"DUC3D40":{"km":7677.12,"cat":"LS"},"ENN8F53":{"km":8515.56,"cat":"RODOTREM"},"GAA0D77":{"km":269.53,"cat":"RODOTREM"},"GAA2G55":{"km":7243.2,"cat":"RODOTREM"},"GFI3F08":{"km":8612.74,"cat":"RODOTREM"},"GGS0E66":{"km":6472.15,"cat":"RODOTREM"},"EBK2I00":{"km":8083.49,"cat":"TRUCK"},"EOH0H57":{"km":4850.9,"cat":"TRUCK"},"GAA5F32":{"km":6870.0,"cat":"BITRUCK SILO"},"GAA6D72":{"km":6909.0,"cat":"BITRUCK SILO"}},"2026_2":{"FSK8E26":{"km":6721.26,"cat":"TRUCK"},"GAA5I03":{"km":6135.18,"cat":"RODOTREM"},"GAA5I61":{"km":7387.88,"cat":"RODOTREM"},"FVA7B11":{"km":5338.3,"cat":"BITRUCK SILO"},"GAA5I62":{"km":6151.57,"cat":"RODOTREM"},"FJU7I19":{"km":2661.85,"cat":"BITRUCK SILO"},"FSG6F45":{"km":5592.27,"cat":"BITRUCK SILO"},"GAA5I53":{"km":7854.93,"cat":"RODOTREM"},"GAA2J62":{"km":6775.44,"cat":"LS"},"GAA5I02":{"km":6344.77,"cat":"RODOTREM"},"GJP1F30":{"km":7879.43,"cat":"BITRUCK"},"FVU8I30":{"km":5761.52,"cat":"BITRUCK SILO"},"FDC4J75":{"km":5098.26,"cat":"BITRUCK SILO"},"GBF7E64":{"km":5328.15,"cat":"BITREM"},"EOH0H57":{"km":6729.51,"cat":"TRUCK"},"GAA4I81":{"km":6228.09,"cat":"RODOTREM"},"FOV1C88":{"km":5976.69,"cat":"LS"},"GAA2G55":{"km":6540.86,"cat":"RODOTREM"},"GAA6B62":{"km":8488.23,"cat":"4° EIXO"},"GAA6C64":{"km":8064.04,"cat":"4° EIXO"},"GAA6H21":{"km":6209.56,"cat":"4° EIXO"},"GAA6H61":{"km":8586.98,"cat":"4° EIXO"},"EBW2C85":{"km":5175.35,"cat":"BITREM"},"FCC9995":{"km":263.04,"cat":"BITREM"},"FCT5A75":{"km":8633.66,"cat":"BITREM"},"FRX7H66":{"km":6368.73,"cat":"BITREM"},"FWB2B34":{"km":7469.54,"cat":"BITREM"},"QPY8A58":{"km":9456.26,"cat":"BITREM"},"FZR4J59":{"km":8005.95,"cat":"BITRUCK"},"GAA0E42":{"km":7119.25,"cat":"BITRUCK"},"GAA2G22":{"km":8033.38,"cat":"BITRUCK"},"GAA3F91":{"km":6381.15,"cat":"BITRUCK"},"GAA6F11":{"km":7386.39,"cat":"BITRUCK"},"GAA6I31":{"km":6549.57,"cat":"BITRUCK"},"GAA6J73":{"km":9024.17,"cat":"BITRUCK"},"GIF9G20":{"km":5155.54,"cat":"BITRUCK"},"BBG1D34":{"km":4727.62,"cat":"BITRUCK SILO"},"BBR9F63":{"km":7871.06,"cat":"BITRUCK SILO"},"FRO7I25":{"km":6372.56,"cat":"BITRUCK SILO"},"FYA0E10":{"km":4.28,"cat":"BITRUCK SILO"},"GAA6G71":{"km":5119.24,"cat":"BITRUCK SILO"},"GEJ1889":{"km":1563.17,"cat":"BITRUCK SILO"},"PQK3I28":{"km":5777.95,"cat":"BITRUCK SILO"},"CLW4A48":{"km":6809.76,"cat":"CARRETA SILO"},"GAA0D97":{"km":6928.54,"cat":"CARRETA SILO"},"GAA1C54":{"km":5457.39,"cat":"LS"},"DUC3D40":{"km":8282.04,"cat":"LS"},"GAA1C62":{"km":6157.58,"cat":"LS"},"GAA1C63":{"km":7202.81,"cat":"LS"},"ENN8F53":{"km":7501.51,"cat":"RODOTREM"},"GAA0D77":{"km":4302.84,"cat":"RODOTREM"},"GAA2D71":{"km":7823.54,"cat":"RODOTREM"},"GFI3F08":{"km":6463.89,"cat":"RODOTREM"},"GGS0E66":{"km":7374.68,"cat":"RODOTREM"},"EBK2I00":{"km":6219.56,"cat":"TRUCK"},"GAA5F32":{"km":6498.0,"cat":"BITRUCK SILO"},"GAA6D72":{"km":5405.0,"cat":"BITRUCK SILO"}},"2026_3":{"FSK8E26":{"km":7616.17,"cat":"TRUCK"},"GAA5I03":{"km":8714.42,"cat":"RODOTREM"},"GAA5I61":{"km":9785.26,"cat":"RODOTREM"},"GAA5I62":{"km":8213.1,"cat":"RODOTREM"},"GAA4I81":{"km":9731.14,"cat":"RODOTREM"},"FJU7I19":{"km":1630.33,"cat":"BITRUCK SILO"},"GAA5I53":{"km":9414.29,"cat":"RODOTREM"},"GAA5I02":{"km":8891.82,"cat":"RODOTREM"},"FVA7B11":{"km":6496.89,"cat":"BITRUCK SILO"},"CLW4A48":{"km":8146.99,"cat":"CARRETA SILO"},"FVU8I30":{"km":5887.49,"cat":"BITRUCK SILO"},"GBF7E64":{"km":7073.91,"cat":"BITREM"},"EBW2C85":{"km":7866.22,"cat":"BITREM"},"FOV1C88":{"km":6615.78,"cat":"LS"},"GAA2J62":{"km":7130.49,"cat":"LS"},"FWB2B34":{"km":6917.07,"cat":"BITREM"},"GAA6E91":{"km":3268.6,"cat":"3"},"GAA6B62":{"km":9842.18,"cat":"4° EIXO"},"GAA6C64":{"km":6787.6,"cat":"4° EIXO"},"GAA6H21":{"km":9211.13,"cat":"4° EIXO"},"GAA6H61":{"km":9243.02,"cat":"4° EIXO"},"FCC9995":{"km":3333.64,"cat":"BITREM"},"FCT5A75":{"km":8591.02,"cat":"BITREM"},"FRX7H66":{"km":6117.34,"cat":"BITREM"},"QPY8A58":{"km":11322.6,"cat":"BITREM"},"GAA1C63":{"km":7034.69,"cat":"LS"},"FZR4J59":{"km":7587.41,"cat":"BITRUCK"},"GAA0E42":{"km":7571.81,"cat":"BITRUCK"},"GAA2G22":{"km":8690.13,"cat":"BITRUCK"},"GAA3F91":{"km":7930.52,"cat":"BITRUCK"},"GAA6F11":{"km":7007.28,"cat":"BITRUCK"},"GAA6I31":{"km":7598.59,"cat":"BITRUCK"},"GAA6J73":{"km":7403.73,"cat":"BITRUCK"},"GIF9G20":{"km":8559.37,"cat":"BITRUCK"},"GJP1F30":{"km":8722.24,"cat":"BITRUCK"},"BBG1D34":{"km":5947.15,"cat":"BITRUCK SILO"},"BBR9F63":{"km":6801.74,"cat":"BITRUCK SILO"},"FDC4J75":{"km":3331.44,"cat":"BITRUCK SILO"},"FRO7I25":{"km":5938.7,"cat":"BITRUCK SILO"},"FYA0E10":{"km":836.11,"cat":"BITRUCK SILO"},"GAA6G71":{"km":6222.52,"cat":"BITRUCK SILO"},"GEJ1889":{"km":1873.65,"cat":"BITRUCK SILO"},"PQK3I28":{"km":7718.99,"cat":"BITRUCK SILO"},"GAA0D97":{"km":10421.87,"cat":"CARRETA SILO"},"DUC3D40":{"km":9960.78,"cat":"LS"},"GAA1C62":{"km":4608.14,"cat":"LS"},"GAA1C54":{"km":7655.2,"cat":"LS"},"ENN8F53":{"km":5233.97,"cat":"RODOTREM"},"GAA0D77":{"km":9271.59,"cat":"RODOTREM"},"GAA2D71":{"km":8448.31,"cat":"RODOTREM"},"GAA2G55":{"km":8122.06,"cat":"RODOTREM"},"GFI3F08":{"km":6756.22,"cat":"RODOTREM"},"GGS0E66":{"km":7992.55,"cat":"RODOTREM"},"EBK2I00":{"km":6256.78,"cat":"TRUCK"},"EOH0H57":{"km":3413.86,"cat":"TRUCK"},"GAA5F32":{"km":1102.0,"cat":"BITRUCK SILO"},"GAA6D72":{"km":2215.0,"cat":"BITRUCK SILO"}},"2026_4":{"FSK8E26":{"km":6728.2,"cat":"TRUCK"},"GAA5I03":{"km":5162.73,"cat":"RODOTREM"},"GAA5I61":{"km":7934.63,"cat":"RODOTREM"},"GAA5I62":{"km":1647.17,"cat":"RODOTREM"},"GAA4I81":{"km":6533.57,"cat":"RODOTREM"},"GAA5I02":{"km":6027.05,"cat":"RODOTREM"},"GAA5I53":{"km":5927.14,"cat":"RODOTREM"},"FOV1C88":{"km":8039.31,"cat":"LS"},"FDC4J75":{"km":3613.56,"cat":"BITRUCK SILO"},"FJU7I19":{"km":2568.6,"cat":"BITRUCK SILO"},"FVU8I30":{"km":5408.44,"cat":"BITRUCK SILO"},"GJP1F30":{"km":8405.62,"cat":"BITRUCK"},"GAA0D77":{"km":7836.07,"cat":"RODOTREM"},"GBF7E64":{"km":9960.4,"cat":"BITREM"},"CLW4A48":{"km":6310.81,"cat":"CARRETA SILO"},"EBW2C85":{"km":5956.48,"cat":"BITREM"},"GAA6E91":{"km":2266.07,"cat":"3"},"GAA6B62":{"km":7094.46,"cat":"4° EIXO"},"GAA6C64":{"km":7318.56,"cat":"4° EIXO"},"GAA6H21":{"km":7903.94,"cat":"4° EIXO"},"GAA6H61":{"km":5619.38,"cat":"4° EIXO"},"FCC9995":{"km":7170.73,"cat":"BITREM"},"FCT5A75":{"km":7438.3,"cat":"BITREM"},"FRX7H66":{"km":6109.82,"cat":"BITREM"},"FWB2B34":{"km":3850.97,"cat":"BITREM"},"QPY8A58":{"km":6784.88,"cat":"BITREM"},"DUC3D40":{"km":8559.85,"cat":"LS"},"GAA1C63":{"km":7562.09,"cat":"BITREM"},"FZR4J59":{"km":8334.23,"cat":"BITRUCK"},"GAA0E42":{"km":6724.79,"cat":"BITRUCK"},"GAA2G22":{"km":9698.59,"cat":"BITRUCK"},"GAA3F91":{"km":6901.29,"cat":"BITRUCK"},"GAA6F11":{"km":8227.94,"cat":"BITRUCK"},"GAA6I31":{"km":6401.99,"cat":"BITRUCK"},"GAA6J73":{"km":7614.39,"cat":"BITRUCK"},"GIF9G20":{"km":6117.85,"cat":"BITRUCK"},"BBG1D34":{"km":4780.9,"cat":"BITRUCK SILO"},"BBR9F63":{"km":6947.79,"cat":"BITRUCK SILO"},"FRO7I25":{"km":3464.55,"cat":"BITRUCK SILO"},"FSG6F45":{"km":3519.43,"cat":"BITRUCK SILO"},"FVA7B11":{"km":4741.57,"cat":"BITRUCK SILO"},"FYA0E10":{"km":1225.84,"cat":"BITRUCK SILO"},"GAA6G71":{"km":5447.48,"cat":"BITRUCK SILO"},"GEJ1889":{"km":1407.24,"cat":"BITRUCK SILO"},"PQK3I28":{"km":5126.64,"cat":"BITRUCK SILO"},"GAA0D97":{"km":8430.32,"cat":"CARRETA SILO"},"GAA1C62":{"km":9585.71,"cat":"LS"},"GAA2J62":{"km":8405.75,"cat":"LS"},"GAA1C54":{"km":7292.31,"cat":"LS"},"ENN8F53":{"km":7552.0,"cat":"RODOTREM"},"GAA2D71":{"km":7500.6,"cat":"RODOTREM"},"GAA2G55":{"km":4785.29,"cat":"RODOTREM"},"GFI3F08":{"km":6403.73,"cat":"RODOTREM"},"GGS0E66":{"km":5899.06,"cat":"RODOTREM"},"EBK2I00":{"km":7856.03,"cat":"TRUCK"},"EOH0H57":{"km":5808.98,"cat":"TRUCK"},"GAA5F32":{"km":7770.0,"cat":"BITRUCK SILO"},"GAA6D72":{"km":11350.0,"cat":"BITRUCK SILO"}},"2026_5":{"FSK8E26":{"km":4925.8,"cat":"TRUCK"},"GAA5I03":{"km":10607.38,"cat":"RODOTREM"},"GAA5I61":{"km":6696.23,"cat":"RODOTREM"},"GAA5I62":{"km":2790.96,"cat":"RODOTREM"},"GAA5I02":{"km":2912.49,"cat":"RODOTREM"},"GAA0D77":{"km":8182.2,"cat":"RODOTREM"},"FJU7I19":{"km":4160.85,"cat":"BITRUCK SILO"},"FVU8I30":{"km":3995.61,"cat":"BITRUCK SILO"},"GAA5I53":{"km":1582.33,"cat":"RODOTREM"},"FSG6F45":{"km":3691.28,"cat":"BITRUCK SILO"},"GAA2J62":{"km":7151.39,"cat":"LS"},"FDC4J75":{"km":4235.57,"cat":"BITRUCK SILO"},"FRX7H66":{"km":8844.5,"cat":"BITREM"},"NSB3G46":{"km":2769.91,"cat":"NSB3G46"},"GAA4I81":{"km":8982.93,"cat":"RODOTREM"},"GAA6E91":{"km":4184.89,"cat":"3"},"GAA6B62":{"km":8587.66,"cat":"4° EIXO"},"GAA6C64":{"km":6840.12,"cat":"4° EIXO"},"GAA6H21":{"km":7880.98,"cat":"4° EIXO"},"GAA6H61":{"km":6606.1,"cat":"4° EIXO"},"EBW2C85":{"km":3201.22,"cat":"BITREM"},"FCC9995":{"km":2659.32,"cat":"BITREM"},"FCT5A75":{"km":7533.88,"cat":"BITREM"},"FWB2B34":{"km":6359.77,"cat":"BITREM"},"GBF7E64":{"km":7619.54,"cat":"BITREM"},"QPY8A58":{"km":4205.39,"cat":"BITREM"},"DUC3D40":{"km":7098.53,"cat":"BITREM"},"GAA1C63":{"km":5486.44,"cat":"BITREM"},"FZR4J59":{"km":5290.6,"cat":"BITRUCK"},"GAA0E42":{"km":9843.9,"cat":"BITRUCK"},"GAA2G22":{"km":7332.02,"cat":"BITRUCK"},"GAA3F91":{"km":5755.52,"cat":"BITRUCK"},"GAA6F11":{"km":6587.94,"cat":"BITRUCK"},"GAA6I31":{"km":8734.06,"cat":"BITRUCK"},"GAA6J73":{"km":6217.19,"cat":"BITRUCK"},"GIF9G20":{"km":6468.2,"cat":"BITRUCK"},"GJP1F30":{"km":5067.0,"cat":"BITRUCK"},"BBG1D34":{"km":4146.48,"cat":"BITRUCK SILO"},"BBR9F63":{"km":5246.36,"cat":"BITRUCK SILO"},"FRO7I25":{"km":1006.78,"cat":"BITRUCK SILO"},"FVA7B11":{"km":6538.92,"cat":"BITRUCK SILO"},"FYA0E10":{"km":1501.39,"cat":"BITRUCK SILO"},"GAA6G71":{"km":6528.02,"cat":"BITRUCK SILO"},"GEJ1889":{"km":838.57,"cat":"BITRUCK SILO"},"PQK3I28":{"km":4886.31,"cat":"BITRUCK SILO"},"CLW4A48":{"km":7063.02,"cat":"CARRETA SILO"},"GAA0D97":{"km":5036.69,"cat":"CARRETA SILO"},"GAA7B93":{"km":427.58,"cat":"GAA7B93"},"FOV1C88":{"km":2703.59,"cat":"LS"},"GAA1C62":{"km":7217.31,"cat":"LS"},"GAA1C54":{"km":6105.27,"cat":"LS"},"ENN8F53":{"km":5139.96,"cat":"RODOTREM"},"GAA2D71":{"km":9150.7,"cat":"RODOTREM"},"GAA2G55":{"km":6247.48,"cat":"RODOTREM"},"GFI3F08":{"km":5003.94,"cat":"RODOTREM"},"GGS0E66":{"km":9571.53,"cat":"RODOTREM"},"EOH0H57":{"km":7706.36,"cat":"TRUCK"},"EBK2I00":{"km":4302.22,"cat":"TRUCK"},"GAA5F32":{"km":3641.0,"cat":"BITRUCK SILO"},"GAA6D72":{"km":5336.0,"cat":"BITRUCK SILO"}},"2026_6":{"GBF7E64":{"km":2079.93,"cat":"BITREM"},"FSK8E26":{"km":2465.01,"cat":"TRUCK"},"GAA5I53":{"km":6446.0,"cat":"RODOTREM"},"GAA5I03":{"km":6651.49,"cat":"RODOTREM"},"GAA5I61":{"km":6879.59,"cat":"RODOTREM"},"GAA0D77":{"km":8866.66,"cat":"RODOTREM"},"GAA5I02":{"km":6655.23,"cat":"RODOTREM"},"BBG1D34":{"km":4564.48,"cat":"BITRUCK SILO"},"FVA7B11":{"km":2184.99,"cat":"BITRUCK SILO"},"FDC4J75":{"km":2051.48,"cat":"BITRUCK SILO"},"FVU8I30":{"km":1917.12,"cat":"BITRUCK SILO"},"GJP1F30":{"km":7270.61,"cat":"BITRUCK"},"DUC3D40":{"km":6773.58,"cat":"BITREM"},"FOV1C88":{"km":4522.98,"cat":"LS"},"FCC9995":{"km":7283.23,"cat":"BITREM"},"GAA4I81":{"km":8954.65,"cat":"RODOTREM"},"EBW2C85":{"km":9639.49,"cat":"BITREM"},"GAA6E91":{"km":3231.61,"cat":"3"},"GAA6B62":{"km":7727.86,"cat":"4° EIXO"},"GAA6C64":{"km":7038.94,"cat":"4° EIXO"},"GAA6H21":{"km":5185.15,"cat":"4° EIXO"},"GAA6H61":{"km":7491.03,"cat":"4° EIXO"},"FCT5A75":{"km":9535.52,"cat":"BITREM"},"FRX7H66":{"km":7983.13,"cat":"BITREM"},"FWB2B34":{"km":3610.18,"cat":"BITREM"},"QPY8A58":{"km":8384.15,"cat":"BITREM"},"GAA1C63":{"km":9015.23,"cat":"BITREM"},"GAA0E42":{"km":3499.28,"cat":"BITRUCK"},"GAA2G22":{"km":5249.31,"cat":"BITRUCK"},"GAA3F91":{"km":6138.01,"cat":"BITRUCK"},"GAA6F11":{"km":2368.88,"cat":"BITRUCK"},"GAA6I31":{"km":4317.77,"cat":"BITRUCK"},"GAA6J73":{"km":5746.97,"cat":"BITRUCK"},"GIF9G20":{"km":4151.93,"cat":"BITRUCK"},"BBR9F63":{"km":4317.31,"cat":"BITRUCK SILO"},"FJU7I19":{"km":2139.42,"cat":"BITRUCK SILO"},"FRO7I25":{"km":3571.16,"cat":"BITRUCK SILO"},"FSG6F45":{"km":1975.11,"cat":"BITRUCK SILO"},"FYA0E10":{"km":833.18,"cat":"BITRUCK SILO"},"GAA6G71":{"km":2410.89,"cat":"BITRUCK SILO"},"GEJ1889":{"km":704.74,"cat":"BITRUCK SILO"},"PQK3I28":{"km":734.08,"cat":"BITRUCK SILO"},"CLW4A48":{"km":6019.34,"cat":"CARRETA SILO"},"GAA0D97":{"km":7531.27,"cat":"CARRETA SILO"},"GAA7B93":{"km":7820.82,"cat":"GAA7B93"},"GAA1C62":{"km":6767.98,"cat":"LS"},"GAA2J62":{"km":9066.8,"cat":"LS"},"GAA1C54":{"km":2358.61,"cat":"LS"},"NSB3G46":{"km":483.17,"cat":"NSB3G46"},"ENN8F53":{"km":9671.23,"cat":"RODOTREM"},"GAA2D71":{"km":8551.64,"cat":"RODOTREM"},"GAA2G55":{"km":7753.48,"cat":"RODOTREM"},"GFI3F08":{"km":6831.46,"cat":"RODOTREM"},"GGS0E66":{"km":7289.53,"cat":"RODOTREM"},"EOH0H57":{"km":5753.74,"cat":"TRUCK"},"EBK2I00":{"km":5046.74,"cat":"TRUCK"},"GAA5F32":{"km":2970.0,"cat":"BITRUCK SILO"},"GAA6D72":{"km":7216.0,"cat":"BITRUCK SILO"}},"2026_7":{"FSK8E26":{"km":139.28,"cat":"TRUCK"},"GBF7E64":{"km":10120.62,"cat":"BITREM"},"GAA5I61":{"km":8249.78,"cat":"RODOTREM"},"GAA5I03":{"km":10690.26,"cat":"RODOTREM"},"GAA0D77":{"km":7822.55,"cat":"RODOTREM"},"GAA5I53":{"km":5591.2,"cat":"RODOTREM"},"FVU8I30":{"km":968.0,"cat":"BITRUCK SILO"},"GAA5I02":{"km":9661.05,"cat":"RODOTREM"},"FDC4J75":{"km":1102.92,"cat":"BITRUCK SILO"},"NSB3G46":{"km":536.41,"cat":"NSB3G46"},"GAA4I81":{"km":10623.16,"cat":"RODOTREM"},"GAA1C63":{"km":11870.24,"cat":"BITREM"},"EBW2C85":{"km":10775.17,"cat":"BITREM"},"FCC9995":{"km":5613.82,"cat":"BITREM"},"GAA6E91":{"km":2258.24,"cat":"3"},"GAA6B62":{"km":8692.88,"cat":"4° EIXO"},"GAA6C64":{"km":10999.65,"cat":"4° EIXO"},"GAA6H21":{"km":5178.83,"cat":"4° EIXO"},"GAA6H61":{"km":10561.92,"cat":"4° EIXO"},"FCT5A75":{"km":9593.19,"cat":"BITREM"},"FRX7H66":{"km":6494.92,"cat":"BITREM"},"FWB2B34":{"km":2760.55,"cat":"BITREM"},"QPY8A58":{"km":5162.02,"cat":"BITREM"},"DUC3D40":{"km":5360.85,"cat":"BITREM"},"FZR4J59":{"km":1370.13,"cat":"BITRUCK"},"GAA0E42":{"km":1770.56,"cat":"BITRUCK"},"GAA2G22":{"km":4405.47,"cat":"BITRUCK"},"GAA3F91":{"km":2749.73,"cat":"BITRUCK"},"GAA6F11":{"km":3922.62,"cat":"BITRUCK"},"GAA6I31":{"km":6857.11,"cat":"BITRUCK"},"GAA6J73":{"km":5628.43,"cat":"BITRUCK"},"GIF9G20":{"km":4556.76,"cat":"BITRUCK"},"GJP1F30":{"km":957.42,"cat":"BITRUCK"},"BBG1D34":{"km":2849.07,"cat":"BITRUCK SILO"},"BBR9F63":{"km":4214.28,"cat":"BITRUCK SILO"},"FJU7I19":{"km":1723.8,"cat":"BITRUCK SILO"},"FRO7I25":{"km":3088.3,"cat":"BITRUCK SILO"},"FSG6F45":{"km":1673.94,"cat":"BITRUCK SILO"},"FVA7B11":{"km":3116.86,"cat":"BITRUCK SILO"},"FYA0E10":{"km":7.03,"cat":"TRUCK"},"GAA6G71":{"km":1939.15,"cat":"BITRUCK SILO"},"GEJ1889":{"km":300.3,"cat":"BITRUCK SILO"},"PQK3I28":{"km":2828.8,"cat":"BITRUCK SILO"},"CLW4A48":{"km":1782.24,"cat":"CARRETA SILO"},"GAA0D97":{"km":5745.16,"cat":"CARRETA SILO"},"GAA7B93":{"km":11121.24,"cat":"GAA7B93"},"FOV1C88":{"km":5675.33,"cat":"LS"},"GAA1C62":{"km":6656.94,"cat":"LS"},"GAA2J62":{"km":6047.74,"cat":"LS"},"GAA1C54":{"km":7.24,"cat":"LS"},"ENN8F53":{"km":4198.91,"cat":"RODOTREM"},"GAA2D71":{"km":2911.2,"cat":"RODOTREM"},"GAA2G55":{"km":8546.33,"cat":"RODOTREM"},"GFI3F08":{"km":3143.95,"cat":"RODOTREM"},"GGS0E66":{"km":10718.07,"cat":"RODOTREM"},"EOH0H57":{"km":7807.52,"cat":"TRUCK"},"EBK2I00":{"km":6414.3,"cat":"TRUCK"},"GAA5F32":{"km":4997.0,"cat":"BITRUCK SILO"},"GAA6D72":{"km":3744.0,"cat":"BITRUCK SILO"}}};
+    var atual = {};
+    try{ atual = JSON.parse(localStorage.getItem('raguife_perf_km_mensal_v1')||'{}'); }catch(e){}
+    Object.keys(KM_IMPORT).forEach(function(mk){
+      atual[mk] = Object.assign({}, atual[mk]||{}, KM_IMPORT[mk]);
+    });
+    localStorage.setItem('raguife_perf_km_mensal_v1', JSON.stringify(atual));
+    localStorage.setItem(FLAG, '1');
+    console.log('[Auto-import] Km Mensal Jan-Jul/2026 aplicado.');
+  }catch(e){ console.warn('[Auto-import Km Mensal] falhou:', e.message); }
+})();
 // ── Migração: garante _id estável em toda viagem ────────────────────────
 // Sem um identificador próprio, o sistema só conseguia comparar/desduplicar
 // viagens por igualdade exata do JSON inteiro — o que falha exatamente no caso
@@ -15484,7 +15517,7 @@ function pessAbrirDetalheCategoria(cat){
   // Todos os veículos dessa categoria no cadastro de Frota (fonte única)
   var veiculos = (window.DB_FROTA||[]).filter(function(v){ return v.tipo===cat && v.ativo!==false; });
   var motMap = {};
-  PESS_MOT.forEach(function(m){ if(m.placa) motMap[m.placa]=m; });
+  PESS_MOT.forEach(function(m){ if(m.placa && m.status!=='DESLIGADO') motMap[intPlacaNorm(m.placa)]=m; });
 
   var comMotorista = [];
   var semMotorista = [];
@@ -15743,6 +15776,88 @@ function mdupDetectar(){
   }
   return pares;
 }
+/* ══════════════════════════════════════════════════════════════════════
+   DETECÇÃO DE VEÍCULOS DUPLICADOS — mesma placa cadastrada mais de uma vez
+   em DB_FROTA por causa de formatação diferente (com/sem hífen, maiúsc/minúsc).
+   Causa raiz já corrigida em gpGarantirVeiculoFrota (não cria mais duplicata
+   nova); esta ferramenta limpa as que já existem na base. Sempre mostra o
+   plano ANTES de aplicar — nunca mescla silenciosamente.
+   ══════════════════════════════════════════════════════════════════════ */
+function vvdupDetectar(){
+  if(typeof frotaLoad==='function' && (typeof DB_FROTA==='undefined' || !DB_FROTA.length)){ try{ frotaLoad(); }catch(e){} }
+  var grupos = {};
+  DB_FROTA.forEach(function(v, idx){
+    var norm = intPlacaNorm(v.id||v.cavalo||'');
+    if(!norm) return;
+    if(!grupos[norm]) grupos[norm] = [];
+    grupos[norm].push(idx);
+  });
+  var duplicados = [];
+  Object.keys(grupos).forEach(function(norm){
+    if(grupos[norm].length>1) duplicados.push({norm:norm, indices:grupos[norm]});
+  });
+  return duplicados;
+}
+// Escolhe o registro "melhor" de um grupo duplicado: mais campos preenchidos
+// (marca/modelo/ano), preferindo o que estiver ativo e com status DISPONÍVEL.
+function vvdupEscolherMelhor(indices){
+  var candidatos = indices.map(function(i){ return {i:i, v:DB_FROTA[i]}; });
+  candidatos.sort(function(a,b){
+    var scoreA = (a.v.marca?1:0)+(a.v.modelo?1:0)+(a.v.anofab?1:0)+(a.v.anomod?1:0)+(a.v.carr1?1:0)+(a.v.carr2?1:0)+(a.v.ativo!==false?1:0)+(a.v.status==='DISPONÍVEL'?1:0);
+    var scoreB = (b.v.marca?1:0)+(b.v.modelo?1:0)+(b.v.anofab?1:0)+(b.v.anomod?1:0)+(b.v.carr1?1:0)+(b.v.carr2?1:0)+(b.v.ativo!==false?1:0)+(b.v.status==='DISPONÍVEL'?1:0);
+    return scoreB - scoreA;
+  });
+  return candidatos[0].i;
+}
+function vvdupExecutar(){
+  var duplicados = vvdupDetectar();
+  if(!duplicados.length){ toast('✅ Nenhum veículo duplicado encontrado — base limpa', 'success'); return; }
+
+  var resumo = duplicados.map(function(g){
+    var placas = g.indices.map(function(i){ return DB_FROTA[i].cavalo||DB_FROTA[i].id; });
+    return '• '+g.norm+': '+placas.join('  x  ');
+  }).join('\n');
+
+  if(!confirm('Encontrei '+duplicados.length+' veículo(s) duplicado(s) na Frota:\n\n'+resumo+
+    '\n\nPara cada um, vou manter o registro mais completo (com marca/modelo/ano preenchidos) e remover os outros. Motoristas vinculados às placas removidas serão realinhados automaticamente para a placa mantida.\n\nAplicar correção?')) return;
+
+  var indicesRemover = [];
+  var placasRealinhar = {}; // placaRemovidaRaw -> placaMantidaNorm
+  duplicados.forEach(function(g){
+    var manterIdx = vvdupEscolherMelhor(g.indices);
+    var manterPlaca = DB_FROTA[manterIdx].id || intPlacaNorm(DB_FROTA[manterIdx].cavalo);
+    g.indices.forEach(function(i){
+      if(i===manterIdx) return;
+      indicesRemover.push(i);
+      var placaRemovidaRaw = DB_FROTA[i].id || DB_FROTA[i].cavalo;
+      placasRealinhar[placaRemovidaRaw] = manterPlaca;
+    });
+  });
+
+  // Realinha PESS_MOT: qualquer motorista apontando pra uma placa que vai ser
+  // removida passa a apontar pra placa que vai ficar (normalizada).
+  var motoristasRealinhados = 0;
+  PESS_MOT.forEach(function(m){
+    if(!m.placa) return;
+    var normM = intPlacaNorm(m.placa);
+    Object.keys(placasRealinhar).forEach(function(placaRemovidaRaw){
+      if(intPlacaNorm(placaRemovidaRaw)===normM){
+        m.placa = placasRealinhar[placaRemovidaRaw];
+        motoristasRealinhados++;
+      }
+    });
+  });
+
+  indicesRemover.sort(function(a,b){return b-a;}).forEach(function(i){ DB_FROTA.splice(i,1); });
+
+  if(typeof frotaSaveCad==='function') frotaSaveCad();
+  if(motoristasRealinhados && typeof gpSavePess==='function') gpSavePess();
+  if(typeof gpAtualizarResumo==='function') gpAtualizarResumo();
+  if(typeof pessRenderQuadro==='function') pessRenderQuadro();
+  if(typeof frotaRenderCadHist==='function') frotaRenderCadHist();
+  toast(indicesRemover.length+' veículo(s) duplicado(s) removido(s), '+motoristasRealinhados+' motorista(s) realinhado(s) ✅', 'success');
+}
+
 function mdupAbrir(){
   var ov = document.getElementById('mdup-modal-overlay');
   if(ov) ov.classList.remove('hidden');
@@ -16579,11 +16694,11 @@ function pessRenderQuadro(){
   // essa era a função que de fato desenhava os cards na tela.
   if(typeof frotaLoad==='function' && (typeof DB_FROTA==='undefined' || !DB_FROTA.length)){ try{ frotaLoad(); }catch(e){} }
   var motMapQuadro = {};
-  PESS_MOT.forEach(function(m){ if(m.placa) motMapQuadro[m.placa]=m; });
+  PESS_MOT.forEach(function(m){ if(m.placa && m.status!=='DESLIGADO') motMapQuadro[intPlacaNorm(m.placa)]=m; });
 
   var resSel = ['3/4','TRUCK','BITRUCK','LS','4° EIXO','BITREM','RODOTREM','BITRUCK SILO','CARRETA SILO'].map(function(cat){
     var veiculos = (window.DB_FROTA||[]).filter(function(v){ return v.tipo===cat && v.ativo!==false; });
-    var mot = PESS_MOT.filter(function(m){return pessNormCat(m.cat)===cat;});
+    var mot = PESS_MOT.filter(function(m){return pessNormCat(m.cat)===cat && m.status!=='DESLIGADO';});
     var afast = mot.filter(function(m){return m.status==='AFASTADO';}).length;
     var fer = mot.filter(function(m){return m.status!=='AFASTADO' && emFeriasAgora[normNome(m.nome)];}).length;
     var comMotorista=0;
@@ -17271,11 +17386,11 @@ function gpAtualizarResumo(){
   // aparecendo corretamente como "sem motorista" no modal de detalhamento.
   if(typeof frotaLoad==='function' && (typeof DB_FROTA==='undefined' || !DB_FROTA.length)){ try{ frotaLoad(); }catch(e){} }
   var motMap = {};
-  PESS_MOT.forEach(function(m){ if(m.placa) motMap[m.placa]=m; });
+  PESS_MOT.forEach(function(m){ if(m.placa && m.status!=='DESLIGADO') motMap[intPlacaNorm(m.placa)]=m; });
 
   PESS_RES = cats.map(function(cat){
     var veiculos = (window.DB_FROTA||[]).filter(function(v){ return v.tipo===cat && v.ativo!==false; });
-    var mot=PESS_MOT.filter(function(m){return pessNormCat(m.cat)===cat;});
+    var mot=PESS_MOT.filter(function(m){return pessNormCat(m.cat)===cat && m.status!=='DESLIGADO';});
     var afast=mot.filter(function(m){return m.status==='AFASTADO';}).length;
     var fer=mot.filter(function(m){return m.status!=='AFASTADO' && emFeriasAgora[m.nome];}).length;
 
@@ -17296,8 +17411,8 @@ function gpRenderMotHist(){
   var hoje=new Date();
   tbody.innerHTML=rows.map(function(m,i){
     var realIdx=PESS_MOT.indexOf(m);
-    var stBg=m.status==='AFASTADO'?'#fee2e2':m.status==='FÉRIAS'||m.status==='FERIAS'?'#dbeafe':'#dcfce7';
-    var stCl=m.status==='AFASTADO'?'#991b1b':m.status==='FÉRIAS'||m.status==='FERIAS'?'#1e40af':'#166534';
+    var stBg=m.status==='AFASTADO'?'#fee2e2':m.status==='DESLIGADO'?'#f3f4f6':m.status==='FÉRIAS'||m.status==='FERIAS'?'#dbeafe':'#dcfce7';
+    var stCl=m.status==='AFASTADO'?'#991b1b':m.status==='DESLIGADO'?'#6b7280':m.status==='FÉRIAS'||m.status==='FERIAS'?'#1e40af':'#166534';
     var stTx=m.status==='FERIAS'?'FÉRIAS':m.status||'ATIVO';
     var svC=m.saldo_venc>=30?'#dc2626':m.saldo_venc>0?'#d97706':'#16a34a';
     var vencTxt='—',vencCor='var(--txl)';
@@ -17347,6 +17462,14 @@ function gpCatParaTipoFrota(cat){
 function gpGarantirVeiculoFrota(placa, cat, marca){
   if(typeof DB_FROTA==='undefined' || !placa) return;
   if(typeof frotaLoad==='function' && !DB_FROTA.length){ try{ frotaLoad(); }catch(e){} }
+  // CORREÇÃO — causa raiz dos veículos duplicados (ex: "FWB-2B34" e "FWB2B34"
+  // como registros separados): esta função recebia a placa exatamente como
+  // digitada no formulário de motorista (podendo ter hífen ou não) e comparava
+  // com o cadastro de Frota, que guarda a placa SEM hífen. Como nunca batiam,
+  // toda vez que alguém editava um motorista com a placa formatada diferente
+  // do que já existia na Frota, um veículo NOVO (duplicado) era criado.
+  // Normalizar aqui, uma vez, elimina a causa — não só o sintoma.
+  placa = intPlacaNorm(placa);
   var tipo = gpCatParaTipoFrota(cat);
   var idx = DB_FROTA.findIndex(function(v){ return (v.id||v.cavalo||'').replace(/[^A-Z0-9]/g,'')===placa; });
   if(idx>=0){
@@ -17763,7 +17886,11 @@ function frotaCadSalvar(){
   var existing=DB_FROTA.findIndex(function(v){return v.cavalo===cavalo;});
   var rec={id:cavalo.replace(/[^A-Z0-9]/g,''),cavalo:cavalo,carr1:carr1,carr2:carr2,
            tipo:tipo,op:op,status:status,
-           marca:marca,modelo:modelo,anofab:anofab,anomod:anomod,ativo:true};
+           // CORREÇÃO — selecionar "Inativo" no Status nunca tinha efeito real: este
+           // campo ficava sempre travado em true, então o veículo continuava
+           // aparecendo em todo lugar que filtra por ativo!==false (era exatamente
+           // o caso do caminhão que já saiu da frota e continuava ativo na plataforma).
+           marca:marca,modelo:modelo,anofab:anofab,anomod:anomod,ativo:status!=='INATIVO'};
   if(existing>=0){DB_FROTA[existing]=Object.assign(DB_FROTA[existing],rec);toast('Veículo atualizado ✅','success');}
   else{DB_FROTA.push(rec);toast('Veículo cadastrado ✅','success');}
   frotaSaveCad(); frotaCadLimpar(); frotaRenderCadHist(); frotaPopulaSelectPlacas();
@@ -21275,7 +21402,7 @@ document.addEventListener('click',function(e){
         <div class="form-grp"><label class="form-lbl">Saldo de F&#233;rias (dias)</label>
           <select id="fer-edit-saldo" class="form-ctrl"><option value="0">0 dias</option><option value="15">15 dias</option><option value="30">30 dias</option><option value="60">60 dias</option></select></div>
         <div class="form-grp"><label class="form-lbl">Status</label>
-          <select id="fer-edit-status" class="form-ctrl"><option value="ATIVO">Ativo</option><option value="FERIAS">Em F&#233;rias</option><option value="AFASTADO">Afastado</option></select></div>
+          <select id="fer-edit-status" class="form-ctrl"><option value="ATIVO">Ativo</option><option value="FERIAS">Em F&#233;rias</option><option value="AFASTADO">Afastado</option><option value="DESLIGADO">Desligado</option></select></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
         <div class="form-grp"><label class="form-lbl">Vencimento</label><input type="date" id="fer-edit-venc" class="form-ctrl"></div>
@@ -21395,8 +21522,8 @@ function ferRenderTabela(){
   tbody.innerHTML=rows.map(function(m,i){
     var ri=PESS_MOT.indexOf(m);
     var svC=m.saldo_venc>=30?'#dc2626':m.saldo_venc>0?'#d97706':'#16a34a';
-    var stBg=m.status==='AFASTADO'?'#fee2e2':m.status==='FÉRIAS'||m.status==='FERIAS'?'#dbeafe':'#dcfce7';
-    var stCl=m.status==='AFASTADO'?'#991b1b':m.status==='FÉRIAS'||m.status==='FERIAS'?'#1e40af':'#166534';
+    var stBg=m.status==='AFASTADO'?'#fee2e2':m.status==='DESLIGADO'?'#f3f4f6':m.status==='FÉRIAS'||m.status==='FERIAS'?'#dbeafe':'#dcfce7';
+    var stCl=m.status==='AFASTADO'?'#991b1b':m.status==='DESLIGADO'?'#6b7280':m.status==='FÉRIAS'||m.status==='FERIAS'?'#1e40af':'#166534';
     var stTx=m.status==='FERIAS'?'FÉRIAS':m.status||'ATIVO';
     var vencTxt='—',vencCor='var(--txl)';
     if(m.dt_venc){var dV=new Date(m.dt_venc+'T12:00:00'),d=Math.floor((dV-hoje)/86400000);vencTxt=dV.toLocaleDateString('pt-BR');vencCor=d<0?'#dc2626':d<90?'#d97706':'var(--txl)';}
