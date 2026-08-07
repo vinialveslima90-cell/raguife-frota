@@ -85,6 +85,95 @@ if(typeof ChartDataLabels==='undefined') window.ChartDataLabels={id:'datalabels'
     online:false, ready:false, uid:null,
     _pending:{}, _statusEl:null, _bannerShown:false,
     _pulledKeys:{}, _earlyWrite:{},
+    _lockState:{active:false, by:null, byName:null, ts:0, reason:null},
+    _lockOverlayEl:null, _lockBtnEl:null,
+    _LOCK_STALE_MS: 15*60*1000, // trava esquecida por mais de 15min é ignorada, não bloqueia pra sempre
+
+    _lockNomeAtual:function(){
+      try{
+        var s = origGetItem('raguife_session');
+        if(s){ var p = JSON.parse(s); if(p && p.name) return p.name; }
+      }catch(e){}
+      return 'Alguém';
+    },
+    _lockIsStale:function(){
+      return !FB._lockState.ts || (Date.now() - FB._lockState.ts) > FB._LOCK_STALE_MS;
+    },
+    _lockAtivaParaOutros:function(){
+      return FB._lockState.active && FB._lockState.by !== FB.uid && !FB._lockIsStale();
+    },
+    lock:function(motivo){
+      if(!FB.ready || typeof firebase==='undefined') return;
+      firebase.database().ref('sync/_lock').set({
+        active:true, by:FB.uid, byName:FB._lockNomeAtual(), ts:Date.now(), reason:motivo||'Manutenção em andamento'
+      });
+    },
+    unlock:function(){
+      if(!FB.ready || typeof firebase==='undefined') return;
+      firebase.database().ref('sync/_lock').set({active:false, by:null, byName:null, ts:Date.now(), reason:null});
+    },
+    // ── Lápides (tombstones) ────────────────────────────────────────────
+    // Registra IDs removidos de propósito (limpeza de duplicidade, arquivamento)
+    // pra que a mesclagem automática de sync NUNCA os traga de volta, mesmo que
+    // um dispositivo com dado antigo em cache tente sincronizar por cima depois.
+    tombstone:function(key, ids){
+      if(!ids || !ids.length || typeof firebase==='undefined') return;
+      var upd = {}; var ts = Date.now();
+      ids.forEach(function(id){ if(id) upd[id] = ts; });
+      if(!Object.keys(upd).length) return;
+      firebase.database().ref('sync/_tomb_'+fbSafeKey(key)).update(upd).catch(function(e){
+        console.warn('[FB Sync] Falha ao gravar lápide de', key, e.message);
+      });
+    },
+    _attachLockListener:function(){
+      if(typeof firebase==='undefined') return;
+      firebase.database().ref('sync/_lock').on('value', function(snap){
+        var v = snap.val() || {active:false};
+        FB._lockState = {active:!!v.active, by:v.by||null, byName:v.byName||null, ts:v.ts||0, reason:v.reason||null};
+        FB._renderLockUI();
+      });
+    },
+    _renderLockUI:function(){
+      // Overlay bloqueando a tela pra quem NÃO é o dono da trava
+      var bloqueado = FB._lockAtivaParaOutros();
+      if(bloqueado){
+        if(!FB._lockOverlayEl){
+          var ov = document.createElement('div');
+          ov.id = 'fb-lock-overlay';
+          ov.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,20,.72);z-index:999999;display:flex;align-items:center;justify-content:center;font-family:Inter,sans-serif';
+          ov.innerHTML = '<div style="background:#fff;border-radius:14px;padding:28px 32px;max-width:380px;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,.35)">'
+            + '<div style="font-size:32px;margin-bottom:8px">🔒</div>'
+            + '<div style="font-weight:800;font-size:15px;color:#1c1c1c;margin-bottom:6px">Sistema em manutenção</div>'
+            + '<div id="fb-lock-msg" style="font-size:12.5px;color:#555;line-height:1.5"></div>'
+            + '<div style="font-size:11px;color:#999;margin-top:10px">A tela libera sozinha assim que a manutenção terminar — não precisa recarregar.</div>'
+            + '</div>';
+          document.body.appendChild(ov);
+          FB._lockOverlayEl = ov;
+        }
+        var msgEl = document.getElementById('fb-lock-msg');
+        if(msgEl){
+          msgEl.textContent = (FB._lockState.byName||'Alguém')+' está fazendo uma correção na base ('+(FB._lockState.reason||'manutenção')+'). Aguarde a liberação antes de continuar.';
+        }
+      }else if(FB._lockOverlayEl){
+        FB._lockOverlayEl.remove();
+        FB._lockOverlayEl = null;
+      }
+      // Botão de bloqueio manual na barra de status
+      var btn = FB._lockBtnEl;
+      if(btn){
+        if(FB._lockState.active && FB._lockState.by===FB.uid && !FB._lockIsStale()){
+          btn.textContent = '🔓 Liberar Sistema';
+          btn.style.background = '#fee2e2'; btn.style.color = '#991b1b'; btn.style.borderColor='#fca5a5';
+          btn.style.display = '';
+        }else if(FB._lockAtivaParaOutros()){
+          btn.style.display = 'none';
+        }else{
+          btn.textContent = '🔒 Bloquear Sistema';
+          btn.style.background = '#fff'; btn.style.color = 'var(--txl)'; btn.style.borderColor='var(--gb)';
+          btn.style.display = '';
+        }
+      }
+    },
 
     init:function(){
       if(typeof firebase==='undefined'){
@@ -102,6 +191,7 @@ if(typeof ChartDataLabels==='undefined') window.ChartDataLabels={id:'datalabels'
             FB.ready = true;
             FB._pullAll();
             FB._attachListeners();
+            FB._attachLockListener();
           }
         });
         firebase.database().ref('.info/connected').on('value', function(snap){
@@ -138,6 +228,23 @@ if(typeof ChartDataLabels==='undefined') window.ChartDataLabels={id:'datalabels'
         diagBtn.style.cssText = 'margin-left:8px;padding:3px 10px;font-size:10px;font-weight:700;border:1px solid var(--gb);border-radius:8px;background:#fff;color:var(--txl);cursor:pointer';
         diagBtn.onclick = function(){ if(typeof abrirDiagnostico==='function') abrirDiagnostico(); };
         bar.appendChild(diagBtn);
+
+        var lockBtn = document.createElement('button');
+        lockBtn.id = 'fb-lock-btn';
+        lockBtn.textContent = '🔒 Bloquear Sistema';
+        lockBtn.title = 'Bloqueia gravações de outros usuários enquanto você faz uma correção sensível na base';
+        lockBtn.style.cssText = 'margin-left:8px;padding:3px 10px;font-size:10px;font-weight:700;border:1px solid var(--gb);border-radius:8px;background:#fff;color:var(--txl);cursor:pointer';
+        lockBtn.onclick = function(){
+          if(FB._lockState.active && FB._lockState.by===FB.uid){
+            FB.unlock();
+          }else{
+            var motivo = prompt('Motivo do bloqueio (aparece pra quem tentar usar o sistema):', 'Correção de dados em andamento');
+            if(motivo===null) return; // cancelou
+            FB.lock(motivo||'Manutenção em andamento');
+          }
+        };
+        bar.appendChild(lockBtn);
+        FB._lockBtnEl = lockBtn;
 
         var verBadge = document.createElement('span');
         verBadge.textContent = 'build 2026-07-30-B';
@@ -178,11 +285,18 @@ if(typeof ChartDataLabels==='undefined') window.ChartDataLabels={id:'datalabels'
         var remoteTs = remote._ts || 0;
         var localTs = getKnownTs(key);
         if(!localRaw || remoteTs > localTs){
-          origSetItem(key, remote.data);
-          setKnownTs(key, remoteTs);
-          // Só avisa se a tela já tinha renderizado com dado local desatualizado
-          // (evita o aviso falso disparar em toda recarga de página)
-          if(document.readyState==='complete' && localRaw) FB._notifyUpdate(key);
+          // Mesmo filtro de lápides do listener em tempo real — essencial aqui porque
+          // é EXATAMENTE este caminho que roda no F5/recarregamento de página. Sem
+          // isso, um registro removido de propósito conseguia voltar assim que a
+          // página recarregasse e puxasse a nuvem do zero.
+          FB._filtrarLapides(key, remote.data).then(function(dadoFiltrado){
+            origSetItem(key, dadoFiltrado);
+            setKnownTs(key, remoteTs);
+            if(document.readyState==='complete' && localRaw) FB._notifyUpdate(key);
+            FB._pulledKeys[key] = true;
+            FB._resolveEarlyWrite(key, remote);
+          });
+          return;
         }
         FB._pulledKeys[key] = true;
         FB._resolveEarlyWrite(key, remote);
@@ -211,6 +325,16 @@ if(typeof ChartDataLabels==='undefined') window.ChartDataLabels={id:'datalabels'
     },
     _pushOne:function(key, value){
       if(!FB.ready){ FB._pending[key]=value; return; }
+      // Trava de manutenção: se outra pessoa estiver com o sistema bloqueado
+      // (ex: fazendo limpeza de duplicidade), nenhuma gravação de terceiros sobe
+      // pra nuvem enquanto isso — evita exatamente a colisão que reverteu a
+      // limpeza de viagens duplicadas. O overlay de tela cheia já impede o uso
+      // normal do sistema; isso aqui é a segunda camada, caso alguém já estivesse
+      // com uma aba aberta antes da trava ser ativada.
+      if(FB._lockAtivaParaOutros()){
+        console.warn('[FB Sync] Gravação de '+key+' bloqueada — sistema em manutenção por '+(FB._lockState.byName||'outro usuário'));
+        return;
+      }
       if(value===null){
         var ts0 = Date.now();
         setKnownTs(key, ts0);
@@ -242,23 +366,24 @@ if(typeof ChartDataLabels==='undefined') window.ChartDataLabels={id:'datalabels'
         var limite = Math.max(limiteAbs, limitePct);
         var reducaoSuspeita = (novoCount!=null && remoteCount!=null && remoteCount>=10 && (remoteCount-novoCount) > limite);
         if(reducaoSuspeita){
-          var merged = FB._mergeValues(value, remote.data);
-          var mergedCount = merged!=null ? contarItens(merged) : null;
-          if(merged!=null && mergedCount!=null && mergedCount>=remoteCount){
-            console.warn('[FB Sync] AUTO-MESCLADO: '+key+' — local tinha '+novoCount+', nuvem tinha '+remoteCount+', combinados em '+mergedCount+'.');
+          FB._mergeComLapides(key, value, remote.data).then(function(merged){
+            var mergedCount = merged!=null ? contarItens(merged) : null;
+            if(merged!=null && mergedCount!=null && mergedCount>=novoCount){
+              console.warn('[FB Sync] AUTO-MESCLADO: '+key+' — local tinha '+novoCount+', nuvem tinha '+remoteCount+', combinados em '+mergedCount+'.');
+              FB._salvarHistorico(key, remote.data);
+              var tsM = Date.now();
+              setKnownTs(key, tsM);
+              origSetItem(key, merged);
+              firebase.database().ref('sync/'+fbSafeKey(key)).set({ data:merged, _ts:tsM, _by:FB.uid||'anon' }).catch(function(e){
+                console.warn('[FB Sync] Push (merge) falhou', key, e.message);
+              });
+              FB._notifyAutoMerge(key, novoCount, remoteCount, mergedCount);
+              return;
+            }
+            console.warn('[FB Sync] BLOQUEADO: gravação de '+key+' reduziria de '+remoteCount+' para '+novoCount+' itens e não foi possível mesclar com segurança. Envio cancelado para proteger os dados.');
             FB._salvarHistorico(key, remote.data);
-            var tsM = Date.now();
-            setKnownTs(key, tsM);
-            origSetItem(key, merged);
-            firebase.database().ref('sync/'+fbSafeKey(key)).set({ data:merged, _ts:tsM, _by:FB.uid||'anon' }).catch(function(e){
-              console.warn('[FB Sync] Push (merge) falhou', key, e.message);
-            });
-            FB._notifyAutoMerge(key, novoCount, remoteCount, mergedCount);
-            return;
-          }
-          console.warn('[FB Sync] BLOQUEADO: gravação de '+key+' reduziria de '+remoteCount+' para '+novoCount+' itens e não foi possível mesclar com segurança. Envio cancelado para proteger os dados.');
-          FB._salvarHistorico(key, remote.data);
-          FB._notifyBlockedPush(key, remoteCount, novoCount);
+            FB._notifyBlockedPush(key, remoteCount, novoCount);
+          });
           return;
         }
         var ts = Date.now();
@@ -292,13 +417,6 @@ if(typeof ChartDataLabels==='undefined') window.ChartDataLabels={id:'datalabels'
           var ts = remote._ts||0;
           if(ts <= getKnownTs(key)) return;
 
-          // Proteção simétrica à do envio (_pushOne): antes só bloqueávamos o LOCAL
-          // mandando um dado pequeno demais pra nuvem. Mas se um dado corrompido já
-          // tinha ido parar na nuvem antes (ex: cache de teste antigo), ele ficava
-          // voltando pra sempre — mesmo com o local já corrigido — porque nada
-          // impedia a nuvem de sobrescrever o local nesse sentido. Agora, se o valor
-          // remoto reduziria muito o que já está localmente, a atualização remota é
-          // rejeitada E o valor local correto é reenviado, autocurando a nuvem.
           function contarItens(raw){
             try{
               var parsed = JSON.parse(raw);
@@ -309,39 +427,63 @@ if(typeof ChartDataLabels==='undefined') window.ChartDataLabels={id:'datalabels'
           }
           var atual = null;
           try{ atual = origGetItem ? origGetItem(key) : localStorage.getItem(key); }catch(e){}
-          var localCount  = atual ? contarItens(atual) : null;
-          var remoteCount = remote.data ? contarItens(remote.data) : null;
-          var limiteAbs = 5;
-          var limitePct = localCount!=null ? localCount*0.05 : 0;
-          var limite = Math.max(limiteAbs, limitePct);
-          var reducaoSuspeita = (localCount!=null && remoteCount!=null && localCount>=10 && (localCount-remoteCount) > limite);
-          if(reducaoSuspeita){
-            var merged = FB._mergeValues(atual, remote.data);
-            var mergedCount = merged!=null ? FB._contarItens(merged) : null;
-            if(merged!=null && mergedCount!=null && mergedCount>=localCount){
-              console.warn('[FB Sync] AUTO-MESCLADO (recebendo da nuvem): '+key+' — local tinha '+localCount+', nuvem tinha '+remoteCount+', combinados em '+mergedCount+'.');
-              FB._salvarHistorico(key, atual);
-              origSetItem(key, merged);
-              setKnownTs(key, Date.now());
-              FB._pushOne(key, merged);
-              FB._notifyAutoMerge(key, localCount, remoteCount, mergedCount);
+
+          // Filtro de lápides ANTES de qualquer outra decisão: se os itens têm _id,
+          // nunca aceita de volta um registro que foi removido de propósito em
+          // qualquer dispositivo — independente do dado remoto ser "maior" ou
+          // "menor" que o local. Isso fecha a brecha por onde uma cópia antiga
+          // (aba esquecida aberta noutro PC) conseguia reintroduzir duplicatas
+          // silenciosamente, mesmo sem disparar a proteção de "redução suspeita".
+          FB._filtrarLapides(key, remote.data).then(function(dadoFiltrado){
+            var remoteData = dadoFiltrado;
+            var remoteCount = remoteData ? contarItens(remoteData) : null;
+            var localCount  = atual ? contarItens(atual) : null;
+            var limiteAbs = 5;
+            var limitePct = localCount!=null ? localCount*0.05 : 0;
+            var limite = Math.max(limiteAbs, limitePct);
+            var reducaoSuspeita = (localCount!=null && remoteCount!=null && localCount>=10 && (localCount-remoteCount) > limite);
+            if(reducaoSuspeita){
+              FB._mergeComLapides(key, atual, remoteData).then(function(merged){
+                var mergedCount = merged!=null ? FB._contarItens(merged) : null;
+                if(merged!=null && mergedCount!=null && mergedCount>=localCount){
+                  console.warn('[FB Sync] AUTO-MESCLADO (recebendo da nuvem): '+key+' — local tinha '+localCount+', nuvem tinha '+remoteCount+', combinados em '+mergedCount+'.');
+                  FB._salvarHistorico(key, atual);
+                  origSetItem(key, merged);
+                  setKnownTs(key, Date.now());
+                  FB._pushOne(key, merged);
+                  FB._notifyAutoMerge(key, localCount, remoteCount, mergedCount);
+                  return;
+                }
+                console.warn('[FB Sync] REJEITADO puxar '+key+' da nuvem: reduziria de '+localCount+' para '+remoteCount+' itens localmente e não foi possível mesclar com segurança. Reenviando o valor local para corrigir a nuvem.');
+                FB._salvarHistorico(key, remoteData);
+                setKnownTs(key, Date.now());
+                FB._pushOne(key, atual); // autocura a nuvem com o dado local
+              });
               return;
             }
-            console.warn('[FB Sync] REJEITADO puxar '+key+' da nuvem: reduziria de '+localCount+' para '+remoteCount+' itens localmente e não foi possível mesclar com segurança. Reenviando o valor local para corrigir a nuvem.');
-            FB._salvarHistorico(key, remote.data);
-            setKnownTs(key, Date.now());
-            FB._pushOne(key, atual); // autocura a nuvem com o dado local
-            return;
-          }
-
-          origSetItem(key, remote.data);
-          setKnownTs(key, ts);
-          FB._notifyUpdate(key);
+            origSetItem(key, remoteData);
+            setKnownTs(key, ts);
+            FB._notifyUpdate(key);
+          });
         });
       });
       Object.keys(FB._pending).forEach(function(k){
         var v = FB._pending[k]; delete FB._pending[k]; FB._pushOne(k, v);
       });
+    },
+    // Remove do valor remoto qualquer item cujo _id esteja na lista de lápides
+    // dessa chave. Se os itens não tiverem _id, devolve o valor sem alteração.
+    _filtrarLapides:function(key, remoteRaw){
+      if(remoteRaw==null || typeof firebase==='undefined') return Promise.resolve(remoteRaw);
+      var arr;
+      try{ arr = JSON.parse(remoteRaw); }catch(e){ return Promise.resolve(remoteRaw); }
+      if(!Array.isArray(arr) || !arr.length || !arr[0] || !arr[0]._id) return Promise.resolve(remoteRaw);
+      return firebase.database().ref('sync/_tomb_'+fbSafeKey(key)).once('value').then(function(snap){
+        var lapides = snap.val();
+        if(!lapides) return remoteRaw;
+        var filtrado = arr.filter(function(item){ return !item._id || !lapides[item._id]; });
+        return filtrado.length===arr.length ? remoteRaw : JSON.stringify(filtrado);
+      }).catch(function(){ return remoteRaw; });
     },
     // ── Contagem de itens compartilhada (evita duplicar a mesma função em 3 lugares) ──
     _contarItens:function(raw){
@@ -375,6 +517,48 @@ if(typeof ChartDataLabels==='undefined') window.ChartDataLabels={id:'datalabels'
         }
       }catch(e){}
       return null;
+    },
+    // ── Mesclagem consciente de lápides, por _id ─────────────────────────
+    // Quando os itens têm _id (caso de raguife_v3/viagens), a mesclagem deixa
+    // de comparar o JSON inteiro (que falha pra "quase-duplicatas") e passa a:
+    //  1) nunca trazer de volta um _id que está na lista de lápides (removido
+    //     de propósito por alguém, em qualquer dispositivo);
+    //  2) quando o mesmo _id existe dos dois lados com conteúdo diferente,
+    //     ficar com a versão local (é a versão que acabou de ser corrigida);
+    //  3) preservar registros que só existem de um dos lados (não perde nada
+    //     genuinamente novo, que é o objetivo original dessa proteção).
+    // Devolve uma Promise pra poder consultar as lápides no Firebase antes de decidir.
+    _mergeComLapides:function(key, localRaw, remoteRaw){
+      var semLapide = function(){ return Promise.resolve(FB._mergeValues(localRaw, remoteRaw)); };
+      if(typeof firebase==='undefined') return semLapide();
+      var a, b;
+      try{ a = JSON.parse(localRaw); b = JSON.parse(remoteRaw); }catch(e){ return semLapide(); }
+      if(!Array.isArray(a) || !Array.isArray(b)) return semLapide();
+      var usaId = (a.length && a[0] && a[0]._id) || (b.length && b[0] && b[0]._id);
+      if(!usaId) return semLapide();
+      return firebase.database().ref('sync/_tomb_'+fbSafeKey(key)).once('value').then(function(snap){
+        var lapides = snap.val() || {};
+        var porId = {}; var semId = [];
+        b.forEach(function(item){
+          if(item && item._id){ if(!lapides[item._id]) porId[item._id] = item; }
+          else semId.push(item);
+        });
+        a.forEach(function(item){
+          if(item && item._id){ if(!lapides[item._id]) porId[item._id] = item; } // local prevalece (sobrescreve remoto no assign abaixo)
+          else semId.push(item);
+        });
+        var out = Object.keys(porId).map(function(id){ return porId[id]; });
+        // Itens sem _id (registros legados anteriores à migração): cai no dedup
+        // antigo por igualdade exata, só entre eles, como rede de segurança.
+        if(semId.length){
+          var seen = {}; 
+          semId.forEach(function(item){
+            var k = JSON.stringify(item);
+            if(!seen[k]){ seen[k]=true; out.push(item); }
+          });
+        }
+        return JSON.stringify(out);
+      }).catch(function(){ return semLapide(); });
     },
     // ── Histórico de versões (para recuperação) ──
     // Antes de qualquer resolução de conflito (mesclagem ou bloqueio), guarda uma cópia
@@ -490,7 +674,17 @@ if(typeof ChartDataLabels==='undefined') window.ChartDataLabels={id:'datalabels'
         + '<span style="cursor:pointer;opacity:.7;margin-left:4px" id="fb-banner-close">✕</span>';
       if(document.body) document.body.appendChild(banner);
       // Só recarrega se o usuário clicar — nunca sozinho, pra não atrapalhar quem está no meio de um lançamento
-      document.getElementById('fb-banner-reload').onclick = function(){ location.reload(); };
+      document.getElementById('fb-banner-reload').onclick = function(){
+        // Enquanto a trava de manutenção estiver ativa (mesmo sendo você quem
+        // ativou), recarregar no meio do processo pode puxar um dado da nuvem que
+        // ainda não terminou de ser gravado. Por segurança, avisa em vez de recarregar
+        // direto — foi um "Atualizar agora" no meio da limpeza que causou a reversão.
+        if(typeof FB_SYNC!=='undefined' && FB_SYNC._lockState && FB_SYNC._lockState.active && !FB_SYNC._lockIsStale()){
+          alert('⏳ O sistema está em manutenção agora ('+(FB_SYNC._lockState.reason||'correção em andamento')+').\n\nEspere o alerta de conclusão antes de recarregar, senão você pode puxar dados que ainda não terminaram de ser gravados na nuvem.');
+          return;
+        }
+        location.reload();
+      };
       document.getElementById('fb-banner-close').onclick = function(){
         banner.remove();
         FB._bannerShown = false; // permite avisar de novo se chegar outra atualização depois
@@ -5883,6 +6077,22 @@ const save=()=>{
   localStorage.setItem('raguife_v3',JSON.stringify(DB));
 };
 const g=id=>document.getElementById(id);
+// ── Migração: garante _id estável em toda viagem ────────────────────────
+// Sem um identificador próprio, o sistema só conseguia comparar/desduplicar
+// viagens por igualdade exata do JSON inteiro — o que falha exatamente no caso
+// que mais importa (duas cópias quase iguais da MESMA viagem, com pequenas
+// diferenças). Isso é o que permitia que uma mesclagem automática de sync
+// trouxesse de volta viagens que tinham sido removidas de propósito. Roda uma
+// vez por navegador; quem gravar primeiro define o _id que os demais adotam.
+(function(){
+  var mudou = false;
+  DB.forEach(function(r){
+    if(!r._id){ r._id = 'v_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,9); mudou = true; }
+  });
+  if(mudou){
+    try{ localStorage.setItem('raguife_v3', JSON.stringify(DB)); }catch(e){}
+  }
+})();
 const R=v=>v?'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'—';
 const N=(v,d=1)=>v!=null?Number(v).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d}):'—';
 const FD=s=>s?s.split('-').reverse().join('/'):'—';
@@ -7038,7 +7248,7 @@ function renderRecs(){
     </tr>`;}).join('');
   g('rec-count').textContent=`${rows.length} registros`;g('rec-foot').textContent=`${rows.length} de ${DB.length} registros`;
 }
-const delRec=i=>{if(!confirm('Remover?'))return;DB.splice(i,1);save();renderRecs();renderAll();renderKanban();toast('Removido','success');};
+const delRec=i=>{if(!confirm('Remover?'))return;var _idRem=DB[i]&&DB[i]._id;DB.splice(i,1);if(_idRem&&typeof FB_SYNC!=='undefined'&&FB_SYNC.tombstone)FB_SYNC.tombstone('raguife_v3',[_idRem]);save();renderRecs();renderAll();renderKanban();toast('Removido','success');};
 const restoreAll=()=>{DB=JSON.parse(JSON.stringify(SEED));_dbIsSeedFallback=false;save();renderRecs();renderAll();renderKanban();initFilters();toast('Dados restaurados','success');};
 
 function initFilters(){
@@ -7657,6 +7867,7 @@ function saidImpConfirmar(){
     }
 
     DB.push({
+      _id: 'v_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,9),
       placa: d.placa, categoria: d.categoria, dt_carg: d.data,
       origem_cidade: d.origemCidade, origem_uf: d.ufOrigem,
       origem: d.origemCidade+'-'+d.ufOrigem,
@@ -7716,6 +7927,7 @@ function saveEtapa1(){
   const origUf=g('fi-orig-uf').value;
   const destUf=g('fi-dest-uf').value;
   DB.push({
+    _id: 'v_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,9),
     placa:g('fi-placa').value.trim().toUpperCase(),categoria:g('fi-cat').value,dt_carg:g('fi-dtc').value,
     origem_cidade:origCidade,origem_uf:origUf,
     origem:origCidade+(origUf?'-'+origUf:''),
@@ -15776,8 +15988,10 @@ function vdupCorrigirSiloConhecidos(){
     +(divergentes.length ? '\n⚠ '+divergentes.length+' caso(s) com peso na base diferente do esperado pela planilha — serão corrigidos mesmo assim, mas vale conferir depois.\n' : '')
     +'\nConfirma?')) return;
 
+  var _idsLapideBS = indicesParaRemover.map(function(i){ return DB[i] && DB[i]._id; }).filter(Boolean);
   indicesParaRemover.sort(function(a,b){return b-a;}).forEach(function(i){ DB.splice(i,1); });
-  linhasParaInserir.forEach(function(l){ DB.push(l); });
+  if(_idsLapideBS.length && typeof FB_SYNC!=='undefined' && FB_SYNC.tombstone) FB_SYNC.tombstone('raguife_v3', _idsLapideBS);
+  linhasParaInserir.forEach(function(l){ if(!l._id) l._id='v_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,9); DB.push(l); });
 
   save();
   toast(indicesParaRemover.length+' removido(s), '+linhasParaInserir.length+' inserido(s) ✅','success');
@@ -16061,7 +16275,9 @@ function vdupAplicarGrupo(chave){
 
   var indicesRemover = [];
   vdupMesclarGrupo(grupo, manterIdx, indicesRemover);
+  var _idsLapideGrupo = indicesRemover.map(function(i){ return DB[i] && DB[i]._id; }).filter(Boolean);
   indicesRemover.sort(function(a,b){return b-a;}).forEach(function(i){ DB.splice(i,1); });
+  if(_idsLapideGrupo.length && typeof FB_SYNC!=='undefined' && FB_SYNC.tombstone) FB_SYNC.tombstone('raguife_v3', _idsLapideGrupo);
 
   save();
   toast('Viagem duplicada resolvida ✅','success');
@@ -16099,7 +16315,9 @@ function vdupRestaurarStatusSeguros(){
     if(manterIdx==null) return;
     sg.indices.forEach(function(i){ if(i!==manterIdx) indicesRemover.push(i); });
   });
+  var _idsLapideRest = indicesRemover.map(function(i){ return DB[i] && DB[i]._id; }).filter(Boolean);
   indicesRemover.sort(function(a,b){return b-a;}).forEach(function(i){ DB.splice(i,1); });
+  if(_idsLapideRest.length && typeof FB_SYNC!=='undefined' && FB_SYNC.tombstone) FB_SYNC.tombstone('raguife_v3', _idsLapideRest);
 
   save();
   toast(seguros.length+' viagem(ns) com status restaurado ✅','success');
@@ -16129,7 +16347,9 @@ function vdupResolverDuplicataPura(){
     var manterIdx = sg.indices.slice().sort(function(a,b){ return vdupPontuar(DB[b])-vdupPontuar(DB[a]); })[0];
     sg.indices.forEach(function(i){ if(i!==manterIdx) indicesRemover.push(i); });
   });
+  var _idsLapideDupPura = indicesRemover.map(function(i){ return DB[i] && DB[i]._id; }).filter(Boolean);
   indicesRemover.sort(function(a,b){return b-a;}).forEach(function(i){ DB.splice(i,1); });
+  if(_idsLapideDupPura.length && typeof FB_SYNC!=='undefined' && FB_SYNC.tombstone) FB_SYNC.tombstone('raguife_v3', _idsLapideDupPura);
 
   save();
   toast(alvos.length+' duplicata(s) idêntica(s) removida(s) ✅','success');
@@ -16166,7 +16386,9 @@ function vdupResolverTudoRestante(){
     indicesRemoverGrupo.forEach(function(i){ indicesRemover.push(i); });
   });
   indicesRemover = Array.from(new Set(indicesRemover)).sort(function(a,b){return b-a;});
+  var _idsLapideTudo = indicesRemover.map(function(i){ return DB[i] && DB[i]._id; }).filter(Boolean);
   indicesRemover.forEach(function(i){ DB.splice(i,1); });
+  if(_idsLapideTudo.length && typeof FB_SYNC!=='undefined' && FB_SYNC.tombstone) FB_SYNC.tombstone('raguife_v3', _idsLapideTudo);
 
   save();
   toast(todosSubgrupos.length+' grupo(s) resolvido(s), '+indicesRemover.length+' registro(s) removido(s) ✅','success');
@@ -16264,7 +16486,9 @@ function arqAplicar(){
   });
   arqHistoricoSalvar(historico);
 
+  var _idsLapideArq = indices.map(function(i){ return DB[i] && DB[i]._id; }).filter(Boolean);
   indices.slice().sort(function(a,b){return b-a;}).forEach(function(i){ DB.splice(i,1); });
+  if(_idsLapideArq.length && typeof FB_SYNC!=='undefined' && FB_SYNC.tombstone) FB_SYNC.tombstone('raguife_v3', _idsLapideArq);
 
   save();
   toast(indices.length+' viagem(ns) arquivada(s) ✅','success');
@@ -16294,6 +16518,11 @@ function forcarSincronizacaoLimpeza(btn){
   var localCount = DB.length;
   if(btn){ btn.disabled = true; btn.textContent = '⏳ Consultando a nuvem...'; }
 
+  // Trava o sistema pra ninguém mais gravar em cima enquanto essa comparação e
+  // esse envio acontecem — é exatamente essa janela de tempo que causou a
+  // reversão anterior (alguém sincronizando dado antigo por cima do limpo).
+  if(typeof FB_SYNC!=='undefined' && FB_SYNC.lock) FB_SYNC.lock('Limpeza de viagens duplicadas em andamento — aguarde a liberação');
+
   firebase.database().ref('sync/'+(typeof fbSafeKey==='function' ? fbSafeKey('raguife_v3') : 'raguife_v3')).once('value').then(function(snap){
     var remote = snap.val();
     var remoteCount = 0;
@@ -16309,8 +16538,10 @@ function forcarSincronizacaoLimpeza(btn){
       +'\n⚠️ Isso vai SUBSTITUIR a base inteira da nuvem pela que está na sua tela agora — de propósito, ignorando a proteção automática que normalmente bloquearia essa redução.\n\n'
       +'Só confirme se tiver certeza de que a base local (com as correções de hoje) está mais correta que a da nuvem.\n\nConfirma o envio?';
 
-    if(!confirm(msg)) return;
-    if(diferenca<0 && !confirm('Atenção: sua tela tem MAIS registros que a nuvem (o contrário do esperado numa limpeza). Confirma mesmo assim que quer sobrescrever?')) return;
+    var liberarTrava = function(){ if(typeof FB_SYNC!=='undefined' && FB_SYNC.unlock) FB_SYNC.unlock(); };
+
+    if(!confirm(msg)){ liberarTrava(); return; }
+    if(diferenca<0 && !confirm('Atenção: sua tela tem MAIS registros que a nuvem (o contrário do esperado numa limpeza). Confirma mesmo assim que quer sobrescrever?')){ liberarTrava(); return; }
 
     var ts = Date.now();
     var valor = JSON.stringify(DB);
@@ -16320,10 +16551,11 @@ function forcarSincronizacaoLimpeza(btn){
       toast('Base limpa enviada pra nuvem ✅','success');
     }).catch(function(e){
       alert('❌ Erro ao enviar: '+e.message+'\n\nTenta de novo, ou verifica sua conexão.');
-    });
+    }).finally(function(){ liberarTrava(); });
   }).catch(function(e){
     if(btn){ btn.disabled = false; btn.textContent = '🚨 Forçar Envio da Base Limpa'; }
     alert('Não consegui consultar a nuvem: '+e.message);
+    if(typeof FB_SYNC!=='undefined' && FB_SYNC.unlock) FB_SYNC.unlock();
   });
 }
 
@@ -16677,7 +16909,14 @@ function pessSyncFromStorage(){
 function pessDerivarFeriasDeAgendamento(){
   var novo = [];
   PESS_MOT.forEach(function(m){
-    var dt = m.dt_agendamento;
+    // CORREÇÃO — bug de nomes de campo divergentes: o campo realmente editado
+    // pela tela (coluna "Agendamento" da tabela de Motoristas, modal de edição)
+    // é dt_agend. Esta função só lia dt_agendamento (nome usado nos dados
+    // originais de fábrica) — então qualquer edição feita pela tela nunca
+    // chegava aqui, e o calendário de férias ficava sempre desatualizado em
+    // relação ao que a equipe via/editava na tabela. Agora lê os dois,
+    // priorizando o campo que a tela realmente edita.
+    var dt = m.dt_agend || m.dt_agendamento;
     if(dt && String(dt).length >= 7){
       var mes = parseInt(String(dt).split('-')[1], 10);
       if(mes>=1 && mes<=12){
@@ -16972,18 +17211,29 @@ function gpSalvarMotorista(){
 
   var saldo=parseInt(gv('gpl-mot-saldo'))||0;
   var rec={placa:placa,nome:nome,cat:cat,marca:gv('gpl-mot-marca'),status:gv('gpl-mot-status')||'ATIVO',saldo_venc:saldo,dt_venc:gv('gpl-mot-venc')||null,dt_limite:gv('gpl-mot-limite')||null,dt_agend:gv('gpl-mot-agend')||null};
+  rec.dt_agendamento = rec.dt_agend; // mantém os dois nomes de campo em sincronia — ver nota em pessDerivarFeriasDeAgendamento
   if(idxExato>=0){ PESS_MOT[idxExato]=Object.assign(PESS_MOT[idxExato],rec); toast('Motorista atualizado ✅','success'); }
   else{ PESS_MOT.push(rec); toast('Motorista cadastrado ✅','success'); }
   // Garante que a placa exista em Gestão de Frota (cria se for nova, atualiza tipo/marca
   // se já existir) — sem isso, frotaSyncPess() abaixo descartaria este cadastro, já que
   // ele reconstrói PESS_MOT inteiramente a partir de DB_FROTA.
   gpGarantirVeiculoFrota(placa, cat, rec.marca);
+  // Recalcula o calendário de férias a partir do Agendamento — cobre o caso de
+  // cadastrar/editar um motorista já com data de Agendamento preenchida por aqui.
+  if(typeof pessDerivarFeriasDeAgendamento==='function'){ try{ pessDerivarFeriasDeAgendamento(); }catch(e){} }
   // Atualizar resumo
   gpAtualizarResumo();
   gpSavePess(); gpLancLimpar('mot'); gpRenderMotHist();
   // Garantir que cat vem sempre do FROTA (agora já atualizada acima)
   frotaSyncPess();
   gpRenderMotHist();
+  // CORREÇÃO — mesmo bug do lançamento de férias: gpAtualizarResumo() só
+  // recalcula os números por trás; quem redesenha os cards visíveis do
+  // Dashboard é pessRenderQuadro(), que faltava aqui. Isso cobre admissão,
+  // troca de veículo, mudança de categoria e desligamento (via status) —
+  // qualquer cadastro/edição feito por este formulário único.
+  if(typeof pessRenderQuadro==='function'){ try{ pessRenderQuadro(); }catch(e){ console.warn('[gpSalvarMotorista] pessRenderQuadro falhou:', e.message); } }
+  if(typeof pessRenderFerias==='function'){ try{ pessRenderFerias(); }catch(e){} }
 }
 
 // Normaliza uma string de categoria para o formato canônico usado pelo Quadro Geral
@@ -17129,6 +17379,7 @@ function gpExcluirMot(idx){
   if(!confirm('Excluir motorista "'+PESS_MOT[idx].nome+'"?')) return;
   PESS_MOT.splice(idx,1);
   gpAtualizarResumo(); gpSavePess(); gpRenderMotHist();
+  if(typeof pessRenderQuadro==='function'){ try{ pessRenderQuadro(); }catch(e){} }
   toast('Motorista removido','success');
 }
 
@@ -17143,6 +17394,22 @@ function gpSalvarFerias(){
   var rec={nome:nome,cat:cat,mes:mes,placa:placa};
   if(existing>=0) PESS_FER[existing]=rec;
   else PESS_FER.push(rec);
+  // CORREÇÃO — causa raiz da divergência entre Lançamentos e Dashboard: o
+  // calendário de férias (PESS_FER) é RECONSTRUÍDO DO ZERO a partir de
+  // dt_agendamento de cada motorista toda vez que a página carrega
+  // (pessDerivarFeriasDeAgendamento, chamada em todo pessInit — o guard que
+  // evitava isso é só em memória, então reseta a cada F5/nova aba). Um
+  // lançamento de férias que só editasse PESS_FER (como estava aqui) durava
+  // até o próximo F5 — depois disso, era apagado e substituído de volta pelo
+  // que dt_agendamento dissesse (podendo ser um mês antigo, do seed original).
+  // Agora o lançamento também atualiza dt_agendamento, que é a fonte que a
+  // reconstrução realmente lê — assim o mês lançado sobrevive a qualquer
+  // reload, e as duas telas (Lançamentos e Dashboard) nunca mais divergem.
+  if(mot){
+    var anoAgend = (mot.dt_agendamento && /^\d{4}-/.test(mot.dt_agendamento)) ? mot.dt_agendamento.slice(0,4) : String(new Date().getFullYear());
+    mot.dt_agendamento = anoAgend+'-'+String(mes).padStart(2,'0')+'-01';
+    mot.dt_agend = mot.dt_agendamento; // mantém os dois nomes de campo em sincronia — ver nota em pessDerivarFeriasDeAgendamento
+  }
   // Atualizar status do motorista se o mês lançado for o mês corrente
   var hoje=new Date(); var mesAtual=hoje.getMonth()+1;
   if(mes===mesAtual&&mot){ mot.status='FÉRIAS'; }
@@ -17151,6 +17418,14 @@ function gpSalvarFerias(){
   // futuro/passado não atualizava os cards, mesmo com o dado já salvo corretamente.
   gpAtualizarResumo();
   gpSavePess(); gpLancLimpar('ferias'); toast('Férias lançadas ✅','success'); ferRenderTabela();
+  // CORREÇÃO 2 — bug separado do anterior: gpAtualizarResumo() só recalcula os
+  // números por trás (PESS_RES); quem de fato redesenha os cards visíveis do
+  // Dashboard (KPI "Em Férias", grid por categoria) é pessRenderQuadro(), que
+  // nunca era chamada aqui. Por isso o lançamento não aparecia no Dashboard
+  // mesmo sem precisar de F5 — a tela simplesmente nunca era redesenhada.
+  if(typeof pessRenderQuadro==='function'){ try{ pessRenderQuadro(); }catch(e){ console.warn('[gpSalvarFerias] pessRenderQuadro falhou:', e.message); } }
+  // Calendário Jan-Dez da aba Férias também não era redesenhado aqui.
+  if(typeof pessRenderFerias==='function'){ try{ pessRenderFerias(); }catch(e){ console.warn('[gpSalvarFerias] pessRenderFerias falhou:', e.message); } }
 }
 
 function gpSalvarTox(){
@@ -21083,16 +21358,23 @@ function ferEditSalvar(){
   m.dt_venc=document.getElementById('fer-edit-venc').value||null;
   m.dt_limite=document.getElementById('fer-edit-limite').value||null;
   m.dt_agend=document.getElementById('fer-edit-agend').value||null;
+  m.dt_agendamento=m.dt_agend; // mantém os dois nomes de campo em sincronia (ver nota em pessDerivarFeriasDeAgendamento)
   m.marca=document.getElementById('fer-edit-marca').value.trim()||m.marca;
   var catEl=document.getElementById('fer-edit-cat');if(catEl&&catEl.value)m.cat=catEl.value;
   // Propaga categoria/marca/placa para Gestão de Frota — sem isso, a próxima sincronização
   // (frotaSyncPess) sobrescreveria essa edição com o valor antigo cadastrado na Frota.
   gpGarantirVeiculoFrota(m.placa, m.cat, m.marca);
+  // Recalcula o calendário de férias (PESS_FER) a partir do Agendamento que acabou
+  // de ser editado, e redesenha o calendário — antes disso faltava por completo,
+  // então mudar o Agendamento aqui nunca atualizava a aba Férias nem o card
+  // "Em Férias" do Dashboard.
+  if(typeof pessDerivarFeriasDeAgendamento==='function'){ try{ pessDerivarFeriasDeAgendamento(); }catch(e){} }
   gpSavePess();gpAtualizarResumo();
   ferEditClose();
   frotaSyncPess();
   if(_ferEditSource==='mot'){gpRenderMotHist();}else{ferRenderTabela();}
   if(typeof pessRenderQuadro==='function')pessRenderQuadro();
+  if(typeof pessRenderFerias==='function')pessRenderFerias();
   toast(m.nome+' atualizado &#10003;','success');
 }
 document.getElementById('fer-edit-modal').addEventListener('click',function(e){if(e.target===this)ferEditClose();});
