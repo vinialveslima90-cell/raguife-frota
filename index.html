@@ -27780,6 +27780,22 @@ function perfKmMensalMesTotal(ano, mes, cat){
 var PLACAS_FORA_RANKING_CATEGORIA = ['GAA6E91','NSB3G46'];
 // Agrupa o KM Mensal importado por categoria para um mês específico.
 // Retorna {CATEGORIA: {km: total, veic: qtde de veículos}}
+// CORREÇÃO CRÍTICA (25/08): antes, a categoria vinha direto do campo "cat"
+// gravado dentro do próprio registro de Km Mensal importado — se esse campo
+// estivesse vazio, errado, ou (como aconteceu com GAA7B93) tivesse a placa
+// digitada no lugar da categoria, a função criava uma "categoria" nova com o
+// texto errado, sem juntar com a categoria real do veículo. Isso é a mesma
+// causa-raiz do problema de duplicidade de categoria que já corrigimos hoje
+// mais cedo em outras telas — aqui era um ponto que tínhamos deixado passar.
+// Agora busca a categoria OFICIAL do veículo no cadastro de Frota (por
+// placa) primeiro; só usa o campo "cat" do Km Mensal como último recurso, se
+// a placa não estiver cadastrada em lugar nenhum.
+function perfCategoriaOficialPorPlaca(placa){
+  var frotaViva = (typeof DB_FROTA!=='undefined' && DB_FROTA.length) ? DB_FROTA : (typeof FROTA_SEED!=='undefined'?FROTA_SEED:[]);
+  var placaNorm = intPlacaNorm(placa);
+  var veic = frotaViva.find(function(v){ return intPlacaNorm(v.id||v.cavalo||'')===placaNorm; });
+  return veic ? veic.tipo : null;
+}
 function perfKmMensalPorCategoria(ano, mes){
   var kmMensal = perfKmMensalLoad();
   var dados = kmMensal[ano+'_'+mes] || {};
@@ -27787,7 +27803,8 @@ function perfKmMensalPorCategoria(ano, mes){
   Object.keys(dados).forEach(function(placa){
     if(PLACAS_FORA_RANKING_CATEGORIA.indexOf(placa)>=0) return;
     var d = dados[placa];
-    var c = perfNormCat(d.cat);
+    var catOficial = perfCategoriaOficialPorPlaca(placa);
+    var c = perfNormCat(catOficial || d.cat);
     if(!out[c]) out[c] = {km:0, veic:0};
     out[c].km += (d.km||0);
     out[c].veic += 1;
