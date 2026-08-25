@@ -1398,29 +1398,22 @@ if(location.protocol!=='file:'){
       }
       if(FB._bannerShown) return;
       FB._bannerShown = true;
+      // CORREÇÃO (19/08): esse aviso só chega até aqui DEPOIS que a atualização
+      // silenciosa acima já rodou pra todos os painéis mapeados — na prática,
+      // quase sempre a tela já está com o dado novo antes mesmo do aviso
+      // aparecer. Não faz mais sentido pedir clique/recarregar como antes: agora
+      // é só um toast pequeno, some sozinho em alguns segundos, no canto
+      // superior (não fica em cima de gráfico nenhum) — sem exigir nenhuma ação.
       var banner = document.createElement('div');
       banner.id = 'fb-update-banner';
-      banner.style.cssText='position:fixed;bottom:16px;right:16px;background:#024f2b;color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;z-index:99999;box-shadow:0 4px 12px rgba(0,0,0,.25);display:flex;align-items:center;gap:10px;font-family:Inter,sans-serif';
-      banner.innerHTML = '<span>🔄 Novos dados sincronizados</span>'
-        + '<b style="text-decoration:underline;cursor:pointer" id="fb-banner-reload">Atualizar agora</b>'
-        + '<span style="cursor:pointer;opacity:.7;margin-left:4px" id="fb-banner-close">✕</span>';
+      banner.style.cssText='position:fixed;top:16px;right:16px;background:#024f2b;color:#fff;padding:8px 14px;border-radius:8px;font-size:12px;z-index:99999;box-shadow:0 4px 12px rgba(0,0,0,.25);display:flex;align-items:center;gap:8px;font-family:Inter,sans-serif;opacity:0;transition:opacity .3s ease';
+      banner.innerHTML = '<span>🔄 Dados atualizados</span>';
       if(document.body) document.body.appendChild(banner);
-      // Só recarrega se o usuário clicar — nunca sozinho, pra não atrapalhar quem está no meio de um lançamento
-      document.getElementById('fb-banner-reload').onclick = function(){
-        // Enquanto a trava de manutenção estiver ativa (mesmo sendo você quem
-        // ativou), recarregar no meio do processo pode puxar um dado da nuvem que
-        // ainda não terminou de ser gravado. Por segurança, avisa em vez de recarregar
-        // direto — foi um "Atualizar agora" no meio da limpeza que causou a reversão.
-        if(typeof FB_SYNC!=='undefined' && FB_SYNC._lockState && FB_SYNC._lockState.active && !FB_SYNC._lockIsStale()){
-          alert('⏳ O sistema está em manutenção agora ('+(FB_SYNC._lockState.reason||'correção em andamento')+').\n\nEspere o alerta de conclusão antes de recarregar, senão você pode puxar dados que ainda não terminaram de ser gravados na nuvem.');
-          return;
-        }
-        location.reload();
-      };
-      document.getElementById('fb-banner-close').onclick = function(){
-        banner.remove();
-        FB._bannerShown = false; // permite avisar de novo se chegar outra atualização depois
-      };
+      requestAnimationFrame(function(){ banner.style.opacity='1'; });
+      setTimeout(function(){
+        banner.style.opacity='0';
+        setTimeout(function(){ banner.remove(); FB._bannerShown = false; }, 350);
+      }, 3500);
     }
   };
 
@@ -3937,6 +3930,19 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
     </div>
   </div>
 
+  <!-- Tabelas Km por categoria, todos os meses lado a lado — mesma fonte do
+       ranking acima (perfKmMensalPorCategoria), só em formato de tabela -->
+  <div style="background:#fff;border:1px solid var(--gb);border-radius:10px;padding:16px">
+    <div style="font-size:12px;font-weight:700;color:var(--gd);margin-bottom:4px">📏 Km Total Percorrido por Categoria</div>
+    <div style="font-size:10px;color:var(--txl);margin-bottom:12px">Km Mensal importado por veículo, somado por categoria — mesma base do gráfico "Evolução Mensal — Frota Total" acima. Categorias em ordem decrescente de Km total.</div>
+    <div style="overflow-x:auto"><table id="tbl-km-categoria" style="width:100%;border-collapse:collapse;font-size:12px"></table></div>
+  </div>
+  <div style="background:#fff;border:1px solid var(--gb);border-radius:10px;padding:16px">
+    <div style="font-size:12px;font-weight:700;color:var(--gd);margin-bottom:4px">📊 Km Médio Mensal por Veículo da Categoria</div>
+    <div style="font-size:10px;color:var(--txl);margin-bottom:12px" id="tbl-km-medio-sub">Km total da categoria ÷ veículos da categoria com Km Mensal importado — mesmo critério do Ranking acima.</div>
+    <div style="overflow-x:auto"><table id="tbl-km-medio-veiculo" style="width:100%;border-collapse:collapse;font-size:12px"></table></div>
+  </div>
+
   <!-- Ranking de motoristas -->
   <div style="background:#fff;border:1px solid var(--gb);border-radius:10px;overflow:hidden">
     <div style="padding:12px 16px;border-bottom:1px solid var(--gb);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
@@ -4647,7 +4653,60 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
             </div>
           </label>
         </div>
-        <div class="form-grp"></div>
+        <div class="form-grp" style="display:flex;align-items:flex-end;padding-bottom:2px">
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 14px;background:var(--gg);border:1px solid var(--gb);border-radius:8px;width:100%">
+            <input type="checkbox" id="fi-coleta-mp" onchange="fiToggleColetaMP()" style="width:18px;height:18px;accent-color:var(--gd);cursor:pointer;flex-shrink:0">
+            <div>
+              <div style="font-size:12px;font-weight:700;color:var(--gd)">Coleta de MP?</div>
+              <div style="font-size:10px;color:var(--txl)">Caminhão saiu só para coletar matéria-prima — não é Frete Retorno</div>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <!-- CAMPOS COLETA DE MP (hidden by default) -->
+      <div id="fi-coleta-mp-grp" style="display:none">
+        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:14px 16px;margin-bottom:4px">
+          <div style="font-size:11px;font-weight:800;color:#1e40af;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">🌾 Coleta de Matéria-Prima — não é Frete Retorno</div>
+          <div style="font-size:10.5px;color:#1e40af;margin-bottom:12px">Registro simplificado — o caminhão saiu só para buscar matéria-prima, sem entrega associada. Não precisa preencher os campos de Frete de Entrega acima.</div>
+          <div class="fg g4">
+            <div class="form-grp">
+              <label class="form-lbl">Local da Coleta <span class="req">*</span></label>
+              <input type="text" class="form-ctrl" id="fi-mp-local" placeholder="Ex: MARMELEIRO" oninput="this.value=this.value.toUpperCase()" style="border-color:#bfdbfe">
+            </div>
+            <div class="form-grp">
+              <label class="form-lbl">UF <span class="req">*</span></label>
+              <select class="form-ctrl" id="fi-mp-uf" style="border-color:#bfdbfe">
+                <option value="">Selecione...</option>
+                <option>AC</option><option>AL</option><option>AP</option><option>AM</option><option>BA</option><option>CE</option><option>DF</option><option>ES</option><option>GO</option><option>MA</option><option>MT</option><option>MS</option><option>MG</option><option>PA</option><option>PB</option><option>PR</option><option>PE</option><option>PI</option><option>RJ</option><option>RN</option><option>RS</option><option>RO</option><option>RR</option><option>SC</option><option>SP</option><option>SE</option><option>TO</option>
+              </select>
+            </div>
+            <div class="form-grp">
+              <label class="form-lbl">Data da Coleta <span class="req">*</span></label>
+              <input type="date" class="form-ctrl" id="fi-mp-data-coleta" style="border-color:#bfdbfe">
+            </div>
+            <div class="form-grp">
+              <label class="form-lbl">Data Retorno à Base <span class="req">*</span></label>
+              <input type="date" class="form-ctrl" id="fi-mp-data-base" style="border-color:#bfdbfe">
+            </div>
+            <div class="form-grp">
+              <label class="form-lbl">Peso Coletado (kg) <span class="req">*</span></label>
+              <input type="number" class="form-ctrl" id="fi-mp-peso" placeholder="0" min="0" style="border-color:#bfdbfe">
+            </div>
+            <div class="form-grp">
+              <label class="form-lbl">R$ / Tonelada <span class="req">*</span></label>
+              <input type="number" class="form-ctrl" id="fi-mp-vton" placeholder="0,00" step="0.01" min="0" oninput="fiCalcColetaMP()" style="border-color:#bfdbfe">
+            </div>
+            <div class="form-grp">
+              <label class="form-lbl">Valor Total (R$)</label>
+              <input type="text" class="form-ctrl" id="fi-mp-valor" placeholder="0,00" readonly style="border-color:#bfdbfe;background:#f8fafc">
+            </div>
+            <div class="form-grp">
+              <label class="form-lbl">Conta</label>
+              <input type="text" class="form-ctrl" id="fi-mp-conta" placeholder="Ex: Ambar Amaral" oninput="this.value=this.value.toUpperCase()" style="border-color:#bfdbfe">
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- CAMPOS FRETE TERCEIRIZADO (hidden by default) -->
@@ -7102,7 +7161,7 @@ function updatePlacaOptions(selectedCat){
   if(!el) return;
   const prev = el.value; // preserve selection if still valid
   const placas = [...new Set(
-    DB.filter(r => !selectedCat || r.categoria===selectedCat)
+    DB.filter(r => !selectedCat || categoriaNormalizada(r.categoria)===selectedCat)
       .map(r=>r.placa).filter(Boolean)
   )].sort((a,b)=>a.localeCompare(b));
   el.innerHTML = '<option value="">Todas</option>' +
@@ -7151,7 +7210,15 @@ function ordenarMesesCron(labels){
   });
 }
 function renderCharts(data){
-  if(typeof Chart === 'undefined') return;
+  // CORREÇÃO CRÍTICA (19/08): essa guarda desistia de vez se o Chart.js ainda
+  // não tivesse carregado no exato instante em que a função era chamada (ex:
+  // logo na abertura da página, correndo contra o carregamento do script
+  // externo). Como nada tentava de novo depois, os 5 gráficos ficavam vazios
+  // pra sempre — só voltavam a aparecer se algo MAIS tarde chamasse
+  // renderCharts() de novo (ex: trocar o filtro de mês), já com o Chart.js
+  // pronto. Agora tenta de novo em 300ms, igual já era feito em renderAll(),
+  // até o Chart.js estar disponível — nunca mais fica vazio por essa corrida.
+  if(typeof Chart === 'undefined'){ setTimeout(function(){ renderCharts(data); }, 300); return; }
   Chart.defaults.color='#777';Chart.defaults.font.family="'Inter',sans-serif";Chart.defaults.font.size=11;
   const bm={};
   data.forEach(r=>{const m=GML(r.dt_carg);if(!m)return;if(!bm[m])bm[m]={com:0,sem:0,pe:0,pr:0,rr:0,rm:0,re:0,ro:0,baseTot:0,baseCom:0,tonRetMP:0,viagens:0};
@@ -7362,6 +7429,7 @@ function renderCharts(data){
     },
     plugins:[ChartDataLabels]
   });
+
 }
 
 function renderKPIs(data){
@@ -7404,8 +7472,31 @@ function renderKPIs(data){
   const rec_ft_pend = data.filter(r=>r.is_terceiro&&r.ft_pgto==='pendente').reduce((a,r)=>a+(r.ft_valor||0),0)
     + data.filter(r=>r.is_terceiro&&r.ft_pgto==='parcial').reduce((a,r)=>a+((r.ft_vl_total||r.ft_valor||0)-(r.ft_vl_pago||0)),0)
     + data.filter(r=>r.tipo_ret&&r.tipo_ret!=='Retorno'&&r.tipo_ret!=='MP'&&r.tipo_ret!=='Outros'&&r.retorno==='Sim'&&r.pagamento!=='Pago').reduce((a,r)=>a+r.vl_total,0);
+  // CORREÇÃO CRÍTICA (24/08): rec_ft_pago só contava viagem terceirizada com
+  // ft_pgto==='pago' — cobrança já recebida. Isso deixava a receita gerada por
+  // frete terceirizado invisível na Receita Gerada até o pagamento cair,
+  // diferente de Frete Retorno e Coleta MP (que contam a receita assim que a
+  // viagem acontece, independente de já ter sido paga). rec_ft agora segue a
+  // MESMA regra das outras duas — soma todo frete terceirizado gerado no
+  // período, pago ou não. rec_ft_pago continua existindo, só pra quem quiser
+  // saber especificamente o que já foi efetivamente recebido.
   const rec_ft_pago = data.filter(r=>r.is_terceiro&&r.ft_pgto==='pago').reduce((a,r)=>a+(r.ft_valor||0),0) + rec_outros;
-  const rec = rec_ret + rec_mp + rec_outros + rec_entrega;
+  // CORREÇÃO CRÍTICA (24/08): a receita do módulo dedicado "Frete Terceiros"
+  // (com Nota Fiscal, base DB_FT) nunca entrava em nenhum total do Financeiro —
+  // ficava isolada, só visível no dashboard próprio desse módulo. Confirmado
+  // com o usuário: os dois módulos (checkbox na Saída de Frota + módulo
+  // dedicado) são usados para situações diferentes de propósito, e a receita
+  // dos dois deve somar junto na Receita Gerada. Aplica o mesmo filtro de
+  // mês/categoria já usado no resto do dashboard, pra não misturar períodos.
+  const mFiltro = g('f-mes')?g('f-mes').value:'', cFiltro = g('f-cat')?g('f-cat').value:'';
+  const rec_ft_dedicado = (typeof DB_FT!=='undefined'?DB_FT:[]).filter(function(r){
+    if(!r._user) return false; // exclui dados de amostra (SEED_FT)
+    if(mFiltro && r.mes!==mFiltro) return false;
+    if(cFiltro && r.cat!==cFiltro) return false;
+    return true;
+  }).reduce(function(a,r){ return a+(parseFloat(r.vfr)||0); },0);
+  const rec_ft = data.filter(r=>r.is_terceiro).reduce((a,r)=>a+(parseFloat(r.ft_valor)||0),0) + rec_ft_dedicado;
+  const rec = rec_ret + rec_mp + rec_outros + rec_entrega + rec_ft;
   // Pendências: usa as PERNAS explodidas, não o campo consolidado da viagem — porque
   // r.pagamento só vira "Pago" quando TODAS as pernas estão pagas. Numa viagem de 2
   // pernas com uma já paga e outra não, o valor pendente real é só o da perna não paga,
@@ -7447,8 +7538,8 @@ function renderKPIs(data){
         <div class="kpi-bd-bar-wrap"><div class="kpi-bd-bar" style="width:${rec>0?((rec_mp/rec)*100).toFixed(1):0}%;background:#739630"></div></div>
         <div class="kpi-breakdown-row" style="margin-top:4px"><span class="kpi-bd-dot" style="background:#0d946c"></span><span class="kpi-bd-label">Entrega</span><span class="kpi-bd-val">${R(rec_entrega)}</span></div>
         <div class="kpi-bd-bar-wrap"><div class="kpi-bd-bar" style="width:${rec>0?((rec_entrega/rec)*100).toFixed(1):0}%;background:#0d946c"></div></div>
-        <div class="kpi-breakdown-row" style="margin-top:4px"><span class="kpi-bd-dot" style="background:#d97706"></span><span class="kpi-bd-label">Frota Terceirizada</span><span class="kpi-bd-val">${R(rec_ft_pago)}</span></div>
-        <div class="kpi-bd-bar-wrap"><div class="kpi-bd-bar" style="width:${rec>0?((rec_ft_pago/rec)*100).toFixed(1):0}%;background:#d97706"></div></div>
+        <div class="kpi-breakdown-row" style="margin-top:4px;cursor:pointer;padding:3px 4px;border-radius:4px" ondblclick="recOpenReport('Terceirizada')" title="Duplo clique para ver detalhes"><span class="kpi-bd-dot" style="background:#d97706"></span><span class="kpi-bd-label">Frota Terceirizada</span><span class="kpi-bd-val">${R(rec_ft)}</span></div>
+        <div class="kpi-bd-bar-wrap"><div class="kpi-bd-bar" style="width:${rec>0?((rec_ft/rec)*100).toFixed(1):0}%;background:#d97706"></div></div>
       </div>
     </div>
     <div class="kpi-card c-rd">
@@ -8303,7 +8394,7 @@ const restoreAll=()=>{DB=JSON.parse(JSON.stringify(SEED));_dbIsSeedFallback=fals
 
 function initFilters(){
   const ms=[...new Set(DB.map(r=>GM(r.dt_carg)).filter(Boolean))].sort();
-  const cs=[...new Set(DB.map(r=>r.categoria))].sort();
+  const cs=[...new Set(DB.map(r=>categoriaNormalizada(r.categoria)))].sort();
   const ps=[...new Set(DB.map(r=>r.placa).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
   const ufs=[...new Set(DB.map(r=>r.destino_uf).filter(Boolean))].sort();
   const kgs=[...new Set(DB.map(r=>r.km_grupo).filter(Boolean))].sort((a,b)=>a-b);
@@ -8591,9 +8682,18 @@ function renderAll(){
 
 function validateEtapa1(){
   const terceirizado = g('fi-terceirizado') && g('fi-terceirizado').checked;
+  const coletaMP = g('fi-coleta-mp') && g('fi-coleta-mp').checked;
   // Placa, Categoria e Data Carregamento são sempre obrigatórios, independente do tipo de frete.
   let fields=[['fi-placa','Placa'],['fi-cat','Categoria'],['fi-dtc','Data Carregamento']];
-  if(terceirizado){
+  if(coletaMP){
+    // Coleta de MP: registro simplificado — só os campos da própria coleta
+    // são obrigatórios. Origem/destino/km da operação normal de entrega não
+    // se aplicam (não existe entrega nesse tipo de atividade).
+    fields=[['fi-placa','Placa'],['fi-cat','Categoria'],['fi-mp-local','Local da Coleta'],['fi-mp-uf','UF'],
+             ['fi-mp-data-coleta','Data da Coleta'],['fi-mp-data-base','Data Retorno à Base'],
+             ['fi-mp-peso','Peso Coletado'],['fi-mp-vton','R$/Ton']];
+    ['fi-orig-cidade','fi-orig-uf','fi-dest-cidade','fi-dest-uf','fi-kmg','fi-km-saida','fi-km','fi-motorista'].forEach(id=>{const el=g(id);if(el)el.classList.remove('err');});
+  } else if(terceirizado){
     // Frete Terceirizado: origem/destino/grupo KM da operação própria deixam de ser obrigatórios;
     // a obrigatoriedade passa para os campos da seção "Dados do Frete Terceirizado".
     // KM de Saída continua obrigatório mesmo aqui — sem ele, o motor de custo real não
@@ -8626,7 +8726,44 @@ function fiToggleTerceirizado(){
     var dg=document.getElementById('fi-ft-dt-pgto-grp'); if(dg) dg.style.display='none';
     var sd=document.getElementById('fi-ft-status-display'); if(sd) sd.style.display='none';
   }
+  // Frete Terceirizado e Coleta de MP são situações diferentes — não fazem
+  // sentido marcadas juntas na mesma viagem. Desmarca a outra automaticamente.
+  if(chk && chk.checked){
+    var mpChk = document.getElementById('fi-coleta-mp');
+    if(mpChk && mpChk.checked){ mpChk.checked=false; fiToggleColetaMP(); }
+  }
 }
+
+// ══ COLETA DE MP ═══════════════════════════════════════
+// Registro simplificado: o caminhão saiu só pra buscar matéria-prima, sem
+// entrega. Diferente do Frete Retorno tradicional (que exige uma viagem de
+// entrega completa antes), esse fluxo grava a viagem já CONCLUÍDA na hora —
+// nunca aparece como "Em Andamento" pendente de Etapa 2, porque não existe
+// etapa 2 separada: é uma atividade só, do início ao fim.
+function fiToggleColetaMP(){
+  var chk = document.getElementById('fi-coleta-mp');
+  var grp = document.getElementById('fi-coleta-mp-grp');
+  if(grp) grp.style.display = chk && chk.checked ? 'block' : 'none';
+  if(chk && !chk.checked){
+    ['fi-mp-local','fi-mp-uf','fi-mp-data-coleta','fi-mp-data-base','fi-mp-peso','fi-mp-vton','fi-mp-valor','fi-mp-conta'].forEach(function(id){
+      var el=document.getElementById(id); if(el) el.value='';
+    });
+  } else if(chk && chk.checked){
+    var terChk = document.getElementById('fi-terceirizado');
+    if(terChk && terChk.checked){ terChk.checked=false; fiToggleTerceirizado(); }
+    // Sugestão de data: hoje, editável
+    var dc = document.getElementById('fi-mp-data-coleta'); if(dc && !dc.value) dc.value = new Date().toISOString().slice(0,10);
+    var db = document.getElementById('fi-mp-data-base'); if(db && !db.value) db.value = new Date().toISOString().slice(0,10);
+  }
+}
+function fiCalcColetaMP(){
+  var peso = parseFloat(document.getElementById('fi-mp-peso').value) || 0;
+  var vton = parseFloat(document.getElementById('fi-mp-vton').value) || 0;
+  var val = peso>0 && vton>0 ? (peso/1000*vton) : 0;
+  var el = document.getElementById('fi-mp-valor');
+  if(el) el.value = val>0 ? val.toFixed(2) : '';
+}
+document.getElementById('fi-mp-peso') && document.getElementById('fi-mp-peso').addEventListener('input', fiCalcColetaMP);
 
 function fiCalcFreteTerceiro(){
   var peso = parseFloat(document.getElementById('fi-ft-peso').value) || 0;
@@ -8989,6 +9126,46 @@ function saveEtapa1(){
   window._saveEtapa1EmAndamento = true;
   setTimeout(function(){ window._saveEtapa1EmAndamento = false; }, 2000);
   if(!validateEtapa1())return;
+
+  // ── COLETA DE MP: registro simplificado, já gravado como concluído ──
+  // Diferente do fluxo normal (Etapa 1 aberta, Etapa 2 pendente), essa
+  // atividade não tem uma "entrega" que a anteceda — é ela mesma, do início
+  // ao fim. Por isso constrói e grava o registro já com Etapa 1 + Etapa 2
+  // preenchidas, e sai da função sem passar pelo resto do fluxo padrão.
+  const coletaMP = g('fi-coleta-mp') && g('fi-coleta-mp').checked;
+  if(coletaMP){
+    var mpLocal = g('fi-mp-local').value.trim().toUpperCase();
+    var mpUf = g('fi-mp-uf').value;
+    var mpPeso = parseFloat(g('fi-mp-peso').value)||0;
+    var mpVton = parseFloat(g('fi-mp-vton').value)||0;
+    var mpValor = mpPeso>0 && mpVton>0 ? +(mpPeso/1000*mpVton).toFixed(2) : 0;
+    var mpDataColeta = g('fi-mp-data-coleta').value;
+    var mpDataBase = g('fi-mp-data-base').value;
+    DB.push({
+      _id: 'v_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,9),
+      placa:g('fi-placa').value.trim().toUpperCase(), categoria:g('fi-cat').value, dt_carg:mpDataColeta,
+      // Não existe "entrega" nessa atividade — origem/destino da viagem em si
+      // são o próprio ponto de coleta, pra Etapa 1 fechar sem inventar dado.
+      origem_cidade:'SANTA FÉ DO SUL', origem_uf:'SP', origem:'SANTA FÉ DO SUL-SP',
+      destino_cidade:mpLocal, destino_uf:mpUf, destino:mpLocal+'-'+mpUf,
+      km_grupo:1, km_grupo_label:'GRUPO 1 (0 a 99)', km:0, peso_ent:0,
+      km_saida:null,
+      retorno:'Sim', dt_desc:mpDataColeta, dt_base:mpDataBase,
+      dest_ret_cidade:mpLocal, dest_ret_uf:mpUf, dest_ret:mpLocal+'-'+mpUf,
+      tipo_ret:'MP', peso_ret:mpPeso, vl_ton:mpVton, vl_total:mpValor,
+      pagamento:'', conta:g('fi-mp-conta').value.trim().toUpperCase(),
+      obs:'Coleta de Matéria-Prima — não é Frete Retorno.',
+      cliente:'', vl_ent:0, is_terceiro:false,
+      ft_origem:'',ft_destino:'',ft_peso:0,ft_vton:0,ft_valor:0,ft_pgto:'',ft_conta:'',ft_vl_total:0,ft_vl_pago:0,ft_pct_pago:0,ft_dt_pgto:'',
+      motorista:g('fi-motorista')?g('fi-motorista').value.trim().toUpperCase():'',
+      is_coleta_mp:true,
+    });
+    save();initFilters();renderRecs();renderAll();renderKanban();clearForm();
+    if(typeof finRefreshSeVisivel==='function') finRefreshSeVisivel();
+    toast('Coleta de MP registrada ✅','success');
+    return;
+  }
+
   const terceirizado = g('fi-terceirizado') && g('fi-terceirizado').checked;
   const kmg=parseInt(g('fi-kmg').value)||0, kmLow=kmg?(kmg-1)*100:0;
   // Frete Terceirizado: origem/destino próprios podem ficar em branco; usa os dados
@@ -9054,6 +9231,10 @@ function clearForm(){
   var grp=document.getElementById('fi-terceirizado-grp');if(grp)grp.style.display='none';
   var dg=document.getElementById('fi-ft-dt-pgto-grp');if(dg)dg.style.display='none';
   var sd=document.getElementById('fi-ft-status-display');if(sd)sd.style.display='none';
+  // Limpar campos coleta de MP
+  ['fi-mp-local','fi-mp-uf','fi-mp-data-coleta','fi-mp-data-base','fi-mp-peso','fi-mp-vton','fi-mp-valor','fi-mp-conta'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
+  var chkMp=document.getElementById('fi-coleta-mp');if(chkMp)chkMp.checked=false;
+  var grpMp=document.getElementById('fi-coleta-mp-grp');if(grpMp)grpMp.style.display='none';
   ['fi-placa','fi-dest-cidade','fi-km','fi-pe','fi-km-saida','fi-motorista'].forEach(id=>{const e=g(id);if(e)e.value='';});
   var fiDtc=g('fi-dtc'); if(fiDtc) fiDtc.value=new Date().toISOString().slice(0,10); // padrão: data de hoje, editável
   ['fi-cat','fi-dest-uf','fi-kmg'].forEach(id=>g(id).value='');
@@ -15590,7 +15771,7 @@ function recOpenReport(tipo){
   }
   var catSel=document.getElementById('rec-cat');
   if(catSel){
-    var cats=[...new Set(DB.map(function(r){return r.categoria;}).filter(Boolean))].sort();
+    var cats=[...new Set(DB.map(function(r){return categoriaNormalizada(r.categoria);}).filter(Boolean))].sort();
     catSel.innerHTML='<option value="">Todas</option>'+cats.map(function(c){return '<option value="'+c+'">'+c+'</option>';}).join('');
   }
   recSwitchTab(tipo||'Retorno');
@@ -20156,6 +20337,27 @@ function frotaCadLimpar(){
 // para impedir duplicidade e avisar sobre divergências ANTES de salvar.
 // ════════════════════════════════════════════════════════════
 function intPlacaNorm(p){ return String(p||'').toUpperCase().replace(/[^A-Z0-9]/g,''); }
+
+// CORREÇÃO (24/08): padronização de categoria — a mesma categoria vinha
+// aparecendo várias vezes no filtro/dropdown por causa de grafias diferentes
+// (BITRUCK/Bitruck, 4°Eixo/4° EIXO, etc.). Corrigimos os registros existentes,
+// mas isso sozinho não é suficiente: qualquer registro novo ou remanescente
+// com grafia diferente reintroduziria a duplicidade na lista. Esta função
+// normaliza na leitura, de forma defensiva, tanto pra montar a lista de
+// opções (sem duplicar) quanto pra comparar corretamente no filtro — nunca
+// altera o dado gravado, só a forma como ele é lido nas telas.
+var MAPA_CATEGORIA_OFICIAL = {
+  'BITRUCKSILO':'Bitruck Silo', 'BITRUCK':'Bitruck', 'TRUCK':'Truck',
+  'RODOTREM':'Rodotrem', 'BITREM':'Bitrem',
+  '4EIXO':'4° Eixo',
+  'CARRETASILO':'Carreta Silo', 'LS':'LS', '3/4':'3/4', '3/4PET':'3/4 Pet',
+};
+function categoriaNormalizada(cat){
+  var raw = String(cat||'').trim();
+  if(!raw) return raw;
+  var chave = raw.toUpperCase().replace(/[°\s]/g,'');
+  return MAPA_CATEGORIA_OFICIAL[chave] || raw;
+}
 function intNomeNorm(n){
   return String(n||'').toUpperCase()
     .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
@@ -21451,7 +21653,7 @@ function abastRenderDash(){
   var catsComDados = catOrder.filter(function(c){ return (catMapAQUA[c]&&catMapAQUA[c].l>0)||(catMapPET[c]&&catMapPET[c].l>0); });
   if(!catsComDados.length){
     // Pega todas as categorias com dados
-    var allCats = new Set(diesel.map(function(r){return r.categoria||'SEM CAT';}));
+    var allCats = new Set(diesel.map(function(r){return categoriaNormalizada(r.categoria)||'SEM CAT';}));
     catsComDados = Array.from(allCats);
   }
   // Consumo por categoria — renderiza só a OP selecionada
@@ -24635,7 +24837,7 @@ function abastRenderHistorico(){
 
   // Quando categoria selecionada, filtra apenas essa; senão exclui SEM CAT do gráfico
   var dieselGraf = cat
-    ? diesel.filter(function(r){return r.categoria===cat;})
+    ? diesel.filter(function(r){return categoriaNormalizada(r.categoria)===cat;})
     : diesel.filter(function(r){return r.categoria&&r.categoria!=='SEM CAT';});
 
   var mesesComDados = abastGetMesesComDados();
@@ -24655,7 +24857,7 @@ function abastRenderHistorico(){
     var datasets = topCats.map(function(c){
       var cor = catColors[c]||'#6b7280';
       var pontos = mesesComDados.map(function(m){
-        var recs = dieselGraf.filter(function(r){ return r.mes===m.mes && r.ano===m.ano && r.categoria===c; });
+        var recs = dieselGraf.filter(function(r){ return r.mes===m.mes && r.ano===m.ano && categoriaNormalizada(r.categoria)===c; });
         var totL = recs.reduce(function(a,r){return a+r.qtd;},0);
         var totV = recs.reduce(function(a,r){return a+r.vTot;},0);
         return totL>0 ? +(totV/totL).toFixed(4) : null;
@@ -27846,6 +28048,75 @@ function perfRenderKmDiaEvolucao(cat){
 }
 
 // ── Gráfico 4: Evolução do Km Médio Mensal por Veículo ──────
+// ── Tabelas Km por Categoria — mesma fonte que o Ranking (perfKmMensalPorCategoria) ──
+function renderTabelasKmFrotaPorCategoria(){
+  var t1 = document.getElementById('tbl-km-categoria');
+  var t2 = document.getElementById('tbl-km-medio-veiculo');
+  if(!t1 || !t2) return;
+
+  var meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  var ano = frotaAnoSel();
+
+  // Monta {categoria: {mesIdx: {km, veic}}} — mesmo dado que já alimenta o
+  // Ranking de Km Total/Médio por Categoria acima, mês a mês em vez de um
+  // mês só. Nenhum cálculo novo, nenhuma base paralela.
+  var porCatMes = {};
+  var totalGeralCat = {};
+  for(var m=1; m<=12; m++){
+    var porCat = perfKmMensalPorCategoria(ano, m);
+    Object.keys(porCat).forEach(function(cat){
+      if(!porCatMes[cat]) porCatMes[cat] = {};
+      porCatMes[cat][m] = porCat[cat];
+      totalGeralCat[cat] = (totalGeralCat[cat]||0) + porCat[cat].km;
+    });
+  }
+
+  // Ordem decrescente de Km total, como pedido
+  var categorias = Object.keys(porCatMes).sort(function(a,b){ return totalGeralCat[b]-totalGeralCat[a]; });
+
+  if(!categorias.length){
+    t1.innerHTML = '<tr><td style="padding:16px;color:var(--txl);font-size:12px">Sem Km Mensal importado para '+ano+'.</td></tr>';
+    t2.innerHTML = '';
+    return;
+  }
+
+  // Só mostra meses que têm ALGUM dado (evita colunas vazias o ano inteiro)
+  var mesesComDado = [];
+  for(var m=1; m<=12; m++){
+    var temDado = categorias.some(function(c){ return porCatMes[c][m]; });
+    if(temDado) mesesComDado.push(m);
+  }
+
+  var h1 = '<thead><tr><th style="text-align:left;padding:8px 10px;background:var(--bg-chip);position:sticky;left:0;font-size:10px;text-transform:uppercase;color:var(--txm)">Categoria</th>';
+  mesesComDado.forEach(function(m){ h1 += '<th style="text-align:right;padding:8px 10px;background:var(--bg-chip);font-size:10px;text-transform:uppercase;color:var(--txm);white-space:nowrap">'+meses[m-1]+'/'+String(ano).slice(2)+'</th>'; });
+  h1 += '<th style="text-align:right;padding:8px 10px;background:var(--bg-chip);font-size:10px;text-transform:uppercase;color:var(--gd);white-space:nowrap">Total</th></tr></thead><tbody>';
+  categorias.forEach(function(cat){
+    h1 += '<tr style="border-bottom:1px solid var(--gb)"><td style="padding:6px 10px;font-weight:700;position:sticky;left:0;background:#fff;white-space:nowrap">'+cat+'</td>';
+    mesesComDado.forEach(function(m){
+      var d = porCatMes[cat][m];
+      h1 += '<td style="padding:6px 10px;text-align:right;white-space:nowrap">'+(d?d.km.toLocaleString('pt-BR',{maximumFractionDigits:0})+' km':'—')+'</td>';
+    });
+    h1 += '<td style="padding:6px 10px;text-align:right;font-weight:800;color:var(--gd);white-space:nowrap">'+totalGeralCat[cat].toLocaleString('pt-BR',{maximumFractionDigits:0})+' km</td></tr>';
+  });
+  h1 += '</tbody>';
+  t1.innerHTML = h1;
+
+  var h2 = '<thead><tr><th style="text-align:left;padding:8px 10px;background:var(--bg-chip);position:sticky;left:0;font-size:10px;text-transform:uppercase;color:var(--txm)">Categoria</th>';
+  mesesComDado.forEach(function(m){ h2 += '<th style="text-align:right;padding:8px 10px;background:var(--bg-chip);font-size:10px;text-transform:uppercase;color:var(--txm);white-space:nowrap">'+meses[m-1]+'/'+String(ano).slice(2)+'</th>'; });
+  h2 += '</tr></thead><tbody>';
+  categorias.forEach(function(cat){
+    h2 += '<tr style="border-bottom:1px solid var(--gb)"><td style="padding:6px 10px;font-weight:700;position:sticky;left:0;background:#fff;white-space:nowrap">'+cat+'</td>';
+    mesesComDado.forEach(function(m){
+      var d = porCatMes[cat][m];
+      var media = (d && d.veic) ? d.km/d.veic : null;
+      h2 += '<td style="padding:6px 10px;text-align:right;white-space:nowrap">'+(media!=null?media.toLocaleString('pt-BR',{maximumFractionDigits:0})+' km':'—')+'</td>';
+    });
+    h2 += '</tr>';
+  });
+  h2 += '</tbody>';
+  t2.innerHTML = h2;
+}
+
 function perfRenderKmVeiculoEvolucao(cat){
   perfDestroyChart('kmveic-evol');
   var ctx = document.getElementById('ch-perf-kmveic-evol'); if(!ctx) return;
@@ -28422,6 +28693,7 @@ function frotaDashInit(){
   perfRenderKmVeiculoEvolucao(cat);
   perfRenderRankKmTotal(mes);
   perfRenderRankKmMedio(mes);
+  renderTabelasKmFrotaPorCategoria();
   perfRenderRanking(ranking);
   perfRenderDisponibilidade(mes);
   // Liberar lock ao concluir normalmente
