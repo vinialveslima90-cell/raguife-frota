@@ -7563,7 +7563,13 @@ function renderKPIs(data){
   // r.pagamento só vira "Pago" quando TODAS as pernas estão pagas. Numa viagem de 2
   // pernas com uma já paga e outra não, o valor pendente real é só o da perna não paga,
   // não o total da viagem inteira (que é o que dava antes, superestimando o pendente).
-  const pend = freteExplodirPernas(data).filter(function(r){return r.retorno==='Sim'&&r.pagamento!=='Pago';}).reduce((a,r)=>a+r.vl_total,0) + rec_ft_pend;
+  // CORREÇÃO: Coleta de MP é receita gerencial/virtual pro Transporte — o custo do
+  // frete já está embutido no valor da matéria-prima, então NUNCA gera pendência de
+  // recebimento (não existe "a receber" de MP). Antes, como os campos de pagamento/
+  // conta de MP foram removidos (ficam sempre vazios), a condição "pagamento!=='Pago'"
+  // classificava TODA a receita de MP como pendente por padrão — inflando o A Receber
+  // sem essa pendência existir de verdade. tipo_ret!=='MP' exclui isso da conta.
+  const pend = freteExplodirPernas(data).filter(function(r){return r.retorno==='Sim'&&r.tipo_ret!=='MP'&&r.pagamento!=='Pago';}).reduce((a,r)=>a+r.vl_total,0) + rec_ft_pend;
   const S=(d,c,s=16)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
   g('kpi-grid').innerHTML=`
     <div class="kpi-card c-gd"><div class="kpi-icon-wrap">${S('<rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 5v4h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>','#024f2b')}</div><div class="kpi-lbl">Total de Viagens</div><div class="kpi-val">${tot}</div><div class="kpi-sub">${com} c/ retorno · ${sem} vazias</div></div>
@@ -7596,7 +7602,7 @@ function renderKPIs(data){
       <div class="kpi-breakdown">
         <div class="kpi-breakdown-row" style="cursor:pointer;padding:3px 4px;border-radius:4px" ondblclick="recOpenReport('Retorno')" title="Duplo clique para ver detalhes"><span class="kpi-bd-dot" style="background:#024f2b"></span><span class="kpi-bd-label">Frete Retorno</span><span class="kpi-bd-val">${R(rec_ret)}</span></div>
         <div class="kpi-bd-bar-wrap"><div class="kpi-bd-bar" style="width:${rec>0?((rec_ret/rec)*100).toFixed(1):0}%;background:#024f2b"></div></div>
-        <div class="kpi-breakdown-row" style="margin-top:4px"><span class="kpi-bd-dot" style="background:#739630"></span><span class="kpi-bd-label">Coleta MP</span><span class="kpi-bd-val">${R(rec_mp)}</span></div>
+        <div class="kpi-breakdown-row" style="margin-top:4px" title="Receita gerencial/virtual — o custo do frete já está embutido no valor da MP, não gera pendência de recebimento"><span class="kpi-bd-dot" style="background:#739630"></span><span class="kpi-bd-label">Coleta MP <span style="font-weight:400;font-size:9px;color:var(--txl)">(gerencial)</span></span><span class="kpi-bd-val">${R(rec_mp)}</span></div>
         <div class="kpi-bd-bar-wrap"><div class="kpi-bd-bar" style="width:${rec>0?((rec_mp/rec)*100).toFixed(1):0}%;background:#739630"></div></div>
         <div class="kpi-breakdown-row" style="margin-top:4px"><span class="kpi-bd-dot" style="background:#0d946c"></span><span class="kpi-bd-label">Entrega</span><span class="kpi-bd-val">${R(rec_entrega)}</span></div>
         <div class="kpi-bd-bar-wrap"><div class="kpi-bd-bar" style="width:${rec>0?((rec_entrega/rec)*100).toFixed(1):0}%;background:#0d946c"></div></div>
@@ -7610,7 +7616,6 @@ function renderKPIs(data){
       <div class="kpi-val" style="font-size:18px;letter-spacing:-.3px">${pend>0?R(pend):'<span style="font-size:22px">—</span>'}</div>
       <div class="kpi-breakdown">
         <div class="kpi-breakdown-row" style="cursor:pointer;padding:3px 4px;border-radius:4px" ondblclick="recOpenReport('Retorno')" title="Duplo clique para ver detalhes"><span class="kpi-bd-dot" style="background:#024f2b"></span><span class="kpi-bd-label">Frete Retorno</span><span class="kpi-bd-val">${R(data.filter(r=>(r.tipo_ret==='Retorno'||r.tipo_ret==='Outros')&&r.retorno==='Sim'&&r.pagamento!=='Pago').reduce((a,r)=>a+r.vl_total,0))}</span></div>
-        <div class="kpi-breakdown-row" style="margin-top:3px;cursor:pointer;padding:3px 4px;border-radius:4px" ondblclick="recOpenReport('MP')" title="Duplo clique para ver detalhes"><span class="kpi-bd-dot" style="background:#739630"></span><span class="kpi-bd-label">Coleta MP</span><span class="kpi-bd-val">${R(data.filter(r=>r.tipo_ret==='MP'&&r.retorno==='Sim'&&r.pagamento!=='Pago').reduce((a,r)=>a+r.vl_total,0))}</span></div>
         <div class="kpi-breakdown-row" style="margin-top:3px;cursor:pointer;padding:3px 4px;border-radius:4px" ondblclick="recOpenReport('Terceirizada')" title="Duplo clique para ver detalhes"><span class="kpi-bd-dot" style="background:#d97706"></span><span class="kpi-bd-label">Frota Terceirizada</span><span class="kpi-bd-val">${R(rec_ft_pend)}</span></div>
       </div>
     </div>`;
@@ -16151,12 +16156,16 @@ function recRender(){
   }
   tbody.innerHTML=rows.map(function(r,i){
     var pago = r.pagamento==='Pago';
-    var pagoTxt = pago?'🟢 Pago':(r.pagamento==='Parcial'?'🟡 Parcial':'🔴 Pendente');
+    var isMp = tab==='MP';
+    var pagoTxt = isMp ? '<span style="color:var(--txl)">— gerencial</span>' : (pago?'🟢 Pago':(r.pagamento==='Parcial'?'🟡 Parcial':'🔴 Pendente'));
     var pernaTag = r._pernaTotal>1?' <span style="font-size:9px;color:var(--txl)">(perna '+r._pernaIndex+'/'+r._pernaTotal+')</span>':'';
     // Linhas do módulo dedicado "Frete Terceiros" (DB_FT) não são editáveis por aqui —
     // têm campos próprios (NF, adiantamento, aprovador) que só existem no módulo dedicado.
-    var editAttrs = r._kind==='dbft' ? '' : ' style="cursor:pointer" ondblclick="recEditOpen('+i+')" title="Duplo clique para editar"';
-    var editAttrsConta = r._kind==='dbft' ? '' : editAttrs;
+    // Coleta MP também não é editável aqui: é receita gerencial (o custo do frete já
+    // está embutido no valor da MP), nunca gera pendência/conta a pagar — por isso não
+    // existe "status de pagamento" nem "conta" pra editar nesse tipo de lançamento.
+    var editAttrs = (r._kind==='dbft' || isMp) ? '' : ' style="cursor:pointer" ondblclick="recEditOpen('+i+')" title="Duplo clique para editar"';
+    var editAttrsConta = (r._kind==='dbft' || isMp) ? '' : editAttrs;
     return '<tr style="background:'+(i%2===0?'var(--wh)':'var(--gbg)')+'">'+
       '<td style="padding:7px 12px;font-size:10.5px;border-bottom:1px solid var(--gb);white-space:nowrap">'+(r.dt_carg?FD(r.dt_carg):'—')+'</td>'+
       '<td style="padding:7px 12px;font-weight:600;border-bottom:1px solid var(--gb)">'+(r.placa||'—')+pernaTag+'</td>'+
@@ -16167,7 +16176,7 @@ function recRender(){
       '<td style="padding:7px 12px;text-align:right;border-bottom:1px solid var(--gb)">'+(r.peso?N(r.peso,0):'—')+'</td>'+
       '<td style="padding:7px 12px;text-align:right;border-bottom:1px solid var(--gb)">'+(r.vton?'R$'+N(r.vton,2):'—')+'</td>'+
       '<td style="padding:7px 12px;text-align:right;font-weight:800;color:var(--gd);border-bottom:1px solid var(--gb);white-space:nowrap">'+R(r.vl_total||0)+'</td>'+
-      '<td style="padding:7px 12px;font-size:10.5px;border-bottom:1px solid var(--gb)"'+editAttrsConta+'>'+(r.conta||'<span style="color:var(--txl)">— definir</span>')+'</td>'+
+      '<td style="padding:7px 12px;font-size:10.5px;border-bottom:1px solid var(--gb)"'+editAttrsConta+'>'+(isMp?'<span style="color:var(--txl)">—</span>':(r.conta||'<span style="color:var(--txl)">— definir</span>'))+'</td>'+
       '<td style="padding:7px 12px;font-size:10.5px;border-bottom:1px solid var(--gb)"'+editAttrs+'>'+pagoTxt+(r._kind==='dbft'?' <span style="font-size:9px;color:var(--txl)">(editar em Frete Terceiros)</span>':'')+'</td>'+
       '<td style="padding:7px 12px;font-size:10.5px;border-bottom:1px solid var(--gb)">'+(r.obs||'—')+'</td>'+
     '</tr>';
@@ -16176,7 +16185,12 @@ function recRender(){
   var tR=rows.reduce(function(a,r){return a+(r.vl_total||0);},0);
   var tRecebido=rows.filter(function(r){return r.pagamento==='Pago';}).reduce(function(a,r){return a+(r.vl_total||0);},0);
   var tPendente=tR-tRecebido;
-  if(tfoot)tfoot.innerHTML='<tr style="background:var(--gg)"><td colspan="8" style="padding:9px 12px;font-weight:800;color:var(--gd)">TOTAL · '+rows.length+' registros</td><td style="padding:9px 12px;text-align:right;font-weight:800;color:var(--gd)">'+R(tR)+'</td><td colspan="3" style="padding:9px 12px;font-size:10.5px;color:var(--txl)">Recebido: <b style="color:#166534">'+R(tRecebido)+'</b> · Pendente: <b style="color:#dc2626">'+R(tPendente)+'</b></td></tr>';
+  // Coleta MP não tem Recebido/Pendente — é receita gerencial (custo já embutido no
+  // valor da MP), nunca vira conta a pagar/receber.
+  var footerDireita = tab==='MP'
+    ? 'Receita gerencial — não gera pendência de recebimento'
+    : 'Recebido: <b style="color:#166534">'+R(tRecebido)+'</b> · Pendente: <b style="color:#dc2626">'+R(tPendente)+'</b>';
+  if(tfoot)tfoot.innerHTML='<tr style="background:var(--gg)"><td colspan="8" style="padding:9px 12px;font-weight:800;color:var(--gd)">TOTAL · '+rows.length+' registros</td><td style="padding:9px 12px;text-align:right;font-weight:800;color:var(--gd)">'+R(tR)+'</td><td colspan="3" style="padding:9px 12px;font-size:10.5px;color:var(--txl)">'+footerDireita+'</td></tr>';
 }
 
 // ── Edição inline de Status de Pagamento e Conta ────────────────────────
