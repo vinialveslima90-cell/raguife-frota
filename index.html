@@ -2185,8 +2185,8 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
   <div class="filterbar">
     <div class="f-group"><span class="f-label">Mês</span><select class="f-select" id="f-mes" onchange="renderAll()"><option value="">Todos</option></select></div>
     <div class="f-group"><span class="f-label">UF Destino</span><select class="f-select" id="f-uf-dest" onchange="renderAll()"><option value="">Todos</option></select></div>
-    <div class="f-group"><span class="f-label">Categoria</span><select class="f-select" id="f-cat" onchange="onCatChange()"><option value="">Todas</option></select></div>
-    <div class="f-group"><span class="f-label">Placa</span><select class="f-select" id="f-placa-dash" onchange="renderAll()"><option value="">Todas</option></select></div>
+    <div class="f-group"><span class="f-label">Categoria</span><input type="text" class="f-select" id="f-cat" list="f-cat-list" placeholder="Todas" autocomplete="off" onchange="onCatChange()" onblur="validarFiltroCategoria()"><datalist id="f-cat-list"></datalist></div>
+    <div class="f-group"><span class="f-label">Placa</span><input type="text" class="f-select" id="f-placa-dash" list="f-placa-dash-list" placeholder="Todas" autocomplete="off" onchange="renderAll()" onblur="validarFiltroPlaca()"><datalist id="f-placa-dash-list"></datalist></div>
     <div class="f-group"><span class="f-label">Grupo KM</span><select class="f-select" id="f-kmg" onchange="renderAll()"><option value="">Todos</option></select></div>
     <div class="f-group"><span class="f-label">Retorno</span><select class="f-select" id="f-ret" onchange="renderAll()"><option value="">Todos</option><option value="Sim">Com Retorno</option><option value="Não">Vazio</option></select></div>
     <div class="f-sep"></div>
@@ -2970,12 +2970,15 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
         <button onclick="abastClearConfirm()" style="display:inline-flex;align-items:center;gap:6px;padding:9px 16px;background:rgba(220,38,38,.3);border:1px solid rgba(220,38,38,.6);border-radius:8px;color:#fff;cursor:pointer;font-size:11px;font-weight:700" onmouseover="this.style.background='rgba(220,38,38,.5)'" onmouseout="this.style.background='rgba(220,38,38,.3)'">
           🗑️ Limpar Base
         </button>
+        <button onclick="abastExportarCSV()" title="Exporta todos os registros de abastecimento (sem filtro de tela) pra análise externa" style="display:inline-flex;align-items:center;gap:6px;padding:9px 16px;background:#fff;border:1px solid rgba(255,255,255,.6);border-radius:8px;color:#024f2b;cursor:pointer;font-size:11px;font-weight:700" onmouseover="this.style.background='#f0fdf4'" onmouseout="this.style.background='#fff'">
+          📤 Exportar CSV (Abastecimento)
+        </button>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <!-- Botão 1: Veloe (abastecimento) -->
             <label style="display:inline-flex;align-items:center;gap:7px;padding:9px 16px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.4);border-radius:8px;color:#fff;cursor:pointer;font-size:11px;font-weight:700" title="Planilha Veloe GO — abastecimento, litros, custo, postos" onmouseover="this.style.background='rgba(255,255,255,.25)'" onmouseout="this.style.background='rgba(255,255,255,.15)'">
               <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 2v8M5 7l3 3 3-3"/><path d="M2 13h12"/></svg>⛽ Veloe (Abastecimento)
-              <input type="file" accept=".xlsx,.xltx" style="display:none" onchange="abastImportar(this)">
+              <input type="file" accept=".xlsx,.xltx,.csv" style="display:none" onchange="abastImportar(this)">
             </label>
             <!-- Botão 2: Rastreador (KM/L oficial) -->
             <label style="display:inline-flex;align-items:center;gap:7px;padding:9px 16px;background:rgba(22,101,52,.6);border:1px solid rgba(134,239,172,.5);border-radius:8px;color:#fff;cursor:pointer;font-size:11px;font-weight:700" title="Planilha do rastreador NR Group — KM/L oficial da operação" onmouseover="this.style.background='rgba(22,101,52,.8)'" onmouseout="this.style.background='rgba(22,101,52,.6)'">
@@ -4942,8 +4945,8 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
   <div id="subpanel-frete-retorno" style="display:none;flex-direction:column;gap:16px">
 <div class="filterbar">
     <div class="f-group"><span class="f-label">Mês</span><select class="f-select" id="kb-mes" onchange="renderKanban()"><option value="">Todos</option></select></div>
-    <div class="f-group"><span class="f-label">Categoria</span><select class="f-select" id="kb-cat" onchange="renderKanban()"><option value="">Todas</option></select></div>
-    <div class="f-group"><span class="f-label">Placa</span><select class="f-select" id="kb-placa" onchange="renderKanban()"><option value="">Todas</option></select></div>
+    <div class="f-group"><span class="f-label">Categoria</span><input type="text" class="f-select" id="kb-cat" list="kb-cat-list" placeholder="Todas" autocomplete="off" onchange="renderKanban()" onblur="validarFiltroKbCat()"><datalist id="kb-cat-list"></datalist></div>
+    <div class="f-group"><span class="f-label">Placa</span><input type="text" class="f-select" id="kb-placa" list="kb-placa-list" placeholder="Todas" autocomplete="off" onchange="renderKanban()" onblur="validarFiltroKbPlaca()"><datalist id="kb-placa-list"></datalist></div>
     <div class="f-sep"></div>
     <button class="btn-reset" onclick="resetKbFilters()"><svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 2A5 5 0 102 10"/><polyline points="10,2 10,5 7,5"/></svg>Limpar</button>
     <!-- Ferramentas de manutenção/limpeza de duplicatas — removidas da tela em
@@ -5014,14 +5017,25 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
         <div class="form-grp"></div><div class="form-grp"></div>
       </div>
       <div class="form-div">Cliente &amp; Destino</div>
+      <div class="fg g1" style="margin-bottom:10px">
+        <div class="form-grp" style="display:flex;align-items:flex-end;padding-bottom:2px">
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 14px;background:var(--gg);border:1px solid var(--gb);border-radius:8px;width:100%">
+            <input type="checkbox" id="ft-exterior" onchange="ftToggleExterior()" style="width:18px;height:18px;accent-color:var(--gd);cursor:pointer;flex-shrink:0">
+            <div>
+              <div style="font-size:12px;font-weight:700;color:var(--gd)">Frete Exterior?</div>
+              <div style="font-size:10px;color:var(--txl)">Marque se o destino é fora do Brasil — Cidade e UF Destino deixam de ser obrigatórios</div>
+            </div>
+          </label>
+        </div>
+      </div>
       <div class="fg g3">
         <div class="form-grp"><label class="form-lbl">Cliente <span class="req">*</span></label>
           <input type="text" class="form-ctrl" id="ft-cli-input" placeholder="Nome do cliente" list="ft-cli-list" oninput="this.value=this.value.toUpperCase()">
           <datalist id="ft-cli-list"></datalist></div>
-        <div class="form-grp"><label class="form-lbl">Cidade Destino <span class="req">*</span></label>
+        <div class="form-grp" id="ft-cid-grp"><label class="form-lbl">Cidade Destino <span class="req">*</span></label>
           <input type="text" class="form-ctrl" id="ft-cid-input" placeholder="Cidade destino" list="ft-cid-list" oninput="this.value=this.value.toUpperCase()">
           <datalist id="ft-cid-list"></datalist></div>
-        <div class="form-grp"><label class="form-lbl">UF Destino <span class="req">*</span></label>
+        <div class="form-grp" id="ft-uf-grp"><label class="form-lbl">UF Destino <span class="req">*</span></label>
           <select class="form-ctrl" id="ft-uf-input"><option value="">Selecione…</option><option>AC</option><option>AL</option><option>AP</option><option>AM</option><option>BA</option><option>CE</option><option>DF</option><option>ES</option><option>GO</option><option>MA</option><option>MT</option><option>MS</option><option>MG</option><option>PA</option><option>PB</option><option>PR</option><option>PE</option><option>PI</option><option>RJ</option><option>RN</option><option>RS</option><option>RO</option><option>RR</option><option>SC</option><option>SP</option><option>SE</option><option>TO</option></select></div>
       </div>
       <div class="form-div">Carga &amp; Valores</div>
@@ -7204,19 +7218,78 @@ function tripStatus(r){
 }
 
 // ── Placa filter: atualiza opções de placa conforme categoria selecionada
+// (agora popula um <datalist> — o campo é um input de texto pesquisável, não
+// mais um <select> — pra agilizar a busca quando há muitos veículos).
 function updatePlacaOptions(selectedCat){
   const el = g('f-placa-dash');
-  if(!el) return;
-  const prev = el.value; // preserve selection if still valid
+  const dl = g('f-placa-dash-list');
+  if(!el || !dl) return;
+  const prev = el.value; // preserve o que já foi digitado/selecionado, se ainda válido
   const placas = [...new Set(
     DB.filter(r => !selectedCat || categoriaNormalizada(r.categoria)===selectedCat)
       .map(r=>r.placa).filter(Boolean)
   )].sort((a,b)=>a.localeCompare(b));
-  el.innerHTML = '<option value="">Todas</option>' +
-    placas.map(p=>`<option value="${p}">${p}</option>`).join('');
-  // Restore previous value only if it's still in the filtered list
-  if(placas.includes(prev)) el.value = prev;
-  else el.value = '';
+  dl.innerHTML = placas.map(p=>`<option value="${p}">`).join('');
+  // Restaura o valor anterior só se ele ainda for uma placa válida na lista filtrada
+  el.value = placas.includes(prev) ? prev : '';
+}
+// Valida o que foi digitado no filtro de Placa ao sair do campo — como agora é
+// um input de texto livre (não mais <select>), o usuário pode digitar algo que
+// não existe. Se não bater com nenhuma placa real, limpa o filtro em vez de
+// deixar um valor inválido que nunca daria match em nenhum registro.
+function validarFiltroPlaca(){
+  const el = g('f-placa-dash'); if(!el) return;
+  const v = el.value.trim().toUpperCase();
+  el.value = v;
+  if(!v){ renderAll(); return; }
+  const placas = [...new Set(DB.map(r=>r.placa).filter(Boolean))];
+  if(!placas.includes(v)){
+    el.value = '';
+    if(typeof toast==='function') toast('Placa "'+v+'" não encontrada — filtro limpo','error');
+  }
+  renderAll();
+}
+// Mesma lógica de validação, agora para o filtro de Categoria (também virou
+// input pesquisável em vez de <select>).
+function validarFiltroCategoria(){
+  const el = g('f-cat'); if(!el) return;
+  const v = el.value.trim();
+  if(!v){ onCatChange(); return; }
+  const normas = [...new Set(DB.map(r=>categoriaNormalizada(r.categoria)).filter(Boolean))];
+  const match = normas.find(c=>c.toUpperCase()===v.toUpperCase());
+  if(match){ el.value = match; }
+  else {
+    el.value = '';
+    if(typeof toast==='function') toast('Categoria "'+v+'" não encontrada — filtro limpo','error');
+  }
+  onCatChange();
+}
+// Mesma validação, agora para os filtros Categoria/Placa da tela de Lançamentos
+// (kb-cat/kb-placa) — também viraram input pesquisável.
+function validarFiltroKbCat(){
+  const el = g('kb-cat'); if(!el) return;
+  const v = el.value.trim();
+  if(!v){ renderKanban(); return; }
+  const normas = [...new Set(DB.map(r=>categoriaNormalizada(r.categoria)).filter(Boolean))];
+  const match = normas.find(c=>c.toUpperCase()===v.toUpperCase());
+  if(match){ el.value = match; }
+  else {
+    el.value = '';
+    if(typeof toast==='function') toast('Categoria "'+v+'" não encontrada — filtro limpo','error');
+  }
+  renderKanban();
+}
+function validarFiltroKbPlaca(){
+  const el = g('kb-placa'); if(!el) return;
+  const v = el.value.trim().toUpperCase();
+  el.value = v;
+  if(!v){ renderKanban(); return; }
+  const placas = [...new Set(DB.map(r=>r.placa).filter(Boolean))];
+  if(!placas.includes(v)){
+    el.value = '';
+    if(typeof toast==='function') toast('Placa "'+v+'" não encontrada — filtro limpo','error');
+  }
+  renderKanban();
 }
 
 function onCatChange(){
@@ -8481,13 +8554,16 @@ function initFilters(){
   const ufs=[...new Set(DB.map(r=>r.destino_uf).filter(Boolean))].sort();
   const kgs=[...new Set(DB.map(r=>r.km_grupo).filter(Boolean))].sort((a,b)=>a-b);
   const mopt='<option value="">Todos</option>'+ms.map(m=>`<option value="${m}">${m}</option>`).join('');
-  const copt='<option value="">Todas</option>'+cs.map(c=>`<option value="${c}">${c}</option>`).join('');
-  const popt='<option value="">Todas</option>'+ps.map(p=>`<option value="${p}">${p}</option>`).join('');
   ['f-mes','kb-mes'].forEach(id=>g(id).innerHTML=mopt);
   var _mesVigente = ms.length ? ms[ms.length-1] : '';
   if(_mesVigente){ ['f-mes','kb-mes'].forEach(id=>{ if(g(id)) g(id).value=_mesVigente; }); }
-  ['f-cat','kb-cat'].forEach(id=>g(id).innerHTML=copt);
-  g('kb-placa').innerHTML=popt;
+  // f-cat virou input pesquisável — popula o <datalist>, não o próprio campo
+  // (senão sobrescreveria o que a pessoa já tinha digitado/selecionado).
+  if(g('f-cat-list')) g('f-cat-list').innerHTML = cs.map(c=>`<option value="${c}">`).join('');
+  // kb-cat/kb-placa (filtro da tela de Lançamentos) também viraram input
+  // pesquisável — mesmo motivo: muitos veículos deixavam o dropdown longo.
+  if(g('kb-cat-list')) g('kb-cat-list').innerHTML = cs.map(c=>`<option value="${c}">`).join('');
+  if(g('kb-placa-list')) g('kb-placa-list').innerHTML = ps.map(p=>`<option value="${p}">`).join('');
   g('f-uf-dest').innerHTML='<option value="">Todos</option>'+ufs.map(u=>`<option value="${u}">${u}</option>`).join('');
   g('f-kmg').innerHTML='<option value="">Todos</option>'+kgs.map(k=>`<option value="${k}">Grupo ${k}</option>`).join('');
   // Init placa dash with all placas (no category filter yet)
@@ -9779,6 +9855,23 @@ function exportCSV(){
   const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
   a.download=`raguife_frota_${new Date().toISOString().slice(0,10)}.csv`;a.click();
   toast('CSV exportado!','success');
+}
+// Exporta a base BRUTA de Abastecimento (todo registro importado, sem nenhum filtro
+// de tela aplicado) — inclui os campos internos usados pra classificar Interno x
+// Externo, Categoria e OP (AQUA/PET), pra dar suporte a investigação de divergências
+// sem precisar adivinhar o que está por trás de cada card do dashboard.
+function abastExportarCSV(){
+  if(typeof abastLoadDb==='function') abastLoadDb();
+  var data = (typeof DB_ABAST!=='undefined') ? DB_ABAST : [];
+  var h=['Placa','Categoria','OP','Centro de Custo (bruto)','Data','Mês','Ano','Tipo (Interno/Externo)','Mercadoria','Qtd(L)','Vl Unit','Vl Total','KM Percorrido','KM/L','KM/L Fonte','KM/L Lido (Veloe)','Outlier?','Alerta','Posto','Cidade EC','UF EC','Motorista','Arquivo Origem'];
+  var rows=data.map(function(r){
+    return [r.placa,r.categoria,r.op,r.centro,r.dt,r.mes,r.ano,r.tipo,r.mercadoria,r.qtd,r.vUnit,r.vTot,r.kmPercorrido,r.kml,r.kmlFonte,r.kmlLido,r.kmlOutlier?'SIM':'NÃO',r.alerta,r.posto,r.cidade,r.uf,r.motorista,r._src]
+      .map(function(v){ return '"'+String(v===null||v===undefined?'':v).replace(/"/g,'""')+'"'; }).join(';');
+  });
+  var csv='\uFEFF'+[h.join(';')].concat(rows).join('\n');
+  var a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download='raguife_abastecimento_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
+  if(typeof toast==='function') toast('CSV de Abastecimento exportado! ('+data.length+' registros)','success');
 }
 
 function abrirDiagnostico(){
@@ -15059,17 +15152,34 @@ function ftSwitchEtapa(n){
 function ftTryEtapa1(){ftSwitchEtapa(1);}
 function ftTryEtapa2(){if(!_ftPendingRec){toast('Preencha a Etapa 1 primeiro','error');return;}ftSwitchEtapa(2);}
 
+function ftToggleExterior(){
+  var chk = document.getElementById('ft-exterior');
+  var cidGrp = document.getElementById('ft-cid-grp');
+  var ufGrp = document.getElementById('ft-uf-grp');
+  var marcado = chk && chk.checked;
+  if(cidGrp) cidGrp.style.display = marcado ? 'none' : '';
+  if(ufGrp) ufGrp.style.display = marcado ? 'none' : '';
+  if(marcado){
+    // Limpa Cidade/UF ao marcar Exterior — não fazem sentido pra esse tipo de frete
+    // e não devem ficar preenchidos com um valor antigo residual.
+    var cidEl = document.getElementById('ft-cid-input'); if(cidEl) cidEl.value='';
+    var ufEl = document.getElementById('ft-uf-input'); if(ufEl) ufEl.value='';
+  }
+}
 function ftSaveEtapa1(){
   var dt=document.getElementById('ft-dt').value;
   var cli=document.getElementById('ft-cli-input').value.trim();
-  var cid=document.getElementById('ft-cid-input').value.trim();
-  var uf=document.getElementById('ft-uf-input')?document.getElementById('ft-uf-input').value:'';
+  var exterior=document.getElementById('ft-exterior')&&document.getElementById('ft-exterior').checked;
+  var cid=exterior?'EXTERIOR':document.getElementById('ft-cid-input').value.trim();
+  var uf=exterior?'':(document.getElementById('ft-uf-input')?document.getElementById('ft-uf-input').value:'');
   var peso=parseFloat(document.getElementById('ft-peso').value)||0;
   var vton=parseFloat(document.getElementById('ft-vton').value)||0;
-  if(!dt||!cli||!cid||!uf||!peso||!vton){toast('Preencha os campos obrigatórios (*)','error');return;}
+  // Cidade/UF Destino só são obrigatórios quando o frete NÃO é Exterior — regra
+  // pedida: Frete Exterior dispensa esses dois campos, mas mantém tudo o mais igual.
+  if(!dt||!cli||!peso||!vton||(!exterior&&(!cid||!uf))){toast('Preencha os campos obrigatórios (*)','error');return;}
   var base=(_ftEditIndex!=null && DB_FT[_ftEditIndex])?DB_FT[_ftEditIndex]:{_user:true,dt_adt:'',vl_adt:0,fmt_adt:'',dt_pgto:'',vl_pgto:0,fmt_pgto:'',aprovador:'',status_pgto:'SEM_PGTO'};
-  _ftPendingRec=Object.assign({},base,{conj:document.getElementById('ft-conj').value.trim(),cat:document.getElementById('ft-cat-vei')?document.getElementById('ft-cat-vei').value:'',mot:document.getElementById('ft-mot').value.trim(),dt:dt,mes:dt.slice(5,7)+'/'+dt.slice(0,4),ano:parseInt(dt.slice(0,4)),cli:cli,cid:cid,uf:uf,car:document.getElementById('ft-car').value,peso:peso,vton:vton,vfr:parseFloat(document.getElementById('ft-vfr').value)||peso/1000*vton,nf:document.getElementById('ft-nf').value.trim(),obs:document.getElementById('ft-obs').value.trim(),cnt:'RAGUIFE'});
-  var res=document.getElementById('ft-etapa2-resumo');if(res)res.textContent=cli+' · '+cid+'/'+uf+' · '+R(peso/1000*vton)+' · '+dt;
+  _ftPendingRec=Object.assign({},base,{conj:document.getElementById('ft-conj').value.trim(),cat:document.getElementById('ft-cat-vei')?document.getElementById('ft-cat-vei').value:'',mot:document.getElementById('ft-mot').value.trim(),dt:dt,mes:dt.slice(5,7)+'/'+dt.slice(0,4),ano:parseInt(dt.slice(0,4)),cli:cli,cid:cid,uf:uf,exterior:exterior,car:document.getElementById('ft-car').value,peso:peso,vton:vton,vfr:parseFloat(document.getElementById('ft-vfr').value)||peso/1000*vton,nf:document.getElementById('ft-nf').value.trim(),obs:document.getElementById('ft-obs').value.trim(),cnt:'RAGUIFE'});
+  var res=document.getElementById('ft-etapa2-resumo');if(res)res.textContent=cli+' · '+(exterior?'Exterior':cid+'/'+uf)+' · '+R(peso/1000*vton)+' · '+dt;
   ftSwitchEtapa(2);
 }
 
@@ -15084,7 +15194,10 @@ function ftEditRecord(idx){
   setTimeout(function(){
     var set=function(id,val){var el=document.getElementById(id);if(el)el.value=val||'';};
     set('ft-conj',r.conj);set('ft-cat-vei',r.cat);set('ft-mot',r.mot);set('ft-dt',r.dt);
-    set('ft-cli-input',r.cli);set('ft-cid-input',r.cid);set('ft-uf-input',r.uf);
+    set('ft-cli-input',r.cli);
+    var chkExt=document.getElementById('ft-exterior'); if(chkExt) chkExt.checked=!!r.exterior;
+    ftToggleExterior();
+    if(!r.exterior){ set('ft-cid-input',r.cid); set('ft-uf-input',r.uf); }
     set('ft-car',r.car);set('ft-peso',r.peso);set('ft-vton',r.vton);set('ft-vfr',r.vfr);
     set('ft-nf',r.nf);set('ft-obs',r.obs);
     set('ft-dt-adt',r.dt_adt);set('ft-vl-adt',r.vl_adt);set('ft-fmt-adt',r.fmt_adt);
@@ -15337,6 +15450,8 @@ function ftClearForm(){
   var ftDt=document.getElementById('ft-dt'); if(ftDt) ftDt.value=new Date().toISOString().slice(0,10); // padrão: data de hoje, editável
   ['ft-cat-vei','ft-car','ft-fmt-adt','ft-fmt-pgto','ft-aprovador','ft-uf-input'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
   var sp=document.getElementById('ft-status-pgto');if(sp){sp.textContent='Aguardando valores';sp.style.background='#f3f4f6';sp.style.color='#6b7280';}_ftPendingRec=null;_ftEditIndex=null;ftSwitchEtapa(1);
+  var chkExt=document.getElementById('ft-exterior'); if(chkExt) chkExt.checked=false;
+  if(typeof ftToggleExterior==='function') ftToggleExterior();
 }
 
 function ftResetFilters(){var now=new Date();var cur=String(now.getMonth()+1).padStart(2,'0')+'/'+now.getFullYear();var el=document.getElementById('ft-mes');if(el)el.value=cur;ftRender();}
@@ -21624,17 +21739,57 @@ function abastDestroyAll(){ ['intext','mensal','postos','custo','ufs','uf-custo'
 // ══════════════════════════════════════════════════════════════
 // IMPORTAÇÃO
 // ══════════════════════════════════════════════════════════════
+// Parser manual de CSV (delimitador ; , campos entre aspas, vírgula decimal preservada
+// pra pN() tratar depois) — usado pelo relatório "Análise de Consumo" da Veloe, que sai
+// em CSV (Latin-1/CP1252) em vez de .xlsx. Produz o mesmo formato de array-de-arrays
+// que XLSX.utils.sheet_to_json(...,{header:1}) gera, pra reaproveitar todo o resto do
+// parser sem duplicar lógica.
+function abastParseCSVText(text){
+  // Remove BOM se houver e normaliza quebras de linha
+  text = text.replace(/^\uFEFF/, '').replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+  var delim = (text.split('\n')[0].split(';').length >= text.split('\n')[0].split(',').length) ? ';' : ',';
+  var rows = [];
+  var row = [];
+  var field = '';
+  var inQuotes = false;
+  for(var i=0;i<text.length;i++){
+    var c = text[i];
+    if(inQuotes){
+      if(c==='"'){
+        if(text[i+1]==='"'){ field+='"'; i++; }
+        else inQuotes=false;
+      } else field+=c;
+    } else {
+      if(c==='"') inQuotes=true;
+      else if(c===delim){ row.push(field); field=''; }
+      else if(c==='\n'){ row.push(field); rows.push(row); row=[]; field=''; }
+      else field+=c;
+    }
+  }
+  if(field.length || row.length){ row.push(field); rows.push(row); }
+  return rows.filter(function(r){ return r.length>1 || (r.length===1 && r[0]!==''); });
+}
 function abastImportar(input){
   var file=input.files[0]; if(!file) return;
   document.getElementById('abast-import-log').textContent='⏳ Lendo arquivo…';
   abastLoadDb();
+  var isCsv = /\.csv$/i.test(file.name);
   var reader=new FileReader();
   reader.onload=function(e){
     try{
-      // raw:true preserva tipos nativos (número, data); cellDates converte datas para Date objects
-      var wb=XLSX.read(new Uint8Array(e.target.result),{type:'array',cellDates:true,raw:true});
-      var ws=wb.Sheets[wb.SheetNames[0]];
-      var rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true});
+      var rows;
+      if(isCsv){
+        // Relatórios da Veloe em CSV normalmente saem em Latin-1/CP1252 (acentos
+        // quebram em UTF-8) — decodifica nessa codificação antes de parsear.
+        var bytes = new Uint8Array(e.target.result);
+        var text = new TextDecoder('iso-8859-1').decode(bytes);
+        rows = abastParseCSVText(text);
+      } else {
+        // raw:true preserva tipos nativos (número, data); cellDates converte datas para Date objects
+        var wb=XLSX.read(new Uint8Array(e.target.result),{type:'array',cellDates:true,raw:true});
+        var ws=wb.Sheets[wb.SheetNames[0]];
+        rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true});
+      }
 
       // ── Detecção automática de formato ──────────────────────────
       // Verifica se é planilha do RASTREADOR (Prefixo/Placa | Km | km/L)
@@ -21671,29 +21826,61 @@ function abastImportar(input){
 
       var h=rows[hIdx].map(function(c){return String(c||'').trim().toLowerCase();});
 
-      // Mapeamento robusto por nome de coluna — funciona para Abril e Maio
+      // Mapeamento robusto por nome de coluna — funciona para Abril e Maio (planilha
+      // .xlsx tradicional) E para o CSV "Análise de Consumo" da Veloe, cujos nomes de
+      // coluna são mais descritivos (ex: "Placa do veículo" em vez de só "Placa",
+      // "Valor da transação (R$)" em vez de "Valor Total"). Sempre tenta o nome curto
+      // primeiro (compatibilidade com o formato antigo) e cai pro nome longo do CSV.
       var iPlaca   = h.findIndex(function(c){return c==='placa';});
+      if(iPlaca<0) iPlaca = h.findIndex(function(c){return c.indexOf('placa')>=0 && c.indexOf('capacidade')<0;});
       var iCentroN = h.findIndex(function(c){return c.indexOf('descri')>=0&&c.indexOf('centro')>=0;});
       // Fallback: se não tiver "descrição centro", usa qualquer coluna com "centro"
       if(iCentroN<0) iCentroN = h.findIndex(function(c){return c.indexOf('centro')>=0;});
-      var iMotor   = h.findIndex(function(c){return c.indexOf('motorista')>=0;});
+      // Motorista: prioriza "nome ... motorista" pra não pegar a coluna de CPF do
+      // motorista por engano (o CSV da Veloe tem as duas, CPF vem antes do Nome).
+      var iMotor   = h.findIndex(function(c){return c.indexOf('nome')>=0 && c.indexOf('motorista')>=0;});
+      if(iMotor<0) iMotor = h.findIndex(function(c){return c.indexOf('motorista')>=0 && c.indexOf('cpf')<0;});
+      if(iMotor<0) iMotor = h.findIndex(function(c){return c.indexOf('motorista')>=0;});
       var iDt      = h.findIndex(function(c){return (c.indexOf('data')>=0&&c.indexOf('hora')>=0)||c.indexOf('transa')>=0;});
       var iPosto   = h.findIndex(function(c){return c==='nome ec'||c.indexOf('nome ec')>=0;});
-      var iUF      = h.findIndex(function(c){return c==='uf ec'||c==='uf ec'||c.indexOf('uf ec')>=0;});
+      if(iPosto<0) iPosto = h.findIndex(function(c){return c.indexOf('nome')>=0 && c.indexOf(' ec')>=0;});
+      var iUF      = h.findIndex(function(c){return c==='uf ec'||c.indexOf('uf ec')>=0;});
+      if(iUF<0) iUF = h.findIndex(function(c){return (c.indexOf('estado')>=0||c==='uf') && c.indexOf(' ec')>=0;});
       var iCidade  = h.findIndex(function(c){return c==='cidade ec'||c.indexOf('cidade ec')>=0;});
+      if(iCidade<0) iCidade = h.findIndex(function(c){return c.indexOf('cidade')>=0 && c.indexOf(' ec')>=0;});
       var iMerc    = h.findIndex(function(c){return c==='mercadoria';});
       var iQtd     = h.findIndex(function(c){return c.indexOf('qtd')>=0;});
+      if(iQtd<0) iQtd = h.findIndex(function(c){return c.indexOf('quantidade')>=0 && c.indexOf('mercadoria')>=0;});
       var iVUnit   = h.findIndex(function(c){return c.indexOf('valor unit')>=0;});
       var iVTot    = h.findIndex(function(c){return c.indexOf('valor total')>=0;});
+      // "Valor Total" no formato antigo = "Valor da transação (R$)" no CSV da Veloe.
+      if(iVTot<0) iVTot = h.findIndex(function(c){return c.indexOf('valor')>=0 && c.indexOf('transa')>=0;});
       var iKmL     = h.findIndex(function(c){return c.indexOf('média')>=0||c.indexOf('media')>=0||c.indexOf('efetiva')>=0;});
-      // KM Percorrido: coluna separada — cobre variações do Veloe Go
-      // Nomes conhecidos: "km percorrido", "km perc", "percorrido", "km rodado", "hodômetro", "odometro", "km"
+      // Filtro Frota Pesada x Leve — só existe no CSV da Veloe ("Perfil de uso" ou
+      // "Descrição do centro de custo"), não no .xlsx tradicional (que já vem só com
+      // frota pesada, filtrada na origem). Quando a coluna existe, filtra; quando não,
+      // não filtra nada (mantém o comportamento de sempre para o formato antigo).
+      var iPerfil  = h.findIndex(function(c){return c.indexOf('perfil')>=0 && c.indexOf('uso')>=0;});
+      // "Tipo de transação" ("Compra" x "Consumo Interno") — sinal explícito e
+      // confiável de abastecimento interno (tanque próprio), direto da Veloe. Só
+      // existe no CSV "Análise de Consumo"; quando ausente, cai no comportamento
+      // antigo (deduzir pelo nome do posto conter "RAGUIFE").
+      var iTipoTrans = h.findIndex(function(c){return c.indexOf('tipo')>=0 && c.indexOf('transa')>=0;});
+      // KM Percorrido: coluna separada — cobre variações do Veloe Go. Busca em DUAS
+      // passagens: primeiro só termos de "percorrido/rodado" (o que realmente é
+      // distância desta transação); só cai pra hodômetro/odômetro se não achar nada
+      // melhor — hodômetro é a LEITURA acumulada, não a distância rodada, e o CSV da
+      // Veloe tem colunas de hodômetro ANTES da coluna de km percorrido, então uma
+      // busca de passagem única pegava a coluna errada (hodômetro) por vir primeiro.
       var iKmPerc  = h.findIndex(function(c){
-        return c.indexOf('km perc')>=0 || c.indexOf('percor')>=0
-            || c.indexOf('km rod')>=0  || c.indexOf('hodôm')>=0
-            || c.indexOf('hodom')>=0   || c.indexOf('odom')>=0
-            || (c.indexOf('km')>=0 && c.indexOf('ltr')<0 && c.indexOf('kml')<0 && c.indexOf('médio')<0 && c.indexOf('media')<0 && c.indexOf('efetiv')<0);
+        return c.indexOf('km perc')>=0 || c.indexOf('percor')>=0 || c.indexOf('km rod')>=0;
       });
+      if(iKmPerc<0){
+        iKmPerc = h.findIndex(function(c){
+          return c.indexOf('hodôm')>=0 || c.indexOf('hodom')>=0 || c.indexOf('odom')>=0
+              || (c.indexOf('km')>=0 && c.indexOf('ltr')<0 && c.indexOf('kml')<0 && c.indexOf('médio')<0 && c.indexOf('media')<0 && c.indexOf('efetiv')<0);
+        });
+      }
 
       if(iPlaca<0){toast('Coluna Placa não encontrada','error');return;}
       if(iMerc<0) {toast('Coluna Mercadoria não encontrada','error');return;}
@@ -21723,14 +21910,17 @@ function abastImportar(input){
         if(dtRaw instanceof Date && !isNaN(dtRaw)){
           dtObj=dtRaw;
         } else if(dtRaw){
-          // Tenta parsear string de data em diferentes formatos
+          // CORREÇÃO: tenta DD/MM/AAAA (padrão brasileiro, formato real da Veloe)
+          // ANTES do new Date(s) genérico. new Date("04/08/2026") é interpretado pelo
+          // JS como MM/DD/AAAA (mês/dia) — trocava dia por mês silenciosamente sempre
+          // que o dia era ≤12, sem gerar erro pra cair no fallback (a data resultante
+          // é "válida", só errada). O CSV da Veloe sempre usa DD/MM/AAAA, nunca MM/DD.
           var s=String(dtRaw).trim();
-          // Formato ISO: "2026-05-01T09:01:21.000Z" ou "2026-05-01 09:01:21"
-          dtObj=new Date(s);
-          // Se inválido, tenta DD/MM/YYYY
-          if(isNaN(dtObj)){
-            var m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
-            if(m) dtObj=new Date(parseInt(m[3]),parseInt(m[2])-1,parseInt(m[1]));
+          var m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+          if(m) dtObj=new Date(parseInt(m[3]),parseInt(m[2])-1,parseInt(m[1]));
+          else {
+            // Sem match DD/MM/AAAA — tenta formato ISO: "2026-05-01T09:01:21.000Z" etc.
+            dtObj=new Date(s);
           }
         }
         if(!dtObj||isNaN(dtObj)) return;
@@ -21738,6 +21928,15 @@ function abastImportar(input){
         function pS(v){ return v===null||v===undefined?'':String(v).trim(); }
         var posto   = pS(iPosto>=0?r[iPosto]:'');
         var merc    = pS(iMerc>=0?r[iMerc]:'');
+
+        // ── FILTRO FROTA PESADA: só existe no CSV "Análise de Consumo" da Veloe
+        // (coluna "Perfil de uso" = "PERFIL PLACAS PESADAS" ou "PERFIL PLACAS LEVES").
+        // O .xlsx tradicional não tem essa coluna — nesse caso iPerfil fica -1 e nada
+        // é filtrado aqui (mantém o comportamento de sempre pro formato antigo).
+        if(iPerfil>=0){
+          var perfilUpper = pS(r[iPerfil]).toUpperCase();
+          if(perfilUpper.indexOf('PESADA')<0){ ignorados++; return; }
+        }
 
         // ── FILTRO DE MERCADORIA: aceita apenas Diesel e Arla ──────
         // Rejeita Etanol, Gasolina, Gasolina Comum, Diesel Aditivado, etc.
@@ -21765,6 +21964,17 @@ function abastImportar(input){
         var opFrota = abastGetOpFrota(placa);
         if(!op && opFrota) op = opFrota;
         var tipoP   = abastTipoPostO(posto);
+        // CORREÇÃO: quando a coluna "Tipo de transação" existe e diz "Consumo Interno",
+        // isso vale mais que o nome do posto — nesses casos o posto (Nome do EC) vem
+        // em branco na origem (não passou por comércio externo nenhum), então o
+        // heurístico antigo (procurar "RAGUIFE" no nome do posto) classificava errado
+        // como Externo. Também dá um rótulo descritivo ao posto em vez de deixar em
+        // branco nos relatórios.
+        var tipoTransacao = pS(iTipoTrans>=0?r[iTipoTrans]:'');
+        if(tipoTransacao.toUpperCase().indexOf('INTERNO')>=0){
+          tipoP = 'Interno';
+          if(!posto) posto = 'Abastecimento Interno (tanque próprio)';
+        }
 
         // ── KM/L: calcula a partir dos dados brutos quando disponível ──
         // Método bruto: kmPercorrido / litros  (mais preciso)
@@ -27849,24 +28059,31 @@ function kmlOficialSave(){
 }
 
 function kmlOficialGet(placa, mes, ano){
-  // Autonomia agora vem do Abastecimento em primeiro lugar — cada abastecimento já
-  // calcula o KM/L daquela viagem (kml), então não depende mais de uma planilha
-  // separada do rastreador GPS pra ter a média atualizada todo mês. A planilha do
-  // rastreador (se importada) continua servindo de complemento, só é usada quando
-  // não há abastecimento suficiente pra aquela placa no mês.
-  if(mes){
-    var doAbast = abastKmlMedioPlaca(placa, mes, ano);
-    if(doAbast != null) return doAbast;
-  }
+  // CORREÇÃO: o Rastreador (GPS) é a fonte OFICIAL de KM/L — é ele quem mede
+  // distância real percorrida, não o Abastecimento. O Veloe existe pra alimentar
+  // litros/valores/custos de combustível, não pra calcular autonomia: o KM/L que
+  // ele calcula por abastecimento depende de hodômetro digitado manualmente (ou
+  // de uma leitura própria da Veloe) e é mais sujeito a ruído por abastecimento
+  // isolado. Rastreador primeiro; Abastecimento só como complemento quando não
+  // há leitura do rastreador pra essa placa/mês (evita buraco na média).
   kmlOficialLoad();
   var key = (ano||2026)+'_'+mes;
   if(KML_OFICIAL_DB[placa] && KML_OFICIAL_DB[placa][key] != null)
     return KML_OFICIAL_DB[placa][key];
-  // Fallback: seed histórico embutido
+  // Seed histórico embutido (mesma fonte rastreador, meses antigos)
   var ref = ABAST_KML_REF[placa];
-  if(!ref) return null;
-  var mMap = {1:'jan',2:'fev',3:'mar',4:'abr',5:'mai',6:'jun',7:'jul',8:'ago',9:'set',10:'out',11:'nov',12:'dez'};
-  return (mes && ref[mMap[mes]] != null) ? ref[mMap[mes]] : (ref.media != null ? ref.media : null);
+  if(ref){
+    var mMap = {1:'jan',2:'fev',3:'mar',4:'abr',5:'mai',6:'jun',7:'jul',8:'ago',9:'set',10:'out',11:'nov',12:'dez'};
+    var refVal = (mes && ref[mMap[mes]] != null) ? ref[mMap[mes]] : (ref.media != null ? ref.media : null);
+    if(refVal != null) return refVal;
+  }
+  // Sem rastreador pra essa placa/mês — cai no KM/L calculado pelo Abastecimento
+  // (complemento, não fonte oficial).
+  if(mes){
+    var doAbast = abastKmlMedioPlaca(placa, mes, ano);
+    if(doAbast != null) return doAbast;
+  }
+  return null;
 }
 // Média ponderada por litros do KM/L calculado em cada abastecimento de Diesel
 // dessa placa, no mês/ano pedido — ignora leituras marcadas como outlier (ver
