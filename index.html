@@ -2017,6 +2017,15 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
   body.print-analise-report #op-view-reajuste,
   body.print-analise-report button{display:none!important}
   body.print-analise-report .content{padding:0!important}
+  /* Impressão do Mapa de Calor (Frete → Dashboard e Simulador de Reajuste): o
+     container impresso (#frete-mapa-print) é montado do zero e anexado como filho
+     direto do body só na hora de imprimir — evita todo o problema de ancestrais
+     escondidos que a Análise de Rentabilidade teve, porque aqui nada precisa ser
+     "escondido ao redor": o container já nasce isolado, com só o conteúdo do
+     relatório dentro dele. */
+  body.print-mapa-calor > *:not(#frete-mapa-print){display:none!important}
+  body.print-mapa-calor #frete-mapa-print{display:block!important}
+  @page{margin:1.2cm;size:A4 landscape}
 }</style>
 </head>
 <body>
@@ -4188,6 +4197,7 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
       <div class="rec-hdr">
         <div class="rec-title">Mapa de Calor — Rentabilidade por Categoria × Grupo de KM</div>
         <span style="font-size:11px;color:var(--txl)">★ marca a categoria mais rentável de cada grupo</span>
+        <button onclick="freteMapaCalorImprimir('atual')" style="margin-left:auto;padding:7px 14px;background:var(--gd);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700">🖨️ Exportar PDF</button>
       </div>
       <div style="padding:14px 18px;display:flex;gap:16px;flex-wrap:wrap;align-items:end;border-bottom:1px solid var(--gb)">
         <div class="form-grp" style="width:160px"><label class="form-lbl">Pedágio de Referência (R$)</label><input class="form-ctrl" id="fd-mtz-pedagio" value="0,00" onchange="freteRenderMatriz()"></div>
@@ -4451,6 +4461,7 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
         <div class="rec-hdr">
           <div class="rec-title">Mapa de Calor — Impacto do Reajuste na Rentabilidade</div>
           <span style="font-size:11px;color:var(--txl)">recalcula sozinho a cada mudança no % de reajuste</span>
+          <button onclick="freteMapaCalorImprimir('simulacao')" style="margin-left:auto;padding:7px 14px;background:var(--gd);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700">🖨️ Exportar Simulação em PDF</button>
         </div>
         <div style="padding:14px 18px;display:flex;gap:16px;flex-wrap:wrap;align-items:end;border-bottom:1px solid var(--gb)">
           <div class="form-grp" style="width:160px"><label class="form-lbl">Pedágio de Referência (R$)</label><input class="form-ctrl" id="rj-mtz-pedagio" value="0,00" oninput="freteRenderMatrizReajuste()"></div>
@@ -9861,7 +9872,11 @@ function exportCSV(){
 // Externo, Categoria e OP (AQUA/PET), pra dar suporte a investigação de divergências
 // sem precisar adivinhar o que está por trás de cada card do dashboard.
 function abastExportarCSV(){
-  if(typeof abastLoadDb==='function') abastLoadDb();
+  // CORREÇÃO: não chama abastLoadDb() aqui — essa função recarrega DB_ABAST direto
+  // do localStorage, que pode estar desatualizado em relação ao que já está em
+  // memória (por exemplo, se a sincronização com a nuvem atualizou os dados em
+  // memória mas ainda não regravou o localStorage). Exporta exatamente o que a
+  // tela já está mostrando, sem arriscar sobrescrever com um snapshot mais velho.
   var data = (typeof DB_ABAST!=='undefined') ? DB_ABAST : [];
   var h=['Placa','Categoria','OP','Centro de Custo (bruto)','Data','Mês','Ano','Tipo (Interno/Externo)','Mercadoria','Qtd(L)','Vl Unit','Vl Total','KM Percorrido','KM/L','KM/L Fonte','KM/L Lido (Veloe)','Outlier?','Alerta','Posto','Cidade EC','UF EC','Motorista','Arquivo Origem'];
   var rows=data.map(function(r){
@@ -16370,6 +16385,102 @@ var _raguifeLogoB64='data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYE
 // ── Impressão da Análise de Rentabilidade (Precifica de Frete) ────────────
 // Gera um relatório limpo (sem menu, sem cabeçalho da plataforma, sem botões)
 // pra uso em relatórios executivos — não é mais um print cru da tela.
+// ── Impressão do Mapa de Calor de Rentabilidade (Frete → Dashboard, e a versão
+// simulada em Frete → Simulador de Reajuste) ────────────────────────────────
+// Monta um relatório do ZERO — não é print da tela: pega só a tabela já
+// renderizada (as cores de cada célula já vêm como estilo inline em cada <td>,
+// então clonar a tabela preserva o mapa de calor fielmente, sem precisar do CSS
+// da página) e a envolve num cabeçalho/legenda/rodapé próprios de relatório.
+function freteMapaCalorImprimir(tipo){
+  var isSim = (tipo==='simulacao');
+  var tableId = isSim ? 'rj-mtz-table' : 'fd-mtz-table';
+  var legendaId = isSim ? 'rj-mtz-legenda' : 'fd-mtz-legenda';
+  var liveTable = document.getElementById(tableId);
+  if(!liveTable || !liveTable.querySelector('tbody tr')){
+    if(typeof toast==='function') toast('Gere o mapa de calor antes de exportar (preencha os filtros acima)','error');
+    return;
+  }
+  var liveLegenda = document.getElementById(legendaId);
+
+  var g = function(id){ var el=document.getElementById(id); return el ? el.value : ''; };
+  var txt = function(id){ var el=document.getElementById(id); return el ? el.textContent.trim() : ''; };
+
+  var tabelaVigente = txt('fd-kpi-tabela') || '—';
+  var pedagio = isSim ? g('rj-mtz-pedagio') : g('fd-mtz-pedagio');
+  var outrasVar = isSim ? g('rj-mtz-outrasvar') : g('fd-mtz-outrasvar');
+
+  var filtrosHtml = '';
+  if(isSim){
+    var pct = g('rj-pct') || '0';
+    filtrosHtml =
+      '<div><b>Percentual de Reajuste Simulado:</b> '+pct+'%</div>'+
+      '<div><b>Tabela Base:</b> '+tabelaVigente+'</div>'+
+      '<div><b>Pedágio de Referência:</b> R$ '+(pedagio||'0,00')+'</div>'+
+      '<div><b>Demais Variáveis:</b> R$ '+(outrasVar||'0,00')+'</div>';
+  } else {
+    var melhor = txt('fd-kpi-melhor'), melhorSub = txt('fd-kpi-melhor-sub');
+    var pior = txt('fd-kpi-pior'), piorSub = txt('fd-kpi-pior-sub');
+    filtrosHtml =
+      '<div><b>Tabela Vigente:</b> '+tabelaVigente+'</div>'+
+      '<div><b>Pedágio de Referência:</b> R$ '+(pedagio||'0,00')+'</div>'+
+      '<div><b>Demais Variáveis:</b> R$ '+(outrasVar||'0,00')+'</div>'+
+      (melhor?('<div><b>Categoria Mais Rentável:</b> '+melhor+(melhorSub?' ('+melhorSub+')':'')+'</div>'):'')+
+      (pior?('<div><b>Categoria Menos Rentável:</b> '+pior+(piorSub?' ('+piorSub+')':'')+'</div>'):'');
+  }
+
+  var legendaHtml;
+  if(isSim){
+    legendaHtml =
+      '<div style="display:flex;gap:18px;align-items:center;font-size:11px;flex-wrap:wrap">'+
+        '<span style="display:flex;align-items:center;gap:6px"><span style="width:14px;height:14px;border-radius:3px;background:#8d524a;display:inline-block"></span>Situação atual (sem reajuste)</span>'+
+        '<span style="display:flex;align-items:center;gap:6px"><span style="width:14px;height:14px;border-radius:3px;background:#2b5744;display:inline-block"></span>Situação simulada (com reajuste)</span>'+
+      '</div>';
+  } else {
+    var barrasHtml = liveLegenda ? liveLegenda.innerHTML : '';
+    legendaHtml =
+      '<div style="font-size:10px;color:#555;margin-bottom:4px">Margem de rentabilidade: -30% (baixa/negativa) → +30% (alta rentabilidade)</div>'+
+      '<div style="display:flex;height:14px;border-radius:4px;overflow:hidden">'+barrasHtml+'</div>';
+  }
+
+  var agora = new Date();
+  var dataGeracao = agora.toLocaleDateString('pt-BR')+' às '+agora.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+
+  var container = document.createElement('div');
+  container.id = 'frete-mapa-print';
+  container.style.cssText = 'background:#fff;padding:24px;font-family:Inter,Arial,sans-serif;color:#2b241a';
+  container.innerHTML =
+    '<div style="display:flex;align-items:center;gap:16px;border-bottom:3px solid #024f2b;padding-bottom:14px;margin-bottom:16px">'+
+      '<img src="'+_raguifeLogoB64+'" style="height:44px;width:auto">'+
+      '<div style="flex:1">'+
+        '<div style="font-size:18px;font-weight:800;color:#024f2b">Mapa de Calor '+(isSim?'— Simulação de Reajuste':'de Rentabilidade')+'</div>'+
+        '<div style="font-size:11px;color:#739630;font-weight:700;text-transform:uppercase;letter-spacing:.5px">Rentabilidade por Categoria × Grupo de KM</div>'+
+      '</div>'+
+      '<div style="text-align:right;font-size:10px;color:#666">'+
+        '<div>Emitido em '+dataGeracao+'</div>'+
+        '<div>Vinícius A. — Gerência Executiva de Operações</div>'+
+      '</div>'+
+    '</div>'+
+    '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:4px 24px;font-size:11px;margin-bottom:14px;padding:10px 14px;background:#f6f7f4;border-radius:8px">'+filtrosHtml+'</div>'+
+    '<div id="frete-mapa-print-tabela" style="margin-bottom:14px"></div>'+
+    '<div style="border-top:1px solid #e5e7eb;padding-top:10px">'+legendaHtml+'</div>'+
+    '<div style="font-size:9px;color:#999;margin-top:14px">★ marca a categoria mais rentável de cada grupo · Relatório gerado automaticamente pelo Raguife Frota — Gestão de Frota</div>';
+
+  // Clona a tabela já renderizada (cores por célula já vêm como estilo inline) —
+  // não recalcula nada, só reaproveita o que já está na tela, formatado pra papel.
+  var tabelaClone = liveTable.cloneNode(true);
+  tabelaClone.style.width = '100%';
+  tabelaClone.style.borderCollapse = 'collapse';
+  tabelaClone.style.fontSize = '11px';
+  container.querySelector('#frete-mapa-print-tabela').appendChild(tabelaClone);
+
+  document.body.appendChild(container);
+  document.body.classList.add('print-mapa-calor');
+  window.print();
+  setTimeout(function(){
+    if(container.parentNode) container.parentNode.removeChild(container);
+    document.body.classList.remove('print-mapa-calor');
+  }, 500);
+}
 function analiseImprimir(){
   var cab = document.getElementById('an-cabecalho');
   var cabTxt = cab ? cab.textContent.trim() : '';
@@ -21606,11 +21717,42 @@ function abastOpExecutivo(op){
 }
 
 // ── Categoria da placa via DB_FROTA ────────────────────────
+// Confusões comuns de OCR entre caractere e dígito visualmente parecidos — a
+// leitora da Veloe às vezes grava a placa errada no cartão (ex: EBK2I00 vira
+// EBK2800, EOH0H57 vira EOH0757). Cada caractere pode ter mais de uma confusão
+// possível (ex: "8" pode ser lido tanto de "B" quanto de "I"). Testa uma troca de
+// caractere por vez contra o cadastro de Gestão de Frota; só aplica se achar
+// exatamente 1 veículo compatível (evita corrigir errado por ambiguidade entre
+// duas placas parecidas).
+var ABAST_PLACA_CONFUSOES = {
+  '0':['O'], 'O':['0'],
+  '1':['I'], 'I':['1','8'],
+  '8':['B','I'], 'B':['8'],
+  '5':['S'], 'S':['5'],
+  '2':['Z'], 'Z':['2'],
+  '6':['G'], 'G':['6'],
+  '7':['H'], 'H':['7']
+};
+function abastCorrigirPlacaPorFrota(placaNorm){
+  if(!DB_FROTA || !DB_FROTA.length || !placaNorm) return null;
+  var candidatos = [];
+  for(var i=0;i<placaNorm.length;i++){
+    var alts = ABAST_PLACA_CONFUSOES[placaNorm[i]];
+    if(!alts) continue;
+    for(var j=0;j<alts.length;j++){
+      var tentativa = placaNorm.slice(0,i)+alts[j]+placaNorm.slice(i+1);
+      var achou = DB_FROTA.find(function(f){ return f.ativo!==false && String(f.cavalo||'').toUpperCase().replace(/[^A-Z0-9]/g,'')===tentativa; });
+      if(achou && candidatos.indexOf(achou)<0) candidatos.push(achou);
+    }
+  }
+  return candidatos.length===1 ? candidatos[0] : null;
+}
 function abastCategoria(placa){
   if(!placa) return '';
   if(!DB_FROTA || !DB_FROTA.length){ try{ frotaLoad(); }catch(e){} }
   var p = String(placa).toUpperCase().replace(/[^A-Z0-9]/g,'');
   var v = DB_FROTA.find(function(f){ return f.ativo!==false && String(f.cavalo||'').toUpperCase().replace(/[^A-Z0-9]/g,'')=== p; });
+  if(!v) v = abastCorrigirPlacaPorFrota(p);
   return v ? v.tipo : '';
 }
 
@@ -21619,6 +21761,7 @@ function abastGetOpFrota(placa){
   if(!DB_FROTA || !DB_FROTA.length){ try{ frotaLoad(); }catch(e){} }
   var p = String(placa).toUpperCase().replace(/[^A-Z0-9]/g,'');
   var v = DB_FROTA.find(function(f){ return f.ativo!==false && String(f.cavalo||'').toUpperCase().replace(/[^A-Z0-9]/g,'')=== p; });
+  if(!v) v = abastCorrigirPlacaPorFrota(p);
   return v ? (v.op||'') : '';
 }
 
@@ -28118,7 +28261,9 @@ function kmlRefImportar(input){
       var rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
       kmlOficialLoad();
       var key = ano+'_'+mes;
-      var added=0, updated=0;
+
+      // ── PASSADA 1: lê todas as linhas, extrai placa+km/L bruto ──────────
+      var candidatos = [];
       rows.forEach(function(row){
         if(!row[0]) return;
         var cel = String(row[0]).trim();
@@ -28126,16 +28271,57 @@ function kmlRefImportar(input){
         if(!m) m = cel.match(/^([A-Z0-9]{6,8})$/i);
         if(!m) return;
         var placa = m[1].toUpperCase();
-        var kml = parseFloat(String(row[2]||'').replace(',','.'));
-        if(!kml || kml<=0 || kml>20) return;
-        if(!KML_OFICIAL_DB[placa]) KML_OFICIAL_DB[placa]={};
-        var jaExiste = KML_OFICIAL_DB[placa][key] != null;
-        KML_OFICIAL_DB[placa][key] = Math.round(kml*1000)/1000;
+        // km/L não está sempre na coluna C (index 2) — depende do formato da
+        // planilha (algumas trazem "Placa | Km Total | km/L", outras só
+        // "Placa | km/L"). Pega sempre a ÚLTIMA coluna com valor numérico da
+        // linha, que é onde o km/L está nos dois formatos.
+        var kml = NaN;
+        for(var ci=row.length-1; ci>=1; ci--){
+          var tentativa = parseFloat(String(row[ci]||'').replace(',','.'));
+          if(!isNaN(tentativa) && tentativa>0){ kml = tentativa; break; }
+        }
+        if(!kml || isNaN(kml) || kml<=0) return; // sem leitura numérica válida — não dá pra aproveitar nem corrigir
+        candidatos.push({placa:placa, kmlBruto:kml});
+      });
+
+      // ── PASSADA 2: identifica outlier por categoria (mesma régua do Abastecimento,
+      // abastKmlLimites) e calcula a média da categoria SÓ com os valores dentro da
+      // faixa esperada — pra um outlier não puxar a própria média que vai corrigi-lo. ──
+      var somaPorCat = {}, qtdPorCat = {};
+      candidatos.forEach(function(c){
+        c.categoria = (typeof abastCategoria==='function') ? abastCategoria(c.placa) : '';
+        var ehOutlier = c.categoria ? abastIsOutlier(c.kmlBruto, c.categoria) : (c.kmlBruto>20);
+        c.outlier = ehOutlier;
+        if(!ehOutlier && c.categoria){
+          somaPorCat[c.categoria] = (somaPorCat[c.categoria]||0) + c.kmlBruto;
+          qtdPorCat[c.categoria] = (qtdPorCat[c.categoria]||0) + 1;
+        }
+      });
+      var mediaPorCat = {};
+      Object.keys(somaPorCat).forEach(function(cat){ mediaPorCat[cat] = somaPorCat[cat]/qtdPorCat[cat]; });
+
+      // ── PASSADA 3: grava — outlier vira a média da categoria; sem categoria
+      // conhecida pra corrigir, mantém o comportamento anterior (descarta). ──
+      var added=0, updated=0, corrigidos=0;
+      candidatos.forEach(function(c){
+        var kmlFinal = c.kmlBruto;
+        if(c.outlier){
+          if(c.categoria && mediaPorCat[c.categoria]!=null){
+            kmlFinal = mediaPorCat[c.categoria];
+            corrigidos++;
+          } else {
+            return; // outlier sem categoria conhecida — sem base pra corrigir, descarta
+          }
+        }
+        kmlFinal = Math.round(kmlFinal*1000)/1000;
+        if(!KML_OFICIAL_DB[c.placa]) KML_OFICIAL_DB[c.placa]={};
+        var jaExiste = KML_OFICIAL_DB[c.placa][key] != null;
+        KML_OFICIAL_DB[c.placa][key] = kmlFinal;
         jaExiste ? updated++ : added++;
       });
       kmlOficialSave();
       var mNomes=['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-      var msg = file.name+' — '+mNomes[mes]+'/'+ano+': '+added+' novas, '+updated+' atualizadas';
+      var msg = file.name+' — '+mNomes[mes]+'/'+ano+': '+added+' novas, '+updated+' atualizadas'+(corrigidos?(', '+corrigidos+' outlier(s) corrigido(s) p/ média da categoria'):'');
       if(logEl){ logEl.style.color='#166534'; logEl.textContent='✅ '+msg; }
       toast(msg,'success');
       input.value='';
@@ -28214,6 +28400,37 @@ function kmlRefImportarRapido(input){
   kmlRefImportar(input);
   document.getElementById = _orig;
 }
+
+// ── Carga inicial: KM/L oficial do Rastreador — Mar/Abr/Ago 2026 ──────────
+// Processado a partir das planilhas reais enviadas (medias_março.xlsx,
+// media_abril.xlsx, media_agosto (1).xlsx — formato "Prefixo / Placa" + "km/L").
+// Mesmo padrão das Diárias Maio 1Q: roda uma vez, só ADICIONA o que ainda não
+// existe (nunca sobrescreve um valor já gravado, seja de importação manual
+// anterior ou de outra carga) — idempotente, seguro rodar de novo sem duplicar.
+(function(){
+  var LOTES = [
+  {key:'3/2026', dados:[["GBV2F70", 4.086], ["GAA2D82", 3.502], ["FSK8E26", 4.173], ["GAA5I03", 1.645], ["GAA5I61", 1.832], ["FDC4J74", 2.451], ["GAA5I62", 1.946], ["FJU7I19", 3.335], ["GAA4I81", 1.887], ["GAA5I53", 1.793], ["FVA7B11", 2.956], ["GAA5I02", 1.706], ["FDC4J75", 3.051], ["CLW4A48", 3.269], ["GBF7E64", 1.702], ["FVU8I30", 3.398], ["EBW2C85", 2.061], ["FOV1C88", 2.491], ["GAA2J62", 2.719], ["FWB2B34", 1.969], ["GAA6E91", 5.794], ["GAA6B62", 3.243], ["GAA6C64", 2.647], ["GAA6H21", 2.212], ["GAA6H61", 2.549], ["FCC9995", 2.156], ["FCT5A75", 1.839], ["FRX7H66", 2.104], ["QPY8A58", 2.023], ["GAA1C63", 2.27], ["FZR4J59", 3.274], ["GAA0E42", 3.522], ["GAA2G22", 3.259], ["GAA3F91", 3.542], ["GAA6F11", 3.565], ["GAA6I31", 3.386], ["GAA6J73", 3.167], ["GIF9G20", 3.658], ["GJP1F30", 3.524], ["BBG1D34", 3.344], ["BBR9F63", 3.241], ["FRO7I25", 2.876], ["GAA6D41", 2.877], ["GAA6D71", 2.997], ["GAA6E71", 3.072], ["GAA6G51", 3.196], ["GAA6G71", 2.67], ["GEJ1889", 2.157], ["PQK3I28", 3.099], ["GAA0D97", 2.702], ["DUC3D40", 2.342], ["GAA1C62", 2.814], ["GAA1C54", 2.33], ["ENN8F53", 1.832], ["GAA0D77", 1.545], ["GAA2D71", 1.765], ["GAA2G55", 1.611], ["GAA2J52", 1.925], ["GFI3F08", 1.601], ["GGS0E66", 1.975], ["EBK2I00", 4.792], ["EOH0H57", 3.803], ["GAA4J71", 3.307], ["GAA5C71", 3.335], ["GAA5D71", 3.424], ["GAA5J92", 5.009], ["ZGAA6B33", 3.864], ["GAA2E71", 2.311], ["GAA4D71", 1.924]]},
+  {key:'4/2026', dados:[["GBV2F70", 3.7], ["FSK8E26", 3.664], ["GAA2D82", 3.483], ["GAA5I03", 1.609], ["GAA5I61", 1.787], ["GAA5I62", 2.05], ["GAA4I81", 1.697], ["FDC4J74", 2.578], ["GAA5I02", 1.542], ["GAA5I53", 1.892], ["FJU7I19", 3.215], ["FVU8I30", 3.525], ["GBF7E64", 1.835], ["GAA2J52", 1.934], ["FOV1C88", 2.496], ["GJP1F30", 3.478], ["CLW4A48", 2.781], ["GAA0D77", 1.845], ["EBW2C85", 2.05], ["GAA6E91", 5.766], ["GAA6B62", 2.452], ["GAA6C64", 2.508], ["GAA6H21", 2.481], ["GAA6H61", 2.531], ["FCC9995", 1.982], ["FCT5A75", 1.869], ["FRX7H66", 2.018], ["FWB2B34", 1.8], ["QPY8A58", 2.005], ["DUC3D40", 2.183], ["GAA1C63", 2.218], ["FZR4J59", 3.264], ["GAA0E42", 3.713], ["GAA2G22", 3.199], ["GAA3F91", 3.265], ["GAA6F11", 3.793], ["GAA6I31", 3.68], ["GAA6J73", 3.011], ["GIF9G20", 3.313], ["BBG1D34", 3.211], ["BBR9F63", 3.592], ["FDC4J75", 3.263], ["FRO7I25", 2.86], ["FSG6F45", 2.76], ["FVA7B11", 2.776], ["GAA6D41", 2.781], ["GAA6D71", 2.842], ["GAA6E71", 2.969], ["GAA6G51", 3.188], ["GAA6G71", 3.038], ["GEJ1889", 2.258], ["PQK3I28", 3.254], ["GAA0D97", 2.805], ["GAA2E71", 3.242], ["GAA1C62", 2.691], ["GAA2J62", 2.708], ["GAA1C54", 2.579], ["ENN8F53", 2.028], ["GAA2D71", 1.629], ["GAA2G55", 1.542], ["GFI3F08", 1.664], ["GGS0E66", 1.94], ["EBK2I00", 4.278], ["EOH0H57", 4.077], ["GAA4J71", 3.266], ["GAA5C71", 3.007], ["GAA5D71", 3.428], ["GAA5J92", 5.79], ["GAA6B33", 4.179], ["ZGAA6B33", 3.344], ["GAA4D71", 1.524]]},
+  {key:'8/2026', dados:[["GBV2F70", 3.404], ["FSK8E26", 3.307], ["GAA2D82", 3.894], ["GAA5I03", 1.881], ["GBF7E64", 2.159], ["GAA5I61", 1.83], ["FJU7I19", 3.837], ["GAA0D77", 1.692], ["GAA5I53", 2.843], ["GAA5I02", 1.906], ["FVU8I30", 2.942], ["GAA2J52", 1.577], ["DUC3D40", 2.044], ["GAA1C63", 1.935], ["GJP1F30", 3.194], ["FRX7H66", 2.518], ["GAA1C62", 2.694], ["FOV1C88", 2.094], ["NSB3G46", 5.814], ["GAA4I81", 1.959], ["EBW2C85", 2.058], ["GAA6E91", 5.916], ["GAA6B62", 2.544], ["GAA6C64", 2.342], ["GAA6H21", 2.131], ["GAA6H61", 2.768], ["FCC9995", 2.076], ["FCT5A75", 1.697], ["FWB2B34", 2.009], ["QPY8A58", 1.815], ["CLW4A48", 1.602], ["FZR4J59", 3.278], ["GAA0E42", 3.787], ["GAA2G22", 3.648], ["GAA3F91", 3.313], ["GAA6F11", 3.462], ["GAA6I31", 3.524], ["GAA6J73", 3.031], ["GIF9G20", 3.358], ["BBG1D34", 3.113], ["BBR9F63", 3.119], ["FDC4J75", 2.506], ["FRO7I25", 2.859], ["FSG6F45", 3.106], ["FVA7B11", 2.764], ["GAA6D41", 2.973], ["GAA6D71", 3.288], ["GAA6E71", 3.069], ["GAA6G51", 3.197], ["GAA6G71", 3.344], ["GEJ1889", 2.105], ["PQK3I28", 2.884], ["GAA0D97", 2.929], ["GAA2E71", 0.078], ["GAA7B93", 2.294], ["GAA2J62", 2.179], ["GAA1C54", 2.032], ["ENN8F53", 1.979], ["GAA2D71", 1.952], ["GAA2G55", 1.696], ["GFI3F08", 1.988], ["GGS0E66", 1.861], ["EOH0H57", 4.013], ["GAA4J71", 3.563], ["GAA5C71", 3.056], ["GAA5D71", 3.765], ["GAA5J92", 5.346], ["GAA6B33", 3.908], ["GAA4D71", 1.799], ["EBK2I00", 4.692]]}
+];
+  try{
+    kmlOficialLoad();
+    var adicionados = 0, jaExistiam = 0;
+    LOTES.forEach(function(lote){
+      lote.dados.forEach(function(par){
+        var placa = par[0], kml = par[1];
+        if(!KML_OFICIAL_DB[placa]) KML_OFICIAL_DB[placa] = {};
+        if(KML_OFICIAL_DB[placa][lote.key] != null){ jaExistiam++; return; }
+        KML_OFICIAL_DB[placa][lote.key] = kml;
+        adicionados++;
+      });
+    });
+    if(adicionados > 0){
+      kmlOficialSave();
+      console.info('[Raguife] KM/L Rastreador Mar/Abr/Ago: '+adicionados+' novos registros, '+jaExistiam+' já existiam (mantidos).');
+    }
+  }catch(e){ console.error('[Raguife] Erro ao pré-carregar KM/L Mar/Abr/Ago:', e); }
+})();
 </script>
 
 <script>
