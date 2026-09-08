@@ -7325,6 +7325,30 @@ const fd=()=>{
   });
 };
 
+// REGRA (definida em conjunto, aplicada a partir de jul/ago 2026): a receita de
+// FRETE RETORNO passa a ser reconhecida pela Data de Descarga no Cliente
+// (dt_desc), não pela data de saída/carregamento (dt_carg). Uma viagem pode sair
+// dia 31/08 e só carregar o retorno depois da entrega, em setembro — contar isso
+// como receita de agosto (mês da saída) distorcia a competência do mês. Filtro
+// idêntico ao fd(), só troca dt_carg por dt_desc na comparação de mês. Escopo
+// combinado: só Frete Retorno — Coleta MP e Frete Terceirizado já usam a data de
+// carregamento da própria operação (não têm esse problema), então continuam com fd().
+const fdRetorno=()=>{
+  const m=g('f-mes').value,uf=g('f-uf-dest').value,c=g('f-cat').value;
+  const pl=(g('f-placa-dash')&&g('f-placa-dash').value)||'';
+  const kmg=g('f-kmg').value,r=g('f-ret').value;
+  return DB.filter(x=>{
+    if(x._excluida)return false;
+    if(m&&GM(x.dt_desc)!==m)return false;
+    if(uf&&x.destino_uf!==uf)return false;
+    if(c&&x.categoria!==c)return false;
+    if(pl&&x.placa!==pl)return false;
+    if(kmg&&String(x.km_grupo)!==kmg)return false;
+    if(r&&x.retorno!==r)return false;
+    return true;
+  });
+};
+
 const CHS={};
 const DC=id=>{if(CHS[id]){CHS[id].destroy();delete CHS[id];}};
 const GRD='rgba(0,0,0,.05)';
@@ -7594,7 +7618,11 @@ function renderKPIs(data){
     return a+(isNaN(v)?0:v);
   },0)/1000;
   if(_pesoProblemas.length) console.warn('[Toneladas Totais] '+_pesoProblemas.length+' viagem(ns) com peso não-numérico, ignorada(s) na soma (contam como 0):', _pesoProblemas);
-  const rec_ret     = data.filter(r=>r.tipo_ret==='Retorno'||r.tipo_ret==='Outros').reduce((a,r)=>a+r.vl_total,0);
+  // CORREÇÃO (regra combinada): Frete Retorno usa fdRetorno() — mesmos filtros do
+  // dashboard, mas com o mês comparado pela Data de Descarga no Cliente (dt_desc),
+  // não pela saída (dt_carg). Só essa linha muda; Coleta MP e Frota Terceirizada
+  // continuam usando `data` (filtrado por dt_carg) normalmente.
+  const rec_ret     = fdRetorno().filter(r=>r.tipo_ret==='Retorno'||r.tipo_ret==='Outros').reduce((a,r)=>a+r.vl_total,0);
   const rec_mp      = data.filter(r=>r.tipo_ret==='MP').reduce((a,r)=>a+r.vl_total,0);
   // "Outros" foi identificado como sendo, na prática, receita de Fretes Terceirizados
   // importada da planilha Frete Frota — por regra de negócio essa classificação não é
@@ -7653,7 +7681,12 @@ function renderKPIs(data){
   // conta de MP foram removidos (ficam sempre vazios), a condição "pagamento!=='Pago'"
   // classificava TODA a receita de MP como pendente por padrão — inflando o A Receber
   // sem essa pendência existir de verdade. tipo_ret!=='MP' exclui isso da conta.
-  const pend = freteExplodirPernas(data).filter(function(r){return r.retorno==='Sim'&&r.tipo_ret!=='MP'&&r.pagamento!=='Pago';}).reduce((a,r)=>a+r.vl_total,0) + rec_ft_pend;
+  // CORREÇÃO (regra combinada): a pendência de Frete Retorno também precisa vir de
+  // fdRetorno() (mês por dt_desc) — separo do resto (que continua em `data`, mês por
+  // dt_carg) pra não misturar as duas referências de data na mesma soma.
+  const pendRetorno = freteExplodirPernas(fdRetorno()).filter(function(r){return r.retorno==='Sim'&&(r.tipo_ret==='Retorno'||r.tipo_ret==='Outros')&&r.pagamento!=='Pago';}).reduce((a,r)=>a+r.vl_total,0);
+  const pendResto = freteExplodirPernas(data).filter(function(r){return r.retorno==='Sim'&&r.tipo_ret!=='MP'&&r.tipo_ret!=='Retorno'&&r.tipo_ret!=='Outros'&&r.pagamento!=='Pago';}).reduce((a,r)=>a+r.vl_total,0);
+  const pend = pendRetorno + pendResto + rec_ft_pend;
   const S=(d,c,s=16)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
   g('kpi-grid').innerHTML=`
     <div class="kpi-card c-gd"><div class="kpi-icon-wrap">${S('<rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 5v4h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>','#024f2b')}</div><div class="kpi-lbl">Total de Viagens</div><div class="kpi-val">${tot}</div><div class="kpi-sub">${com} c/ retorno · ${sem} vazias</div></div>
@@ -7699,7 +7732,7 @@ function renderKPIs(data){
       <div class="kpi-lbl">A Receber</div>
       <div class="kpi-val" style="font-size:18px;letter-spacing:-.3px">${pend>0?R(pend):'<span style="font-size:22px">—</span>'}</div>
       <div class="kpi-breakdown">
-        <div class="kpi-breakdown-row" style="cursor:pointer;padding:3px 4px;border-radius:4px" ondblclick="recOpenReport('Retorno')" title="Duplo clique para ver detalhes"><span class="kpi-bd-dot" style="background:#024f2b"></span><span class="kpi-bd-label">Frete Retorno</span><span class="kpi-bd-val">${R(data.filter(r=>(r.tipo_ret==='Retorno'||r.tipo_ret==='Outros')&&r.retorno==='Sim'&&r.pagamento!=='Pago').reduce((a,r)=>a+r.vl_total,0))}</span></div>
+        <div class="kpi-breakdown-row" style="cursor:pointer;padding:3px 4px;border-radius:4px" ondblclick="recOpenReport('Retorno')" title="Duplo clique para ver detalhes"><span class="kpi-bd-dot" style="background:#024f2b"></span><span class="kpi-bd-label">Frete Retorno</span><span class="kpi-bd-val">${R(fdRetorno().filter(r=>(r.tipo_ret==='Retorno'||r.tipo_ret==='Outros')&&r.retorno==='Sim'&&r.pagamento!=='Pago').reduce((a,r)=>a+r.vl_total,0))}</span></div>
         <div class="kpi-breakdown-row" style="margin-top:3px;cursor:pointer;padding:3px 4px;border-radius:4px" ondblclick="recOpenReport('Terceirizada')" title="Duplo clique para ver detalhes"><span class="kpi-bd-dot" style="background:#d97706"></span><span class="kpi-bd-label">Frota Terceirizada</span><span class="kpi-bd-val">${R(rec_ft_pend)}</span></div>
       </div>
     </div>`;
