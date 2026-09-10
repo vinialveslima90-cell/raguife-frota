@@ -19862,17 +19862,40 @@ function confirmarRecuperacao(){
   var checks = document.querySelectorAll('.recup-chk:checked');
   var selecionadas = Array.prototype.map.call(checks, function(c){ return window._recuperacaoFaltando[parseInt(c.dataset.idx)]; });
   if(!selecionadas.length){ alert('Nenhuma viagem selecionada.'); return; }
-  selecionadas.forEach(function(r){
-    if(!r._id) r._id = 'v_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,9);
-    DB.push(r);
-  });
-  save();
-  var ov = document.getElementById('recup-overlay-comparar'); if(ov) ov.remove();
-  if(typeof FB_SYNC!=='undefined' && FB_SYNC.registrarLog) FB_SYNC.registrarLog('Recuperou viagens do histórico', selecionadas.length+' viagem(ns) trazida(s) de volta');
-  toast(selecionadas.length+' viagem(ns) recuperada(s) ✅ — confira no Kanban','success');
-  if(typeof renderKanban==='function') renderKanban();
-  if(typeof renderAll==='function') renderAll();
-  if(typeof renderRecs==='function') renderRecs();
+  // CORREÇÃO CRÍTICA (10/09): viagem recuperada do histórico mantém o MESMO _id
+  // que tinha antes de ser apagada — e esse _id ainda está marcado como "lápide"
+  // (proteção contra registro removido de propósito "ressuscitar" sozinho). Sem
+  // remover a lápide primeiro, o próprio envio da recuperação era barrado por
+  // essa proteção segundos depois — parecia funcionar na hora (tela em memória),
+  // mas sumia ao trocar de aba (quando a lápide filtrava de novo). Recuperar de
+  // propósito é o oposto de "ressuscitar sozinho", então a lápide tem que sair
+  // ANTES de reenviar, não depois.
+  var idsParaLimparLapide = selecionadas.filter(function(r){ return r._id; }).map(function(r){ return r._id; });
+  var prosseguir = function(){
+    selecionadas.forEach(function(r){
+      if(!r._id) r._id = 'v_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,9);
+      DB.push(r);
+    });
+    save();
+    var ov = document.getElementById('recup-overlay-comparar'); if(ov) ov.remove();
+    if(typeof FB_SYNC!=='undefined' && FB_SYNC.registrarLog) FB_SYNC.registrarLog('Recuperou viagens do histórico', selecionadas.length+' viagem(ns) trazida(s) de volta ('+idsParaLimparLapide.length+' lápide(s) removida(s))');
+    toast(selecionadas.length+' viagem(ns) recuperada(s) ✅ — confira no Kanban','success');
+    if(typeof renderKanban==='function') renderKanban();
+    if(typeof renderAll==='function') renderAll();
+    if(typeof renderRecs==='function') renderRecs();
+  };
+  if(idsParaLimparLapide.length && typeof firebase!=='undefined'){
+    var updLapides = {};
+    idsParaLimparLapide.forEach(function(id){ updLapides[id] = null; }); // null = remove a chave
+    firebase.database().ref('sync/_tomb_raguife_v3').update(updLapides)
+      .then(prosseguir)
+      .catch(function(e){
+        console.warn('[Recuperação] Falha ao remover lápides antes de reenviar:', e.message);
+        alert('Não consegui limpar a proteção de "lápide" antes de reenviar — a recuperação pode não persistir. Tente de novo, e se continuar falhando, avise quem administra o sistema.');
+      });
+  } else {
+    prosseguir();
+  }
 }
 
 function vdupAbrir(){
