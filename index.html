@@ -655,6 +655,42 @@ if(location.protocol!=='file:'){
       });
     },
     _finalizarPushViagens:function(updates, removidos, ts){
+      // CORREÇÃO CRÍTICA (10/09) — fecha o ciclo real do incidente: até aqui,
+      // QUALQUER salvamento normal (não só o botão "Forçar Envio") propagava pra
+      // nuvem, como exclusão com lápide, qualquer registro que sumisse da tela
+      // local — mesmo que o sumiço fosse causado por um bug/estado desatualizado,
+      // não por uma exclusão intencional da pessoa. Isso criava um ciclo: um bug
+      // reduzia o DB local → o próximo salvamento normal (editar qualquer coisa)
+      // confirmava essa redução como exclusão de propósito na nuvem, de novo.
+      // Agora, antes de tratar "removidos" como exclusão real, separa quem tem
+      // data de carregamento recente (últimos 10 dias) ou futura — isso nunca é
+      // uma exclusão intencional de dado antigo, é o padrão de sessão
+      // desatualizada. Esses ficam de fora da exclusão automática.
+      if(removidos.length){
+        var LIMITE_DIAS_RECENTE_AUTO = 10;
+        var hojeStrAuto = new Date(Date.now() - LIMITE_DIAS_RECENTE_AUTO*24*60*60*1000).toISOString().slice(0,10);
+        var removidosSuspeitos = [];
+        var removidosOk = [];
+        removidos.forEach(function(id){
+          var raw = FB._ultimoEstadoViagens[id];
+          var r = null;
+          try{ r = raw ? JSON.parse(raw) : null; }catch(e){}
+          if(r && r.dt_carg && r.dt_carg >= hojeStrAuto){ removidosSuspeitos.push(id); }
+          else{ removidosOk.push(id); }
+        });
+        if(removidosSuspeitos.length){
+          console.warn('[FB Sync] '+removidosSuspeitos.length+' viagem(ns) recente(s) ou futura(s) NÃO foram excluídas automaticamente da nuvem (sumiram da tela local, mas isso não parece exclusão intencional). IDs:', removidosSuspeitos);
+          if(!document.getElementById('exclusao-recente-bloqueada-banner')){
+            var bAuto = document.createElement('div');
+            bAuto.id = 'exclusao-recente-bloqueada-banner';
+            bAuto.style.cssText = 'position:fixed;bottom:20px;right:20px;background:#fef3c7;border:2px solid #d97706;color:#92400e;padding:14px 18px;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.2);z-index:99999;font-size:13px;max-width:340px';
+            bAuto.innerHTML = '<b>⚠️ Viagens recentes preservadas</b><br>'+removidosSuspeitos.length+' viagem(ns) recente(s) sumiram da sua tela, mas NÃO foram apagadas da nuvem (proteção automática). Recarregue a página (F5) pra ver o estado correto.<br><button onclick="this.parentElement.remove()" style="margin-top:8px;padding:6px 14px;border:none;border-radius:6px;background:#92400e;color:#fff;cursor:pointer;font-weight:700">Entendi</button>';
+            if(document.body) document.body.appendChild(bAuto);
+          }
+          removidosSuspeitos.forEach(function(id){ delete FB._ultimoEstadoViagens[id]; }); // não repete o aviso pra sempre, mas não apaga
+        }
+        removidos = removidosOk;
+      }
       if(removidos.length){
         // Rede de segurança: se uma limpeza remover muitas viagens de uma vez,
         // salva um snapshot completo do que estava conhecido ANTES dessa remoção —
@@ -5046,7 +5082,7 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
     <button onclick="abrirCorrecaoPesoBitruckSilo()" style="padding:7px 14px;background:#fff;border:1px solid #d97706;color:#92400e;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700">⚖️ Corrigir Peso Bitruck Silo</button>
     <button onclick="abrirSubstituirBaseJSON()" style="padding:7px 14px;background:#fef2f2;border:1px solid #dc2626;color:#991b1b;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700">🗑️ Substituir Base (JSON)</button>
     <button onclick="arqAbrir()" style="padding:7px 14px;background:#fff;border:1px solid var(--gb);color:var(--txm);border-radius:6px;cursor:pointer;font-size:11px;font-weight:700">📦 Arquivar Antigas</button>
-    <button onclick="forcarSincronizacaoLimpeza(this)" style="padding:7px 14px;background:#fef2f2;border:1px solid #fca5a5;color:#991b1b;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700">🚨 Forçar Envio da Base Limpa</button>
+    <button onclick="alert('🚫 Ferramenta desativada temporariamente (10/09) — foi a causa da perda de dados de setembro, e o problema voltou a acontecer mesmo depois da correção. Desativada até confirmarmos a causa raiz de vez. Fale com Vinícius antes de qualquer ação de limpeza de base.')" style="padding:7px 14px;background:#e5e7eb;border:1px solid #9ca3af;color:#6b7280;border-radius:6px;cursor:not-allowed;font-size:11px;font-weight:700" title="Desativada temporariamente — investigação em andamento">🚫 Forçar Envio da Base Limpa (desativado)</button>
     </div>
     <button onclick="abrirImportarCorrecaoJSON()" style="padding:7px 14px;background:#fff;border:1px solid #2563eb;color:#1e40af;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700">📥 Importar Correção (JSON)</button>
     <button onclick="recOpenReport('Retorno')" style="margin-left:auto;padding:7px 14px;background:var(--gd);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700">📋 Consulta de Fretes Retorno</button>
