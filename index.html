@@ -109,6 +109,14 @@ if(location.protocol!=='file:'){
   function getKnownTs(key){ var t = origGetItem(key+'__fbts'); return t ? parseInt(t,10) : 0; }
   function setKnownTs(key, ts){ origSetItem(key+'__fbts', String(ts)); }
 
+  // Fonte única da versão do código — usada no badge do topo e no Diagnóstico.
+  // Formato AAAA-MM-DD-X (comparável como texto: letra mais adiante = mais nova
+  // no mesmo dia). Atualizar aqui sempre que houver correção que precise ser
+  // verificável (evita a ambiguidade que já causou confusão: build parada há
+  // semanas enquanto o código mudava por baixo, sem nenhum jeito de confirmar
+  // qual versão estava rodando de fato).
+  var RAGUIFE_BUILD_LOCAL = '2026-09-11-F';
+
   var FB = {
     online:false, ready:false, uid:null,
     _pending:{}, _statusEl:null, _bannerShown:false,
@@ -339,9 +347,39 @@ if(location.protocol!=='file:'){
         bar.appendChild(logBtn);
 
         var verBadge = document.createElement('span');
-        verBadge.textContent = 'build 2026-09-10-C';
+        verBadge.id = 'raguife-build-badge';
+        verBadge.textContent = 'build '+RAGUIFE_BUILD_LOCAL;
         verBadge.style.cssText = 'margin-left:6px;padding:2px 8px;font-size:9px;font-weight:800;color:#7c2d12;background:#fef3c7;border-radius:8px';
         bar.appendChild(verBadge);
+
+        // CORREÇÃO (10/09) — fecha a brecha real que causou a reincidência do
+        // incidente de setembro: alguém rodando uma versão antiga (sem essas
+        // proteções) num navegador que nunca deu F5. Compara com a versão mais
+        // nova já vista por QUALQUER dispositivo (guardada na própria nuvem) —
+        // se essa sessão estiver desatualizada, avisa bem visível, sem depender
+        // de ninguém lembrar de checar manualmente. Se for a mais nova vista até
+        // agora, atualiza a referência pra todo mundo.
+        if(typeof firebase!=='undefined'){
+          firebase.database().ref('sync/_versao_atual').once('value').then(function(snap){
+            var versaoNuvem = snap.val();
+            if(!versaoNuvem || versaoNuvem <= RAGUIFE_BUILD_LOCAL){
+              firebase.database().ref('sync/_versao_atual').set(RAGUIFE_BUILD_LOCAL);
+            } else if(versaoNuvem > RAGUIFE_BUILD_LOCAL){
+              verBadge.style.cssText = 'margin-left:6px;padding:2px 8px;font-size:9px;font-weight:800;color:#fff;background:#dc2626;border-radius:8px;cursor:pointer';
+              verBadge.textContent = '⚠️ desatualizado';
+              verBadge.title = 'Sua versão ('+RAGUIFE_BUILD_LOCAL+') é mais antiga que a mais nova já vista ('+versaoNuvem+'). Clique pra atualizar.';
+              verBadge.onclick = function(){ location.reload(true); };
+              if(!document.getElementById('versao-desatualizada-banner')){
+                var bVer = document.createElement('div');
+                bVer.id = 'versao-desatualizada-banner';
+                bVer.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#dc2626;color:#fff;padding:10px 20px;text-align:center;font-size:13px;font-weight:700;z-index:100000;cursor:pointer';
+                bVer.innerHTML = '⚠️ Você está usando uma versão desatualizada do sistema ('+RAGUIFE_BUILD_LOCAL+') — a mais nova é '+versaoNuvem+'. Clique aqui ou pressione Ctrl+Shift+R pra atualizar antes de continuar usando.';
+                bVer.onclick = function(){ location.reload(true); };
+                if(document.body) document.body.insertBefore(bVer, document.body.firstChild);
+              }
+            }
+          }).catch(function(e){ console.warn('[Versão] Falha ao checar versão na nuvem:', e.message); });
+        }
       };
       tryAttach();
     },
@@ -1539,6 +1577,13 @@ html,body{background:var(--gbg);color:var(--txt);font-family:'Inter',sans-serif;
 .btn-reset{padding:6px 14px;border-radius:5px;border:1px solid var(--gb);background:transparent;color:var(--txl);cursor:pointer;font-family:'Inter',sans-serif;font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;transition:all .15s;display:flex;align-items:center;gap:5px}
 .btn-reset:hover{border-color:var(--gd);color:var(--gd)}
 .kpi-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+.kpi-grid-compacto{gap:8px;grid-template-columns:repeat(6,1fr)}
+.kpi-grid-compacto .kpi-card{padding:10px 12px 9px}
+.kpi-grid-compacto .kpi-icon-wrap{width:26px;height:26px;border-radius:7px;margin-bottom:6px}
+.kpi-grid-compacto .kpi-icon-wrap svg{width:14px;height:14px}
+.kpi-grid-compacto .kpi-lbl{font-size:9px;margin-bottom:2px}
+.kpi-grid-compacto .kpi-val{font-size:18px;margin-bottom:1px}
+.kpi-grid-compacto .kpi-sub{font-size:9.5px;line-height:1.25}
 .kpi-card{background:var(--wh);border:1px solid var(--gb);border-radius:10px;padding:18px 18px 16px;position:relative;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.05);transition:box-shadow .18s,transform .18s}
 .pess-cat-card{cursor:pointer;transition:transform .12s ease,box-shadow .12s ease}
 .pess-cat-card:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,.12)}
@@ -1968,12 +2013,26 @@ html,body{overflow:hidden;height:100%}
 .tab-panel.active{display:flex}
 .subtab-nav{display:flex;background:var(--wh);border:1px solid var(--gb);border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.05);flex-shrink:0}
 .subtab-btn{flex:1;display:flex;align-items:center;justify-content:center;gap:7px;padding:12px 14px;border:none;background:transparent;cursor:pointer;font-family:'Inter',sans-serif;font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--txl);border-bottom:3px solid transparent;transition:all .18s}
+.jorn-periodo-pill,.jorn-agrupar-pill{padding:7px 14px;border:1px solid var(--gb);border-radius:999px;background:#fff;color:var(--txm);font-size:12px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;transition:all .15s;white-space:nowrap}
+.jorn-periodo-pill:hover,.jorn-agrupar-pill:hover{border-color:var(--gd)}
+.jorn-periodo-pill.active,.jorn-agrupar-pill.active{background:var(--gd);border-color:var(--gd);color:#fff}
+.jorn-agrupar-pill{padding:6px 12px;font-size:11.5px}
+.jorn-date-input{padding:6px 10px;border:1px solid var(--gb);border-radius:8px;background:#fff;font-size:12px;font-family:'Inter',sans-serif;color:var(--txm)}
 .subtab-btn:not(:last-child){border-right:1px solid var(--gb)}
 .subtab-btn:hover{background:var(--gg);color:var(--gd)}
 .subtab-btn.active{background:var(--gg);color:var(--gd);border-bottom-color:var(--gd)}
 .subtab-btn svg{width:13px;height:13px;flex-shrink:0}
 .subtab-counts{background:var(--gd);color:#fff;font-size:9.5px;font-weight:800;padding:1px 6px;border-radius:10px;margin-left:3px}
 .subtab-btn.active .subtab-counts{background:var(--go)}
+/* === Gestão de Jornada — layout compacto/executivo (escopado só a esse módulo) === */
+#tab-jornada.tab-panel{padding:12px 20px 18px;gap:8px}
+#tab-jornada .subtab-btn{padding:7px 12px;font-size:10.5px}
+#tab-jornada .rec-hdr{padding:8px 14px}
+#tab-jornada .rec-title{font-size:11px}
+#tab-jornada .f-select{padding:5px 9px;font-size:11.5px}
+#tab-jornada .f-label{font-size:10px}
+#tab-jornada .jorn-periodo-pill{padding:5px 12px;font-size:11.5px}
+#tab-jornada .kpi-grid-compacto .kpi-card{padding:8px 10px 7px}
 .module-nav{display:flex;gap:6px;flex-wrap:wrap;padding:4px 0 0}
 .module-btn{display:flex;align-items:center;gap:7px;padding:8px 18px;border-radius:20px;border:1px solid var(--gb);background:var(--wh);color:var(--txl);cursor:pointer;font-family:'Inter',sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;transition:all .18s}
 .module-btn svg{width:13px;height:13px}
@@ -2230,19 +2289,13 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
           <div class="sb-child" id="sbch-rv-config" onclick="selectModule('remuneracao','rv-config')"><div class="sb-dot"></div><span>Configurações</span></div>
         </div>
       </div>
-      <!-- GESTÃO DE JORNADA -->
-      <div class="sb-group open" id="sbg-jornada">
-        <div class="sb-item sb-parent" id="sbi-jornada" onclick="sbToggleGroup('jornada')">
+      <!-- GESTÃO DE JORNADA — navegação só pelas abas de cima (Dashboard/Ranking/
+           Categorias/Eficiência Semanal/Análise Diária/Importar); sem subitens
+           na lateral, a pedido — evita navegação duplicada/confusa. -->
+      <div class="sb-group" id="sbg-jornada">
+        <div class="sb-item sb-parent" id="sbi-jornada" onclick="selectModule('jornada','jorn-dash')">
           <div class="sb-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="10" cy="10" r="7.5"/><path d="M10 5.5v5l3.5 2"/></svg></div>
           <span class="sb-lbl">Gestão de Jornada</span>
-          <svg class="sb-chev" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="3,3 5,6 7,3"/></svg>
-        </div>
-        <div class="sb-children open" id="sbc-jornada">
-          <div class="sb-child" id="sbch-jorn-dash"    onclick="selectModule('jornada','jorn-dash')"><div class="sb-dot"></div><span>Dashboard</span></div>
-          <div class="sb-child" id="sbch-jorn-rank"    onclick="selectModule('jornada','jorn-rank')"><div class="sb-dot"></div><span>Ranking</span></div>
-          <div class="sb-child" id="sbch-jorn-mot"     onclick="selectModule('jornada','jorn-mot')"><div class="sb-dot"></div><span>Por Motorista</span></div>
-          <div class="sb-child" id="sbch-jorn-efic"    onclick="selectModule('jornada','jorn-efic')"><div class="sb-dot"></div><span>Eficiência Semanal</span></div>
-          <div class="sb-child" id="sbch-jorn-import"  onclick="selectModule('jornada','jorn-import')"><div class="sb-dot"></div><span>Importar</span></div>
         </div>
       </div>
   </nav>
@@ -6728,69 +6781,91 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
 <div class="tab-panel" id="tab-jornada">
 
   <div class="subtab-nav" id="jorn-subnav">
-    <button class="subtab-btn active" id="jorn-btn-dash"   onclick="jornTab('dash')">📊 Dashboard</button>
-    <button class="subtab-btn"        id="jorn-btn-rank"   onclick="jornTab('rank')">🏆 Ranking</button>
-    <button class="subtab-btn"        id="jorn-btn-cat"    onclick="jornTab('cat')">📦 Categorias</button>
-    <button class="subtab-btn"        id="jorn-btn-efic"   onclick="jornTab('efic')">📈 Eficiência Semanal</button>
-    <button class="subtab-btn"        id="jorn-btn-diaria" onclick="jornTab('diaria')">🚨 Análise Diária</button>
-    <button class="subtab-btn"        id="jorn-btn-import" onclick="jornTab('import')">📥 Importar</button>
+    <button class="subtab-btn active" id="jorn-btn-dash"      onclick="jornTab('dash')">📊 Dashboard</button>
+    <button class="subtab-btn"        id="jorn-btn-rank"      onclick="jornTab('rank')">🏆 Ranking</button>
+    <button class="subtab-btn"        id="jorn-btn-mapacalor" onclick="jornTab('mapacalor')">🗓️ Mapa de Calor</button>
+    <button class="subtab-btn"        id="jorn-btn-diaria"    onclick="jornTab('diaria')">🚨 Análise Diária</button>
+    <button class="subtab-btn"        id="jorn-btn-import"    onclick="jornTab('import')">📥 Importar</button>
   </div>
 
-  <div id="jorn-panel-dash" style="display:flex;flex-direction:column;gap:16px;padding:20px 24px">
-    <div style="background:#fff;border:1px solid var(--gb);border-radius:10px;padding:12px 16px;display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap">
-      <div class="f-group"><span class="f-label">Mês/Período</span><select class="f-select" id="jorn-f-periodo" onchange="jornAplicarFiltrosUI()"><option value="todos">Todos</option></select></div>
+  <div>
+    <div id="jorn-header-filtro" style="background:var(--gg);border:1px solid var(--gb);border-radius:9px;padding:7px 12px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:6px">
+      <button class="jorn-periodo-pill" data-periodo="hoje" onclick="jornSetPeriodoPreset('hoje')">Hoje</button>
+      <button class="jorn-periodo-pill" data-periodo="ontem" onclick="jornSetPeriodoPreset('ontem')">Ontem</button>
+      <button class="jorn-periodo-pill" data-periodo="7dias" onclick="jornSetPeriodoPreset('7dias')">Últimos 7 dias</button>
+      <button class="jorn-periodo-pill" data-periodo="mes" onclick="jornSetPeriodoPreset('mes')">Este mês</button>
+      <button class="jorn-periodo-pill" data-periodo="personalizado" onclick="jornSetPeriodoPreset('personalizado')">Personalizado</button>
+      <span id="jorn-periodo-custom-wrap" style="display:none;align-items:center;gap:8px">
+        <input type="date" id="jorn-periodo-data-ini" class="jorn-date-input" onchange="jornAplicarPeriodoPersonalizado()">
+        <span style="color:var(--txl);font-size:12px">até</span>
+        <input type="date" id="jorn-periodo-data-fim" class="jorn-date-input" onchange="jornAplicarPeriodoPersonalizado()">
+      </span>
+      <!-- botões ocultos mantidos no DOM só pra não quebrar jornSetAgrupar/jornAtualizarUIFiltros; grupo "Agrupar por" removido do layout a pedido -->
+      <span style="display:none">
+        <button class="jorn-agrupar-pill active" data-agrupar="hora" onclick="jornSetAgrupar('hora')">Hora</button>
+        <button class="jorn-agrupar-pill" data-agrupar="dia" onclick="jornSetAgrupar('dia')">Dia</button>
+        <button class="jorn-agrupar-pill" data-agrupar="semana" onclick="jornSetAgrupar('semana')">Semana</button>
+        <button class="jorn-agrupar-pill" data-agrupar="mes" onclick="jornSetAgrupar('mes')">Mês</button>
+      </span>
+    </div>
+    <div style="background:#fff;border:1px solid var(--gb);border-radius:9px;padding:7px 12px;display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap;margin-bottom:8px">
       <div class="f-group"><span class="f-label">Célula</span><select class="f-select" id="jorn-f-celula" onchange="jornAplicarFiltrosUI()"><option value="">Todas</option><option value="MATRIZ">Matriz</option><option value="BOM DESPACHO">Bom Despacho</option></select></div>
       <div class="f-group"><span class="f-label">Categoria</span><input type="text" class="f-select" id="jorn-f-categoria" list="jorn-f-categoria-list" placeholder="Todas" autocomplete="off" onchange="jornAplicarFiltrosUI()"><datalist id="jorn-f-categoria-list"></datalist></div>
-      <div class="f-group"><span class="f-label">Placa</span><input type="text" class="f-select" id="jorn-f-placa" list="jorn-f-placa-list" placeholder="Todas" autocomplete="off" onchange="jornAplicarFiltrosUI()"><datalist id="jorn-f-placa-list"></datalist></div>
+      <div class="f-group"><span class="f-label">Tipo de Hora Extra</span><select class="f-select" id="jorn-f-tipohe" onchange="jornAplicarFiltrosUI()"><option value="">Todos</option><option value="50">HE 50%</option><option value="70">HE 70%</option><option value="100">HE 100%</option></select></div>
       <div class="f-group"><span class="f-label">Motorista</span><input type="text" class="f-select" id="jorn-f-busca" placeholder="Buscar nome…" oninput="jornAplicarFiltrosUI()"></div>
       <button class="btn-reset" onclick="jornLimparFiltros()">↺ Limpar</button>
+      <!-- resumo Jornada Total / HE Total removido do layout (redundante com os KPIs do Dashboard) a pedido; spans mantidos ocultos pra não quebrar jornAtualizarResumoHeader -->
+      <div id="jorn-f-resumo-he" style="display:none">
+        <span id="jorn-f-resumo-jornada">—</span>
+        <span id="jorn-f-resumo-he-total">—</span>
+      </div>
     </div>
-    <div id="jorn-dash-kpis" class="kpi-grid"></div>
-    <div class="row-2" style="display:grid;grid-template-columns:1.3fr 1fr;gap:16px">
+  </div>
+
+  <div id="jorn-panel-dash" style="display:flex;flex-direction:column;gap:10px;padding:0 0 10px">
+    <div id="jorn-dash-kpis" class="kpi-grid kpi-grid-compacto"></div>
+    <div style="background:#fff;border:1px solid var(--gb);border-radius:10px;overflow:hidden">
+      <div class="rec-hdr"><div class="rec-title">📦 Custo de Horas Extras por Categoria</div><span style="font-size:11px;color:var(--txl)">clique numa categoria pra ver o detalhamento por motorista</span></div>
+      <div id="jorn-cat-cards" style="overflow-x:auto"></div>
+    </div>
+    <div id="jorn-cat-detalhe"></div>
+    <div class="row-2" style="display:grid;grid-template-columns:1.3fr 1fr;gap:10px">
       <div style="background:#fff;border:1px solid var(--gb);border-radius:10px;overflow:hidden">
         <div class="rec-hdr"><div class="rec-title">🏆 Top 8 · Custo de Hora Extra</div><button class="btn-sec" style="padding:5px 10px;font-size:11px" onclick="jornTab('rank')">Ver ranking completo</button></div>
         <div id="jorn-dash-top8"></div>
       </div>
       <div style="background:#fff;border:1px solid var(--gb);border-radius:10px;overflow:hidden">
-        <div class="rec-hdr"><div class="rec-title">⚖️ HE Pago × Banco de Horas</div></div>
-        <div id="jorn-dash-comparativo" style="padding:16px"></div>
+        <div class="rec-hdr"><div class="rec-title">🚚 Top 8 · Performance Km Médio/Dia</div></div>
+        <div id="jorn-dash-top8-km"></div>
       </div>
     </div>
     <div style="background:#fff;border:1px solid var(--gb);border-radius:10px;overflow:hidden">
       <div class="rec-hdr"><div class="rec-title">📦 Custo por Célula</div></div>
-      <div id="jorn-dash-porcelula" style="padding:16px"></div>
-    </div>
-    <div style="background:#fff;border:1px solid var(--gb);border-radius:10px;overflow:hidden">
-      <div class="rec-hdr"><div class="rec-title">📊 Evolução Diária de Horas Extras</div><span style="font-size:11px;color:var(--txl)">soma por dia carregado — cresce conforme mais dias forem importados</span></div>
-      <div style="padding:16px;height:260px"><canvas id="jorn-ch-evol"></canvas></div>
+      <div id="jorn-dash-porcelula" style="padding:10px 14px"></div>
     </div>
   </div>
-  <div id="jorn-panel-rank" style="display:none;flex-direction:column;gap:16px;padding:20px 24px">
+  <div id="jorn-panel-rank" style="display:none;flex-direction:column;gap:10px;padding:0 0 10px">
     <div style="background:#fff;border:1px solid var(--gb);border-radius:10px;overflow:hidden">
       <div class="rec-hdr"><div class="rec-title">🏆 Ranking de Motoristas</div><span style="font-size:11px;color:var(--txl)">clique numa coluna pra ordenar</span></div>
       <div id="jorn-rank-table" style="overflow-x:auto"></div>
     </div>
     <div style="background:#fff;border:1px solid var(--gb);border-radius:10px;overflow:hidden">
       <div class="rec-hdr"><div class="rec-title">📦 Ranking por Célula/Categoria</div></div>
-      <div id="jorn-rank-cat" style="padding:16px"></div>
+      <div id="jorn-rank-cat" style="padding:10px 14px"></div>
     </div>
   </div>
-  <div id="jorn-panel-cat" style="display:none;flex-direction:column;gap:16px;padding:20px 24px">
-    <div style="background:#fff;border:1px solid var(--gb);border-radius:10px;padding:14px 16px">
-      <div style="font-size:13px;font-weight:800;color:var(--gd)">📦 Custo de Horas Extras por Categoria</div>
-      <div style="font-size:11px;color:var(--txl)">Clique numa categoria para ver o detalhamento por motorista.</div>
-    </div>
-    <div id="jorn-cat-cards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px"></div>
-    <div id="jorn-cat-detalhe"></div>
-  </div>
-  <div id="jorn-panel-efic" style="display:none;flex-direction:column;gap:16px;padding:20px 24px">
+  <div id="jorn-panel-mapacalor" style="display:none;flex-direction:column;gap:10px;padding:0 0 10px">
     <div style="background:#fff;border:1px solid var(--gb);border-radius:10px;overflow:hidden">
-      <div class="rec-hdr"><div class="rec-title">📈 Eficiência Semanal</div><span style="font-size:11px;color:var(--txl)">uso da hora 50%, produtividade e trabalho em fim de semana</span></div>
-      <div id="jorn-efic-table" style="overflow-x:auto"></div>
+      <div class="rec-hdr" style="flex-wrap:wrap;gap:10px">
+        <div><div class="rec-title">🗓️ Mapa de Calor — Jornada × Horas Extras × Rodagem</div><span style="font-size:11px;color:var(--txl)">clique numa célula pra ver o detalhe do dia</span></div>
+        <select id="jorn-mc-semana" class="f-select" style="margin-left:auto;width:auto" onchange="jornRenderMapaCalorSemanal()"></select>
+      </div>
+      <div class="tbl-scroll" style="max-height:600px"><table id="jorn-mc-table" style="width:100%;border-collapse:collapse"></table></div>
+      <div id="jorn-mc-legenda" style="padding:7px 14px;border-top:1px solid var(--gb)"></div>
     </div>
   </div>
-  <div id="jorn-panel-diaria" style="display:none;flex-direction:column;gap:16px;padding:20px 24px">
-    <div style="background:#fff;border:1px solid var(--gb);border-radius:10px;padding:12px 16px;display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap">
+  <div id="jorn-panel-diaria" style="display:none;flex-direction:column;gap:10px;padding:0 0 10px">
+    <div style="background:#fff;border:1px solid var(--gb);border-radius:9px;padding:7px 14px;display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">
       <div class="f-group"><span class="f-label">Dia</span><select class="f-select" id="jorn-diaria-data" onchange="jornRenderAnaliseDiaria()"></select></div>
       <div class="f-group"><span class="f-label">Status do Motivo</span><select class="f-select" id="jorn-diaria-status" onchange="jornRenderAnaliseDiaria()"><option value="">Todos os estourados</option><option value="pendente">Sem motivo selecionado</option><option value="preenchido">Com motivo selecionado</option></select></div>
     </div>
@@ -6801,13 +6876,13 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
     </div>
     <div style="background:#fff;border:1px solid var(--gb);border-radius:10px;overflow:hidden">
       <div class="rec-hdr"><div class="rec-title">🏆 Ranking de Motivos × Motoristas</div><span style="font-size:11px;color:var(--txl)">considera todos os dias já classificados</span></div>
-      <div id="jorn-diaria-ranking" style="padding:16px"></div>
+      <div id="jorn-diaria-ranking" style="padding:10px 14px"></div>
     </div>
   </div>
-  <div id="jorn-panel-import" style="display:none;flex-direction:column;gap:16px;padding:20px 24px">
-    <div style="background:#fff;border:1px solid var(--gb);border-radius:10px;padding:18px">
-      <div style="font-size:13px;font-weight:800;color:var(--gd);margin-bottom:4px">📥 Importar um dia de Jornada + Km</div>
-      <div style="font-size:11px;color:var(--txl);margin-bottom:14px">A data é identificada automaticamente pelo período gravado no arquivo de Km (o mesmo filtro usado na exportação do Gestão de Frota) — não precisa digitar manualmente. Envie os dois arquivos do mesmo dia juntos.</div>
+  <div id="jorn-panel-import" style="display:none;flex-direction:column;gap:10px;padding:0 0 10px">
+    <div style="background:#fff;border:1px solid var(--gb);border-radius:9px;padding:12px 14px">
+      <div style="font-size:12px;font-weight:800;color:var(--gd);margin-bottom:4px">📥 Importar um dia de Jornada + Km</div>
+      <div style="font-size:10.5px;color:var(--txl);margin-bottom:10px">A data é identificada automaticamente pelo período gravado no arquivo de Km (o mesmo filtro usado na exportação do Gestão de Frota) — não precisa digitar manualmente. Envie os dois arquivos do mesmo dia juntos.</div>
       <div class="fg g2">
         <div class="form-grp"><label class="form-lbl">CSV de Jornada</label><input type="file" class="form-ctrl" id="jorn-inp-jornada" accept=".csv"></div>
         <div class="form-grp"><label class="form-lbl">XLSX de Km</label><input type="file" class="form-ctrl" id="jorn-inp-km" accept=".xlsx,.xls"></div>
@@ -10174,7 +10249,7 @@ function abrirDiagnostico(){
   ];
 
   box.innerHTML = '<div style="font-size:15px;font-weight:800;color:var(--gd);margin-bottom:4px">🔍 Diagnóstico do Sistema</div>'+
-    '<div style="font-size:10.5px;color:#fff;background:#7c2d12;display:inline-block;padding:3px 10px;border-radius:6px;font-weight:800;margin-bottom:10px">BUILD 2026-09-10-C · se este código não bater com o que foi te informado, você está com um arquivo antigo</div>'+
+    '<div style="font-size:10.5px;color:#fff;background:#7c2d12;display:inline-block;padding:3px 10px;border-radius:6px;font-weight:800;margin-bottom:10px">BUILD '+RAGUIFE_BUILD_LOCAL+' · se este código não bater com o que foi te informado, você está com um arquivo antigo</div>'+
     '<div style="font-size:11px;color:var(--txl);margin-bottom:16px">Tire um print desta tela e envie — ela mostra exatamente onde o dado diverge.</div>'+
     '<div id="diag-linhas" style="display:flex;flex-direction:column;gap:8px"></div>'+
     '<div id="diag-cats" style="margin-top:16px;padding-top:14px;border-top:1px solid var(--gb)"></div>'+
@@ -22590,7 +22665,7 @@ let JORN_PROCESSADO = false;
 
 let JORN_CASOS_STATUS = {};
 
-let JORN_FILTROS = {busca:'', unidade:'MATRIZ', categoria:'', status:'', periodo:'todos', diaSemana:'', tipoHE:'', comSemHE:''};
+let JORN_FILTROS = {busca:'', unidade:'MATRIZ', categoria:'', status:'', periodo:'todos', diaSemana:'', tipoHE:'', comSemHE:'', dataInicio:null, dataFim:null, agrupar:'dia'};
 
 function jornHms(str){
   if(!str) return 0;
@@ -22796,7 +22871,15 @@ function jornParseRelatorioRH(texto){
 
 function jornComputeMotoristas(periodo){
   const out = {};
-  let diasConsiderados = periodo==='todos' ? JORN_DIAS : JORN_DIAS.filter(function(d){ return d.data===periodo; });
+  // Aceita 3 formatos: 'todos' (tudo), uma data única 'AAAA-MM-DD' (compatibilidade
+  // com o que já existia), ou {inicio,fim} pra um intervalo (o que o novo
+  // cabeçalho de filtros usa: Hoje/Ontem/Últimos 7 dias/Este mês/Personalizado).
+  let diasConsiderados;
+  if(periodo && typeof periodo==='object' && periodo.inicio && periodo.fim){
+    diasConsiderados = JORN_DIAS.filter(function(d){ return d.data>=periodo.inicio && d.data<=periodo.fim; });
+  } else {
+    diasConsiderados = periodo==='todos' ? JORN_DIAS : JORN_DIAS.filter(function(d){ return d.data===periodo; });
+  }
   if(JORN_FILTROS.diaSemana){ diasConsiderados = diasConsiderados.filter(function(d){ return d.tipo===JORN_FILTROS.diaSemana; }); }
 
   diasConsiderados.forEach(function(dia){
@@ -23043,7 +23126,90 @@ function jornGarantirDados(){
 // Recalcula JORN_MOTORISTAS a partir de JORN_DIAS + filtro de período atual.
 function jornRecalcular(){
   jornGarantirDados();
-  JORN_MOTORISTAS = jornComputeMotoristas(JORN_FILTROS.periodo||'todos');
+  var periodoParam = (JORN_FILTROS.dataInicio && JORN_FILTROS.dataFim)
+    ? {inicio:JORN_FILTROS.dataInicio, fim:JORN_FILTROS.dataFim}
+    : (JORN_FILTROS.periodo||'todos');
+  JORN_MOTORISTAS = jornComputeMotoristas(periodoParam);
+}
+
+// ── Cabeçalho de filtros por período (Hoje/Ontem/Últimos 7 dias/Este mês/
+// Personalizado) + Agrupar por — compartilhado por todas as abas do módulo. ──
+function jornFmtISO(d){ return d.toISOString().slice(0,10); }
+function jornUltimaDataDisponivel(){
+  jornGarantirDados();
+  if(!JORN_DIAS.length) return jornFmtISO(new Date());
+  return JORN_DIAS.slice().sort(function(a,b){ return b.data.localeCompare(a.data); })[0].data;
+}
+function jornSetPeriodoPreset(tipo){
+  var hojeReal = new Date();
+  var inicio, fim;
+  if(tipo==='hoje'){ inicio = fim = jornFmtISO(hojeReal); }
+  else if(tipo==='ontem'){ var ont=new Date(hojeReal); ont.setDate(ont.getDate()-1); inicio = fim = jornFmtISO(ont); }
+  else if(tipo==='7dias'){ var ini7=new Date(hojeReal); ini7.setDate(ini7.getDate()-6); inicio=jornFmtISO(ini7); fim=jornFmtISO(hojeReal); }
+  else if(tipo==='mes'){ var iniMes=new Date(hojeReal.getFullYear(), hojeReal.getMonth(), 1); inicio=jornFmtISO(iniMes); fim=jornFmtISO(hojeReal); }
+  else if(tipo==='personalizado'){
+    var wrap = document.getElementById('jorn-periodo-custom-wrap');
+    if(wrap) wrap.style.display = 'inline-flex';
+    jornAtualizarPillsPeriodo(tipo);
+    // Se já não tinha um intervalo customizado definido, sugere do primeiro ao
+    // último dia com dado carregado — evita abrir com os campos vazios.
+    var iniInp = document.getElementById('jorn-periodo-data-ini'), fimInp = document.getElementById('jorn-periodo-data-fim');
+    if(iniInp && !iniInp.value){
+      var todasDatas = JORN_DIAS.map(function(d){return d.data;}).sort();
+      iniInp.value = todasDatas.length ? todasDatas[0] : jornFmtISO(hojeReal);
+      fimInp.value = jornUltimaDataDisponivel();
+      jornAplicarPeriodoPersonalizado();
+    }
+    return;
+  }
+  var wrapEsconder = document.getElementById('jorn-periodo-custom-wrap');
+  if(wrapEsconder) wrapEsconder.style.display = 'none';
+  JORN_FILTROS.dataInicio = inicio;
+  JORN_FILTROS.dataFim = fim;
+  jornAtualizarPillsPeriodo(tipo);
+  jornRecalcular();
+  jornPopularFiltrosUI();
+  jornRenderTabAtiva();
+}
+function jornAplicarPeriodoPersonalizado(){
+  var ini = document.getElementById('jorn-periodo-data-ini');
+  var fim = document.getElementById('jorn-periodo-data-fim');
+  if(!ini || !fim || !ini.value || !fim.value) return;
+  JORN_FILTROS.dataInicio = ini.value;
+  JORN_FILTROS.dataFim = fim.value;
+  jornAtualizarPillsPeriodo('personalizado');
+  jornRecalcular();
+  jornPopularFiltrosUI();
+  jornRenderTabAtiva();
+}
+function jornAtualizarPillsPeriodo(ativo){
+  document.querySelectorAll('.jorn-periodo-pill').forEach(function(b){
+    b.classList.toggle('active', b.dataset.periodo===ativo);
+  });
+}
+function jornSetAgrupar(tipo){
+  JORN_FILTROS.agrupar = tipo;
+  document.querySelectorAll('.jorn-agrupar-pill').forEach(function(b){
+    b.classList.toggle('active', b.dataset.agrupar===tipo);
+  });
+  jornRenderTabAtiva();
+}
+function jornInicializarHeaderFiltro(){
+  if(JORN_FILTROS.dataInicio && JORN_FILTROS.dataFim) return; // já inicializado
+  // Default inicial: o ÚLTIMO DIA com dado carregado — a página sempre abre
+  // mostrando o mais recente, nunca uma data fixa ou o histórico inteiro.
+  jornGarantirDados();
+  var ultima = jornUltimaDataDisponivel();
+  JORN_FILTROS.dataInicio = ultima;
+  JORN_FILTROS.dataFim = ultima;
+  var iniInp = document.getElementById('jorn-periodo-data-ini'), fimInp = document.getElementById('jorn-periodo-data-fim');
+  if(iniInp){ iniInp.value = JORN_FILTROS.dataInicio; fimInp.value = JORN_FILTROS.dataFim; }
+  var wrap = document.getElementById('jorn-periodo-custom-wrap');
+  if(wrap) wrap.style.display = 'inline-flex';
+  jornAtualizarPillsPeriodo('personalizado');
+  document.querySelectorAll('.jorn-agrupar-pill').forEach(function(b){
+    b.classList.toggle('active', b.dataset.agrupar===(JORN_FILTROS.agrupar||'dia'));
+  });
 }
 
 // Motorista -> placa mais recente (o agregado de jornComputeMotoristas não guarda
@@ -23064,20 +23230,6 @@ function jornMapaPlacas(){
 }
 
 function jornPopularFiltrosUI(){
-  var periodos = JORN_DIAS.slice().sort(function(a,b){ return a.data.localeCompare(b.data); });
-  var selP = document.getElementById('jorn-f-periodo');
-  if(selP){
-    var atualP = selP.value;
-    selP.innerHTML = '<option value="todos">Todos</option>' + periodos.map(function(d){
-      return '<option value="'+d.data+'">'+jornFmtDataCurta(d.data)+' ('+jornTipoLabel(d.tipo)+')</option>';
-    }).join('');
-    // CORREÇÃO: abre sempre com a ÚLTIMA data carregada selecionada (não "Todos"),
-    // pra já mostrar o dia mais recente sem precisar escolher manualmente — mesma
-    // lógica do "mês vigente" do Gestão de Frota. Só aplica na primeira vez (campo
-    // ainda vazio); depois disso respeita o que o usuário escolher.
-    if(atualP){ selP.value = atualP; }
-    else if(periodos.length){ selP.value = periodos[periodos.length-1].data; JORN_FILTROS.periodo = selP.value; jornRecalcular(); }
-  }
   var cats = {}, placas = {};
   Object.values(JORN_MOTORISTAS).forEach(function(m){ if(m.cat) cats[jornCanonCat(m.cat)] = true; });
   var mapaPlacas = jornMapaPlacas();
@@ -23098,29 +23250,22 @@ function jornTipoLabel(tipo){
 // devolvendo só os motoristas que passam — reaproveita jornCanonCat/jornGetFiltered
 // como base e complementa com o filtro de placa (que fica fora do modelo agregado).
 function jornMotoristasFiltrados(){
-  var base = jornGetFiltered();
-  var placaF = (document.getElementById('jorn-f-placa')||{}).value || '';
-  if(!placaF) return base;
-  var mapa = jornMapaPlacas();
-  return base.filter(function(m){ return mapa[m.nome]===placaF.toUpperCase(); });
+  return jornGetFiltered();
 }
 
 function jornAplicarFiltrosUI(){
-  var periodoAntes = JORN_FILTROS.periodo;
-  JORN_FILTROS.periodo = (document.getElementById('jorn-f-periodo')||{}).value || 'todos';
   JORN_FILTROS.unidade = (document.getElementById('jorn-f-celula')||{}).value || '';
   JORN_FILTROS.categoria = (document.getElementById('jorn-f-categoria')||{}).value || '';
+  JORN_FILTROS.tipoHE = (document.getElementById('jorn-f-tipohe')||{}).value || '';
   JORN_FILTROS.busca = ((document.getElementById('jorn-f-busca')||{}).value || '').trim().toUpperCase();
-  if(JORN_FILTROS.periodo !== periodoAntes) jornRecalcular();
   jornRenderTabAtiva();
 }
 
 function jornLimparFiltros(){
-  ['jorn-f-periodo','jorn-f-celula','jorn-f-categoria','jorn-f-placa','jorn-f-busca'].forEach(function(id){
-    var el=document.getElementById(id); if(el) el.value = id==='jorn-f-periodo' ? 'todos' : '';
+  ['jorn-f-celula','jorn-f-categoria','jorn-f-tipohe','jorn-f-busca'].forEach(function(id){
+    var el=document.getElementById(id); if(el) el.value = '';
   });
-  JORN_FILTROS = {busca:'', unidade:'', categoria:'', status:'', periodo:'todos', diaSemana:'', tipoHE:'', comSemHE:''};
-  jornRecalcular();
+  JORN_FILTROS.unidade=''; JORN_FILTROS.categoria=''; JORN_FILTROS.busca=''; JORN_FILTROS.status=''; JORN_FILTROS.diaSemana=''; JORN_FILTROS.tipoHE=''; JORN_FILTROS.comSemHE='';
   jornRenderTabAtiva();
 }
 
@@ -23128,8 +23273,7 @@ var _jornTabAtiva = 'dash';
 function jornRenderTabAtiva(){
   if(_jornTabAtiva==='dash') jornRenderDash();
   else if(_jornTabAtiva==='rank') jornRenderRank();
-  else if(_jornTabAtiva==='cat') jornRenderCategorias();
-  else if(_jornTabAtiva==='efic') jornRenderEfic();
+  else if(_jornTabAtiva==='mapacalor') jornRenderMapaCalorSemanal();
   else if(_jornTabAtiva==='diaria') jornRenderAnaliseDiaria();
   else if(_jornTabAtiva==='import') jornRenderImportPanel();
 }
@@ -23138,13 +23282,14 @@ function jornRenderTabAtiva(){
 // os dados e desenhar a tela correspondente.
 function jornTab(tab){
   _jornTabAtiva = tab;
-  ['dash','rank','cat','efic','diaria','import'].forEach(function(t){
+  ['dash','rank','mapacalor','diaria','import'].forEach(function(t){
     var p=document.getElementById('jorn-panel-'+t);
     var b=document.getElementById('jorn-btn-'+t);
     if(p) p.style.display = t===tab ? 'flex' : 'none';
     if(b) b.classList.toggle('active', t===tab);
   });
   jornGarantirDados();
+  jornInicializarHeaderFiltro();
   if(!Object.keys(JORN_MOTORISTAS).length) jornRecalcular();
   jornPopularFiltrosUI();
   jornRenderTabAtiva();
@@ -23165,17 +23310,26 @@ function jornRenderDash(){
   var custoPago = custo70+custo100; // 50% só vira custo pago quando estoura 40h no ciclo — aqui mostramos separado
   var saldoBanco = h50; // saldo bruto de banco de horas (crédito 50%) do período filtrado
 
+  // Resumo "Jornada + HE" no lugar onde antes ficava o filtro de Placa.
+  var resJorn = document.getElementById('jorn-f-resumo-jornada');
+  if(resJorn) resJorn.textContent = totJornada.toFixed(1)+'h';
+  var resHE = document.getElementById('jorn-f-resumo-he-total');
+  if(resHE) resHE.textContent = (h50+h70+h100).toFixed(1)+'h (50:'+h50.toFixed(1)+' · 70:'+h70.toFixed(1)+' · 100:'+h100.toFixed(1)+')';
+
+  var casosCriticos = jornCalcularCasosCriticos(lista);
+
   var S=function(d,c){ return '<svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="'+c+'" stroke-width="1.8" stroke-linecap="round">'+d+'</svg>'; };
   var cards = [
     {lbl:'Motoristas no Filtro', val:qtdAtivos, sub:qtdComHE+' com hora extra', cls:'c-gd', ic:S('<circle cx="10" cy="7" r="3.2"/><path d="M4 17c0-3 3-5 6-5s6 2 6 5"/>','#024f2b')},
-    {lbl:'Total Horas Trabalhadas', val:totJornada.toFixed(1)+'h', sub:'jornada completa (jornada+direção+refeição+descanso+espera+repouso)', cls:'c-go', ic:S('<circle cx="10" cy="10" r="7.5"/><path d="M10 6v4l3 2"/>','#739630')},
-    {lbl:'HE 50% (Banco de Horas)', val:h50.toFixed(1)+'h', sub:'gerencial — só vira custo acima de 40h/ciclo', cls:'c-gl', ic:S('<path d="M3 17l4-6 3 3 6-8"/>','#166534')},
-    {lbl:'HE 70% + 100% (Pagas)', val:(h70+h100).toFixed(1)+'h', sub:'HE70: '+h70.toFixed(1)+'h · HE100: '+h100.toFixed(1)+'h', cls:'c-rd', ic:S('<path d="M10 2l8 15H2z"/><line x1="10" y1="8" x2="10" y2="12"/>','#b3392c')},
-    {lbl:'Custo Estimado HE', val:jornFmtMoney(custoTotal), sub:'pago (70+100): '+jornFmtMoney(custoPago), cls:'c-go', ic:S('<circle cx="10" cy="10" r="7.5"/><path d="M10 6v8M12.5 8.2c0-1.2-1.1-2-2.5-2s-2.5.8-2.5 1.9c0 2.6 5 1.3 5 3.9 0 1.1-1.1 1.9-2.5 1.9s-2.5-.8-2.5-2"/>','#739630')},
+    {lbl:'Total Horas Trabalhadas', val:totJornada.toFixed(1)+'h', sub:'jornada completa', cls:'c-go', ic:S('<circle cx="10" cy="10" r="7.5"/><path d="M10 6v4l3 2"/>','#739630')},
+    {lbl:'HE 50% (Banco de Horas)', val:h50.toFixed(1)+'h', sub:'gerencial', cls:'c-gl', ic:S('<path d="M3 17l4-6 3 3 6-8"/>','#166534')},
+    {lbl:'HE 70% + 100% (Pagas)', val:(h70+h100).toFixed(1)+'h', sub:'70:'+h70.toFixed(1)+'h · 100:'+h100.toFixed(1)+'h', cls:'c-rd', ic:S('<path d="M10 2l8 15H2z"/><line x1="10" y1="8" x2="10" y2="12"/>','#b3392c')},
+    {lbl:'Custo Estimado HE', val:jornFmtMoney(custoTotal), sub:'pago: '+jornFmtMoney(custoPago), cls:'c-go', ic:S('<circle cx="10" cy="10" r="7.5"/><path d="M10 6v8M12.5 8.2c0-1.2-1.1-2-2.5-2s-2.5.8-2.5 1.9c0 2.6 5 1.3 5 3.9 0 1.1-1.1 1.9-2.5 1.9s-2.5-.8-2.5-2"/>','#739630')},
+    {lbl:'Casos Críticos', val:casosCriticos.length, sub:'clique pra ver quem e por quê', cls:'c-rd', ic:S('<path d="M10 3l7.5 13h-15z"/><line x1="10" y1="8.5" x2="10" y2="12"/><circle cx="10" cy="14.3" r=".6" fill="'+'#b3392c'+'"/>','#b3392c'), onclick:'jornAbrirCasosCriticos()', destaque:casosCriticos.length>0},
   ];
   var kg = document.getElementById('jorn-dash-kpis');
   if(kg) kg.innerHTML = cards.map(function(c){
-    return '<div class="kpi-card '+c.cls+'"><div class="kpi-icon-wrap">'+c.ic+'</div><div class="kpi-lbl">'+c.lbl+'</div><div class="kpi-val" style="font-size:20px">'+c.val+'</div><div class="kpi-sub">'+c.sub+'</div></div>';
+    return '<div class="kpi-card '+c.cls+'"'+(c.onclick?' style="cursor:pointer'+(c.destaque?';box-shadow:0 0 0 2px #b3392c':'')+'" onclick="'+c.onclick+'"':'')+'><div class="kpi-icon-wrap">'+c.ic+'</div><div class="kpi-lbl">'+c.lbl+'</div><div class="kpi-val" style="font-size:20px">'+c.val+'</div><div class="kpi-sub">'+c.sub+'</div></div>';
   }).join('');
 
   var top8 = lista.slice().sort(function(a,b){ return (b.custoPago||0)-(a.custoPago||0); }).slice(0,8);
@@ -23187,15 +23341,14 @@ function jornRenderDash(){
     '</tbody></table>';
   var t8el = document.getElementById('jorn-dash-top8'); if(t8el) t8el.innerHTML = top8.length ? top8Html : '<div style="padding:20px;text-align:center;color:var(--txl);font-size:12px">Sem dados no filtro atual.</div>';
 
-  var compEl = document.getElementById('jorn-dash-comparativo');
-  if(compEl){
-    var maxV = Math.max(h50, h70+h100, 1);
-    compEl.innerHTML =
-      '<div style="margin-bottom:10px"><div style="font-size:11px;color:var(--txl);margin-bottom:3px">Banco de Horas (50%) — '+h50.toFixed(1)+'h</div>'+
-      '<div style="height:10px;background:#f0f0f0;border-radius:5px;overflow:hidden"><div style="height:100%;width:'+(100*h50/maxV)+'%;background:#166534"></div></div></div>'+
-      '<div><div style="font-size:11px;color:var(--txl);margin-bottom:3px">Pagas (70%+100%) — '+(h70+h100).toFixed(1)+'h</div>'+
-      '<div style="height:10px;background:#f0f0f0;border-radius:5px;overflow:hidden"><div style="height:100%;width:'+(100*(h70+h100)/maxV)+'%;background:#b3392c"></div></div></div>';
-  }
+  var top8Km = lista.filter(function(m){ return m.kmDia!=null; }).slice().sort(function(a,b){ return (b.kmDia||0)-(a.kmDia||0); }).slice(0,8);
+  var top8KmHtml = '<table style="width:100%;border-collapse:collapse;font-size:12px">'+
+    '<thead><tr style="background:var(--bg-chip)"><th style="padding:8px 12px;text-align:left">Motorista</th><th style="padding:8px 12px;text-align:left">Célula</th><th style="padding:8px 12px;text-align:right">Km Médio/Dia</th><th style="padding:8px 12px;text-align:right">% Meta</th></tr></thead><tbody>'+
+    top8Km.map(function(m){
+      return '<tr style="border-top:1px solid var(--gb)"><td style="padding:7px 12px;font-weight:700">'+jornTitleCase(m.nome)+'</td><td style="padding:7px 12px">'+jornTitleCase(m.unidade)+'</td><td style="padding:7px 12px;text-align:right;font-weight:700;color:var(--gd)">'+m.kmDia.toFixed(0)+' km</td><td style="padding:7px 12px;text-align:right">'+(m.pctMeta!=null?m.pctMeta.toFixed(0)+'%':'—')+'</td></tr>';
+    }).join('')+
+    '</tbody></table>';
+  var t8kmEl = document.getElementById('jorn-dash-top8-km'); if(t8kmEl) t8kmEl.innerHTML = top8Km.length ? top8KmHtml : '<div style="padding:20px;text-align:center;color:var(--txl);font-size:12px">Sem dados de km no filtro atual.</div>';
 
   var porCel = {};
   lista.forEach(function(m){
@@ -23211,7 +23364,7 @@ function jornRenderDash(){
     }).join('') : '<div style="color:var(--txl);font-size:12px">Sem dados no filtro atual.</div>';
   }
 
-  jornRenderEvolucaoChart();
+  jornRenderCategorias(); // cards de categoria + detalhamento, agora embutidos no Dashboard
 }
 
 // ── RANKING ──────────────────────────────────────────────────
@@ -23312,18 +23465,40 @@ function jornRenderCategorias(){
   var porCat = jornAgregaPorCategoria(lista);
   var cardsEl = document.getElementById('jorn-cat-cards');
   if(cardsEl){
-    cardsEl.innerHTML = porCat.length ? porCat.map(function(c){
-      var pctMedio = c.pcts.length ? (c.pcts.reduce(function(a,b){return a+b;},0)/c.pcts.length) : null;
-      var corBarra = pctMedio==null ? '#9ca3af' : (pctMedio>=90?'#166534':(pctMedio>=60?'#a9700b':'#b3261e'));
-      return '<div onclick="jornAbrirCategoria(\''+c.cat.replace(/'/g,"\\'")+'\')" style="cursor:pointer;background:#fff;border:1px solid var(--gb);border-top:4px solid '+corBarra+';border-radius:10px;padding:14px 16px;'+(_jornCatAberta===c.cat?'box-shadow:0 0 0 2px var(--gd)':'')+'">'+
-        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'+
-          '<div style="font-size:13px;font-weight:800;color:var(--gd)">'+c.cat+'</div>'+
-          '<span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:10px;background:'+corBarra+'22;color:'+corBarra+'">'+(pctMedio!=null?pctMedio.toFixed(0)+'%':'—')+'</span>'+
-        '</div>'+
-        '<div style="font-size:10.5px;color:var(--txl);margin-bottom:8px">'+c.n+' motorista(s)</div>'+
-        '<div style="font-size:18px;font-weight:800;color:var(--gd)">'+jornFmtMoney(c.custo)+'</div>'+
-      '</div>';
-    }).join('') : '<div style="grid-column:1/-1;padding:24px;text-align:center;color:var(--txl);font-size:12px">Sem dados no filtro atual.</div>';
+    var totalCusto = porCat.reduce(function(s,c){ return s+(c.custo||0); },0);
+    var html = '<table style="width:100%;border-collapse:collapse;font-size:12px">'+
+      '<thead><tr style="background:var(--bg-chip)">'+
+        '<th style="padding:8px 12px;text-align:left">Categoria</th>'+
+        '<th style="padding:8px 12px;text-align:right">Motoristas</th>'+
+        '<th style="padding:8px 12px;text-align:right">Horas Extras</th>'+
+        '<th style="padding:8px 12px;text-align:right">HE 50%</th>'+
+        '<th style="padding:8px 12px;text-align:right">HE 70%</th>'+
+        '<th style="padding:8px 12px;text-align:right">HE 100%</th>'+
+        '<th style="padding:8px 12px;text-align:right">Custo Adicional HE</th>'+
+        '<th style="padding:8px 12px;text-align:right;min-width:140px">% do Custo Total</th>'+
+      '</tr></thead><tbody>'+
+      porCat.map(function(c){
+        var heTotal = c.h50+c.h70+c.h100;
+        var pctCusto = totalCusto>0 ? (100*(c.custo||0)/totalCusto) : 0;
+        var selecionada = _jornCatAberta===c.cat;
+        return '<tr style="border-top:1px solid var(--gb);cursor:pointer'+(selecionada?';background:var(--gg)':'')+'" onclick="jornAbrirCategoria(\''+c.cat.replace(/'/g,"\\'")+'\')">'+
+          '<td style="padding:7px 12px;font-weight:700;color:var(--gd)">'+c.cat+'</td>'+
+          '<td style="padding:7px 12px;text-align:right">'+c.n+'</td>'+
+          '<td style="padding:7px 12px;text-align:right">'+heTotal.toFixed(1)+'h</td>'+
+          '<td style="padding:7px 12px;text-align:right">'+c.h50.toFixed(1)+'h</td>'+
+          '<td style="padding:7px 12px;text-align:right">'+c.h70.toFixed(1)+'h</td>'+
+          '<td style="padding:7px 12px;text-align:right">'+c.h100.toFixed(1)+'h</td>'+
+          '<td style="padding:7px 12px;text-align:right;font-weight:800;color:var(--gd)">'+jornFmtMoney(c.custo)+'</td>'+
+          '<td style="padding:7px 12px;text-align:right">'+
+            '<div style="display:flex;align-items:center;gap:8px;justify-content:flex-end">'+
+              '<div style="flex:1;max-width:70px;height:6px;background:#f0f0f0;border-radius:3px;overflow:hidden"><div style="height:100%;width:'+pctCusto.toFixed(1)+'%;background:var(--gd)"></div></div>'+
+              '<span style="font-weight:700;min-width:38px;text-align:right">'+pctCusto.toFixed(1)+'%</span>'+
+            '</div>'+
+          '</td>'+
+        '</tr>';
+      }).join('')+
+      '</tbody></table>';
+    cardsEl.innerHTML = porCat.length ? html : '<div style="padding:24px;text-align:center;color:var(--txl);font-size:12px">Sem dados no filtro atual.</div>';
   }
   jornAbrirCategoria(_jornCatAberta, true);
 }
@@ -23338,11 +23513,11 @@ function jornAbrirCategoria(cat, manterSelecao){
     '<div style="background:#fff;border:1px solid var(--gb);border-radius:10px;overflow:hidden;margin-top:4px">'+
       '<div class="rec-hdr"><div class="rec-title">👤 Motoristas · '+_jornCatAberta+'</div><span style="font-size:11px;color:var(--txl)">'+lista.length+' motorista(s)</span></div>'+
       '<table style="width:100%;border-collapse:collapse;font-size:12px">'+
-        '<thead><tr style="background:var(--bg-chip)"><th style="padding:8px 12px;text-align:left">Motorista</th><th style="padding:8px 12px;text-align:left">Célula</th><th style="padding:8px 12px;text-align:right">HE 50%</th><th style="padding:8px 12px;text-align:right">HE 70%</th><th style="padding:8px 12px;text-align:right">HE 100%</th><th style="padding:8px 12px;text-align:right">Custo Pago</th><th style="padding:8px 12px;text-align:right">% Meta Km</th></tr></thead>'+
+        '<thead><tr style="background:var(--bg-chip)"><th style="padding:8px 12px;text-align:left">Motorista</th><th style="padding:8px 12px;text-align:right">Horas Extras</th><th style="padding:8px 12px;text-align:right">HE 50%</th><th style="padding:8px 12px;text-align:right">HE 70%</th><th style="padding:8px 12px;text-align:right">HE 100%</th><th style="padding:8px 12px;text-align:right">Custo Pago</th><th style="padding:8px 12px;text-align:right">% Meta Km</th></tr></thead>'+
         '<tbody>'+lista.map(function(m){
           return '<tr style="border-top:1px solid var(--gb);cursor:pointer" onclick="jornAbrirMotorista(\''+m.nome.replace(/'/g,"\\'")+'\')">'+
             '<td style="padding:7px 12px;font-weight:700;color:var(--gd)">'+jornTitleCase(m.nome)+'</td>'+
-            '<td style="padding:7px 12px">'+jornTitleCase(m.unidade)+'</td>'+
+            '<td style="padding:7px 12px;text-align:right">'+(m.h50+m.h70+m.h100).toFixed(1)+'h</td>'+
             '<td style="padding:7px 12px;text-align:right">'+m.h50.toFixed(1)+'h</td>'+
             '<td style="padding:7px 12px;text-align:right">'+m.h70.toFixed(1)+'h</td>'+
             '<td style="padding:7px 12px;text-align:right">'+m.h100.toFixed(1)+'h</td>'+
@@ -23357,7 +23532,12 @@ function jornAbrirCategoria(cat, manterSelecao){
 
 function jornRenderEfic(){
   jornGarantirDados();
-  var res = jornComputeEficienciaSemanal(JORN_DIAS);
+  // Respeita o intervalo do cabeçalho de filtros — eficiência semanal calculada
+  // só com os dias dentro do período selecionado (Hoje/Ontem/7 dias/etc.).
+  var diasNoIntervalo = (JORN_FILTROS.dataInicio && JORN_FILTROS.dataFim)
+    ? JORN_DIAS.filter(function(d){ return d.data>=JORN_FILTROS.dataInicio && d.data<=JORN_FILTROS.dataFim; })
+    : JORN_DIAS;
+  var res = jornComputeEficienciaSemanal(diasNoIntervalo);
   var el = document.getElementById('jorn-efic-table'); if(!el) return;
   var linhas = (res && res.linhas) ? res.linhas : (Array.isArray(res) ? res : []);
   if(!linhas.length){ el.innerHTML = '<div style="padding:24px;text-align:center;color:var(--txl);font-size:12px">Sem semanas completas pra avaliar ainda (precisa de pelo menos uma semana cheia de dados).</div>'; return; }
@@ -23388,9 +23568,11 @@ function jornPosImportacao(){
   // acabou de lançar, não faz sentido continuar mostrando um dia mais antigo.
   var maisRecente = JORN_DIAS.slice().sort(function(a,b){ return a.data.localeCompare(b.data); }).pop();
   if(maisRecente){
-    JORN_FILTROS.periodo = maisRecente.data;
-    var selP = document.getElementById('jorn-f-periodo');
-    if(selP) selP.value = maisRecente.data;
+    JORN_FILTROS.dataInicio = maisRecente.data;
+    JORN_FILTROS.dataFim = maisRecente.data;
+    var iniInp = document.getElementById('jorn-periodo-data-ini'), fimInp = document.getElementById('jorn-periodo-data-fim');
+    if(iniInp){ iniInp.value = maisRecente.data; fimInp.value = maisRecente.data; }
+    jornAtualizarPillsPeriodo('personalizado');
   }
   jornRecalcular();
   jornPopularFiltrosUI();
@@ -23461,7 +23643,12 @@ function jornRemoverDia(idx){
 // h70 em 2h e descarta o excedente, então não dá pra reaproveitar dali).
 function jornPopularSelectDiaAnalise(){
   var sel = document.getElementById('jorn-diaria-data'); if(!sel) return;
-  var dias = JORN_DIAS.slice().sort(function(a,b){ return b.data.localeCompare(a.data); });
+  // Só lista dias dentro do intervalo do cabeçalho de filtros — mantém a Análise
+  // Diária coerente com Hoje/Ontem/7 dias/Este mês/Personalizado selecionado ali.
+  var dias = JORN_DIAS.filter(function(d){
+    if(!JORN_FILTROS.dataInicio || !JORN_FILTROS.dataFim) return true;
+    return d.data>=JORN_FILTROS.dataInicio && d.data<=JORN_FILTROS.dataFim;
+  }).sort(function(a,b){ return b.data.localeCompare(a.data); });
   var atual = sel.value;
   sel.innerHTML = dias.map(function(d){ return '<option value="'+d.data+'">'+jornFmtDataCurta(d.data)+' ('+jornTipoLabel(d.tipo)+')</option>'; }).join('');
   if(atual && dias.some(function(d){return d.data===atual;})) sel.value = atual;
@@ -23598,15 +23785,33 @@ function jornRenderImportPanel(){
 // tendência ao longo do tempo, cresce sozinha conforme mais dias entram.
 function jornRenderEvolucaoChart(){
   var canvas = document.getElementById('jorn-ch-evol'); if(!canvas || typeof Chart==='undefined') return;
-  var dias = JORN_DIAS.slice().sort(function(a,b){ return a.data.localeCompare(b.data); });
-  var labels = dias.map(function(d){ return jornFmtDataCurta(d.data); });
-  var s50=[], s70=[], s100=[];
+  var dias = JORN_DIAS.filter(function(d){
+    if(!JORN_FILTROS.dataInicio || !JORN_FILTROS.dataFim) return true;
+    return d.data>=JORN_FILTROS.dataInicio && d.data<=JORN_FILTROS.dataFim;
+  }).sort(function(a,b){ return a.data.localeCompare(b.data); });
+
+  // "Hora" não existe nos dados de jornada (cada linha é o dia inteiro) — cai
+  // pro mesmo agrupamento de "Dia", que é o mais fino que os dados permitem.
+  var agrupar = JORN_FILTROS.agrupar==='hora' ? 'dia' : (JORN_FILTROS.agrupar||'dia');
+  var grupos = {}; // chave -> {label, s50,s70,s100}
+  var ordemChaves = [];
   dias.forEach(function(d){
     var motDoDia = jornComputeMotoristas(d.data);
     var t50=0,t70=0,t100=0;
     Object.values(motDoDia).forEach(function(m){ t50+=m.h50||0; t70+=m.h70||0; t100+=m.h100||0; });
-    s50.push(+t50.toFixed(1)); s70.push(+t70.toFixed(1)); s100.push(+t100.toFixed(1));
+    var chave, label;
+    if(agrupar==='semana'){ chave = jornGetWeekKey(d.data); label = 'Sem. '+jornFmtDataCurta(chave); }
+    else if(agrupar==='mes'){ chave = d.data.slice(0,7); label = chave; }
+    else { chave = d.data; label = jornFmtDataCurta(d.data); }
+    if(!grupos[chave]){ grupos[chave] = {label:label, s50:0,s70:0,s100:0}; ordemChaves.push(chave); }
+    grupos[chave].s50 += t50; grupos[chave].s70 += t70; grupos[chave].s100 += t100;
   });
+  ordemChaves.sort();
+  var labels = ordemChaves.map(function(k){ return grupos[k].label; });
+  var s50 = ordemChaves.map(function(k){ return +grupos[k].s50.toFixed(1); });
+  var s70 = ordemChaves.map(function(k){ return +grupos[k].s70.toFixed(1); });
+  var s100 = ordemChaves.map(function(k){ return +grupos[k].s100.toFixed(1); });
+
   if(typeof DC==='function') DC('jorn-ch-evol');
   CHS['jorn-ch-evol'] = new Chart(canvas.getContext('2d'), {
     type: 'bar',
@@ -23617,6 +23822,226 @@ function jornRenderEvolucaoChart(){
     ]},
     options: { responsive:true, maintainAspectRatio:false, scales:{ x:{stacked:true}, y:{stacked:true} }, plugins:{ legend:{position:'bottom'} } }
   });
+}
+
+// ── MAPA DE CALOR SEMANAL — Jornada × Horas Extras × Rodagem ────────────────
+// Reaproveita jornComputeMotoristas(dataISO) pra cada dia da semana escolhida —
+// como só considera 1 dia por chamada, o "agregado" já é exatamente o dado
+// daquele dia por motorista, sem precisar duplicar lógica de cálculo.
+// Escala de GRAVIDADE — combina jornada excedente + HE70/HE100 + produtividade,
+// não só soma de horas extras. Isso corrige o problema real: um motorista podia
+// estourar a jornada MUITO (excedente >4h) e aparecer em VERDE, só porque o
+// sistema limita HE70 em 2h por dia e descarta o resto (então a soma de HE
+// parecia baixa) — jornada estourada agora pesa sozinha, sempre, independente
+// de quanto HE "contável" sobrou depois desse limite.
+var JORN_ESCALA_GRAVIDADE = [
+  {min:0, cor:'#eaf6ef', texto:'#1b5e3a', label:'Normal'},
+  {min:1, cor:'#bfe3cd', texto:'#1b5e3a', label:'Atenção leve'},
+  {min:2, cor:'#ffe28a', texto:'#7a4a00', label:'Atenção'},
+  {min:3, cor:'#ffb15c', texto:'#5c2e00', label:'Alto'},
+  {min:4, cor:'#f5754a', texto:'#ffffff', label:'Muito alto'},
+  {min:5, cor:'#b3261e', texto:'#ffffff', label:'Crítico'}
+];
+function jornCorGravidade(score){
+  var v = Math.max(0, score||0);
+  var achou = JORN_ESCALA_GRAVIDADE[0];
+  for(var i=0;i<JORN_ESCALA_GRAVIDADE.length;i++){ if(v>=JORN_ESCALA_GRAVIDADE[i].min) achou=JORN_ESCALA_GRAVIDADE[i]; }
+  return achou;
+}
+function jornBaseJornada(tipo){ return tipo==='util' ? 8 : (tipo==='sabado' ? 4 : 0); }
+// Calcula a gravidade do dia pra um motorista — regras já usadas no resto do
+// sistema (>4h de excedente em dia útil = estouro; HE100 sempre grave por ser
+// domingo/feriado trabalhado; HE70 alto quando passa do teto normal de 2h).
+function jornGravidadeDia(m, tipoDia){
+  var base = jornBaseJornada(tipoDia);
+  var excedente = Math.max(0, (m.jornadaMedia||0) - base);
+  var score = 0;
+  if(tipoDia==='util'){
+    if(excedente>4) score = Math.max(score, 5);       // estourou jornada — crítico, sempre
+    else if(excedente>2) score = Math.max(score, 3);
+    else if(excedente>0) score = Math.max(score, 1);
+  } else if(excedente>0){
+    score = Math.max(score, 1); // sábado/domingo já é HE por natureza, tratado abaixo via HE100/HE70
+  }
+  if(m.h100>0) score = Math.max(score, 5);              // domingo/feriado trabalhado — crítico
+  if(m.h70>2) score = Math.max(score, 4);
+  else if(m.h70>0) score = Math.max(score, 2);
+  if(m.pctMeta!=null && m.pctMeta<50) score = Math.max(score, 3);
+  else if(m.pctMeta!=null && m.pctMeta<70) score = Math.max(score, 1);
+  return {score:score, base:base, excedente:excedente};
+}
+function jornSemanasDisponiveis(){
+  var semanas = {}; // chave (segunda-feira) -> [datas da semana com dado]
+  JORN_DIAS.forEach(function(d){
+    var seg = jornGetWeekKey(d.data);
+    if(!semanas[seg]) semanas[seg] = [];
+    semanas[seg].push(d.data);
+  });
+  return Object.keys(semanas).sort().reverse().map(function(seg){ return {seg:seg, dias:semanas[seg].sort()}; });
+}
+function jornPopularSelectSemana(){
+  var sel = document.getElementById('jorn-mc-semana'); if(!sel) return null;
+  var semanas = jornSemanasDisponiveis();
+  var atual = sel.value;
+  sel.innerHTML = semanas.map(function(s){
+    var fimSemana = new Date(s.seg+'T00:00:00'); fimSemana.setDate(fimSemana.getDate()+6);
+    return '<option value="'+s.seg+'">Semana de '+jornFmtDataCurta(s.seg)+' a '+jornFmtDataCurta(jornFmtISO(fimSemana))+'</option>';
+  }).join('');
+  // Se o campo ainda não tem valor escolhido (ex: primeira renderização após
+  // trocar pro último dia disponível), abre já na semana do último dia.
+  var padrao = atual;
+  if(!padrao || !semanas.some(function(s){return s.seg===padrao;})){
+    var ultimaData = jornUltimaDataDisponivel();
+    padrao = jornGetWeekKey(ultimaData);
+  }
+  var escolhida = semanas.find(function(s){ return s.seg===padrao; }) ? padrao : (semanas.length ? semanas[0].seg : null);
+  if(escolhida) sel.value = escolhida;
+  return escolhida;
+}
+function jornRenderMapaCalorSemanal(){
+  jornGarantirDados();
+  var semKey = jornPopularSelectSemana();
+  var tbl = document.getElementById('jorn-mc-table'); if(!tbl) return;
+  if(!semKey){ tbl.innerHTML = '<tr><td style="padding:20px;text-align:center;color:var(--txl)">Nenhum dado carregado ainda.</td></tr>'; return; }
+
+  var diasSemana = [];
+  var seg = new Date(semKey+'T00:00:00');
+  for(var i=0;i<7;i++){ var d=new Date(seg); d.setDate(seg.getDate()+i); diasSemana.push(jornFmtISO(d)); }
+
+  // Motoristas a mostrar: os que passam nos filtros ativos (célula/categoria/
+  // tipoHE/busca), considerando TODA a base agregada — depois cruza dia a dia.
+  var motoristasBase = jornGetFiltered();
+  var nomesFiltrados = {}; motoristasBase.forEach(function(m){ nomesFiltrados[m.nome]=true; });
+
+  // Calcula os dados de cada dia da semana, um jornComputeMotoristas por dia.
+  var porDia = {}, tipoPorDia = {};
+  diasSemana.forEach(function(dt){
+    var diaObj = JORN_DIAS.find(function(d){ return d.data===dt; });
+    tipoPorDia[dt] = diaObj ? diaObj.tipo : 'util';
+    porDia[dt] = diaObj ? jornComputeMotoristas(dt) : {};
+  });
+
+  var todosNomes = {};
+  diasSemana.forEach(function(dt){ Object.keys(porDia[dt]).forEach(function(n){ todosNomes[n]=true; }); });
+  var nomesExibir = Object.keys(todosNomes).filter(function(n){ return nomesFiltrados[n]; }).sort();
+
+  var html = '<thead><tr><th style="position:sticky;left:0;background:var(--bg-chip);z-index:2;padding:8px 10px;text-align:left;min-width:170px">Motorista</th><th style="padding:8px 10px;text-align:left">Célula</th>'
+    + diasSemana.map(function(dt){ return '<th style="padding:8px 6px;text-align:center;min-width:82px">'+jornFmtDataCurta(dt)+'</th>'; }).join('')
+    + '<th style="padding:8px 10px;text-align:right">Total HE</th></tr></thead><tbody>';
+
+  if(!nomesExibir.length){
+    html += '<tr><td colspan="'+(diasSemana.length+3)+'" style="padding:24px;text-align:center;color:var(--txl)">Nenhum motorista no filtro atual para essa semana.</td></tr>';
+  }
+  nomesExibir.forEach(function(nome){
+    var totalSemHE = 0;
+    var unidade = '';
+    var celulas = diasSemana.map(function(dt){
+      var m = porDia[dt][nome];
+      if(!m){ return '<td style="padding:0;text-align:center;color:#ccc;height:48px">—</td>'; }
+      unidade = m.unidade;
+      var totalDia = (m.h50||0)+(m.h70||0)+(m.h100||0);
+      totalSemHE += totalDia;
+      var grav = jornGravidadeDia(m, tipoPorDia[dt]);
+      var cc = jornCorGravidade(grav.score);
+      var titulo = jornTitleCase(nome)+' — '+jornFmtDataCurta(dt)+': jornada '+(m.jornadaMedia!=null?m.jornadaMedia.toFixed(1):'0')+'h (prevista '+grav.base+'h, excedente '+grav.excedente.toFixed(1)+'h), HE50 '+m.h50.toFixed(1)+'h, HE70 '+m.h70.toFixed(1)+'h, HE100 '+m.h100.toFixed(1)+'h — '+cc.label;
+      return '<td style="background:'+cc.cor+';color:'+cc.texto+';text-align:center;padding:0;height:48px;cursor:pointer" title="'+titulo+'" onclick="jornAbrirDetalheDiaMotorista(\''+dt+'\',\''+nome.replace(/'/g,"\\'")+'\')">'
+        +'<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:48px;line-height:1.15">'
+        +'<span style="font-size:11px;font-weight:800">'+(m.jornadaMedia!=null?m.jornadaMedia.toFixed(1):'0')+'h'+(grav.excedente>0?' (+'+grav.excedente.toFixed(1)+')':'')+'</span>'
+        +'<span style="font-size:9px;opacity:.9">HE '+totalDia.toFixed(1)+'h</span>'
+        +'</div></td>';
+    }).join('');
+    html += '<tr><td style="position:sticky;left:0;background:var(--wh);padding:7px 10px;font-weight:700;cursor:pointer;color:var(--gd)" onclick="jornAbrirMotorista(\''+nome.replace(/'/g,"\\'")+'\')">'+jornTitleCase(nome)+'</td>'
+      +'<td style="padding:7px 10px">'+jornTitleCase(unidade)+'</td>'+celulas
+      +'<td style="padding:7px 10px;text-align:right;font-weight:800;color:var(--gd)">'+totalSemHE.toFixed(1)+'h</td></tr>';
+  });
+  html += '</tbody>';
+  tbl.innerHTML = html;
+
+  var leg = document.getElementById('jorn-mc-legenda');
+  if(leg){
+    leg.innerHTML = '<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-size:10.5px;color:var(--txm)">'
+      + 'Gravidade (jornada excedente + HE70/100 + produtividade): '
+      + JORN_ESCALA_GRAVIDADE.map(function(f){
+          return '<span style="display:flex;align-items:center;gap:4px"><span style="width:14px;height:14px;border-radius:3px;background:'+f.cor+';display:inline-block;border:1px solid rgba(0,0,0,.08)"></span>'+f.label+'</span>';
+        }).join('')
+      + '</div>';
+  }
+}
+function jornAbrirDetalheDiaMotorista(dataISO, nome){
+  var motDoDia = jornComputeMotoristas(dataISO);
+  var m = motDoDia[nome];
+  if(!m){ if(typeof toast==='function') toast('Sem dado desse motorista nesse dia.','error'); return; }
+  var dia = JORN_DIAS.find(function(d){ return d.data===dataISO; });
+  var grav = jornGravidadeDia(m, dia?dia.tipo:'util');
+  var desvioProd = m.pctMeta!=null ? (m.pctMeta-100).toFixed(0)+'%' : '—';
+  alert(jornTitleCase(nome)+' — '+jornFmtDataCurta(dataISO)+' ('+jornTipoLabel(dia?dia.tipo:'')+') — '+jornCorGravidade(grav.score).label+'\n\n'
+    +'Jornada realizada: '+(m.jornadaMedia!=null?m.jornadaMedia.toFixed(1):'0')+'h\n'
+    +'Jornada prevista: '+grav.base+'h\n'
+    +'Excedente: '+grav.excedente.toFixed(1)+'h\n'
+    +'HE 50% (banco): '+m.h50.toFixed(1)+'h\n'
+    +'HE 70% (pago): '+m.h70.toFixed(1)+'h\n'
+    +'HE 100% (pago): '+m.h100.toFixed(1)+'h\n'
+    +'Total de HE: '+((m.h50||0)+(m.h70||0)+(m.h100||0)).toFixed(1)+'h\n'
+    +'Km rodado: '+(m.km!=null?jornFmtKm(m.km):'—')+'\n'
+    +'Meta de km da categoria: '+(m.meta!=null?m.meta+'km/dia':'—')+'\n'
+    +'Desvio de produtividade: '+desvioProd+' em relação à meta\n'
+    +'Categoria: '+(m.cat||'—')+' · Célula: '+jornTitleCase(m.unidade||''));
+}
+
+// ── CASOS CRÍTICOS ───────────────────────────────────────────────────────
+// Vários critérios, cada um gera seu próprio motivo — um motorista pode
+// acumular mais de um. Tudo calculado em cima da lista JÁ filtrada (célula,
+// categoria, tipo de HE, busca, período do cabeçalho).
+function jornCalcularCasosCriticos(lista){
+  var casos = [];
+  lista.forEach(function(m){
+    var motivos = [];
+    if(m.h100>0) motivos.push('HE 100% no período ('+m.h100.toFixed(1)+'h) — trabalhou domingo/feriado');
+    if(m.h70>10) motivos.push('HE 70% elevada ('+m.h70.toFixed(1)+'h)');
+    var totalHE = (m.h50||0)+(m.h70||0)+(m.h100||0);
+    if(totalHE>20) motivos.push('Volume total de HE muito alto ('+totalHE.toFixed(1)+'h no período)');
+    if(m.pctMeta!=null && m.pctMeta<60) motivos.push('Baixa produtividade — só '+m.pctMeta.toFixed(0)+'% da meta de km');
+    if(m.jornadaMedia!=null && m.jornadaMedia>9.5 && m.pctMeta!=null && m.pctMeta<70) motivos.push('Jornada elevada ('+m.jornadaMedia.toFixed(1)+'h/dia) com rodagem baixa ('+m.pctMeta.toFixed(0)+'% da meta)');
+    // Estourou jornada (>4h de excedente em algum dia útil) e/ou trabalhou fim
+    // de semana — varre os dias do motorista dentro do período filtrado.
+    var diasNoPeriodo = (JORN_FILTROS.dataInicio && JORN_FILTROS.dataFim)
+      ? JORN_DIAS.filter(function(d){ return d.data>=JORN_FILTROS.dataInicio && d.data<=JORN_FILTROS.dataFim; })
+      : JORN_DIAS;
+    var estourouDias = 0, trabalhouFDS = false;
+    diasNoPeriodo.forEach(function(dia){
+      var achou = dia.jornadaRows.some(function(row){ return (row['Motorista']||'').trim().toUpperCase()===m.nome; });
+      if(!achou) return;
+      if(dia.tipo==='sabado' || dia.tipo==='domingo') trabalhouFDS = true;
+      if(dia.tipo==='util'){
+        var est = jornCalcularEstourados(dia.data);
+        if(est.some(function(e){ return e.nome===m.nome; })) estourouDias++;
+      }
+    });
+    if(estourouDias>0) motivos.push('Estourou jornada (>4h de excedente) em '+estourouDias+' dia(s) útil(eis)');
+    if(trabalhouFDS) motivos.push('Trabalhou em final de semana');
+
+    if(motivos.length) casos.push({nome:m.nome, unidade:m.unidade, cat:m.cat, custoPago:m.custoPago, motivos:motivos});
+  });
+  casos.sort(function(a,b){ return b.motivos.length-a.motivos.length || (b.custoPago||0)-(a.custoPago||0); });
+  return casos;
+}
+function jornAbrirCasosCriticos(){
+  var lista = jornMotoristasFiltrados();
+  var casos = jornCalcularCasosCriticos(lista);
+  var modal = document.getElementById('jorn-mot-modal');
+  var tituloEl = document.getElementById('jorn-mot-modal-titulo');
+  var el = document.getElementById('jorn-mot-modal-corpo');
+  if(!modal || !el) return;
+  if(tituloEl) tituloEl.textContent = '🚨 Casos Críticos ('+casos.length+')';
+  el.innerHTML = casos.length ? casos.map(function(c){
+    return '<div style="border:1px solid var(--gb);border-radius:8px;padding:12px 14px;margin-bottom:10px">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'
+      +'<b style="color:var(--gd);cursor:pointer" onclick="document.getElementById(\'jorn-mot-modal\').style.display=\'none\';jornAbrirMotorista(\''+c.nome.replace(/'/g,"\\'")+'\')">'+jornTitleCase(c.nome)+'</b>'
+      +'<span style="font-size:11px;color:var(--txl)">'+jornTitleCase(c.unidade)+' · '+(c.cat||'—')+'</span></div>'
+      +c.motivos.map(function(mo){ return '<div style="font-size:11.5px;color:#b3261e;padding:2px 0">⚠️ '+mo+'</div>'; }).join('')
+      +'</div>';
+  }).join('') : '<div style="text-align:center;color:var(--txl);padding:30px 0">Nenhum caso crítico no filtro atual — tudo dentro do esperado.</div>';
+  modal.style.display = 'flex';
 }
 
 // ── CONCILIAÇÃO SISTEMA × RH ──────────────────────────────────
@@ -26643,15 +27068,32 @@ function ftlImpMensalLer(input){
   reader.onload=function(e){
     try{
       var wb=XLSX.read(e.target.result,{type:'array'}), ws=wb.Sheets[wb.SheetNames[0]];
-      var rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''}), iPlaca=-1, iKm=-1;
-      (rows[0]||[]).forEach(function(h,i){ var hs=String(h||'').toLowerCase().trim(); if(hs.indexOf('placa')>=0&&iPlaca<0)iPlaca=i; if(hs==='km'&&iKm<0)iKm=i; });
-      if(iPlaca<0||iKm<0){ toast('Colunas não identificadas','error'); return; }
+      var rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+      // Novo formato (planilha "Veículos" do rastreador, a partir de set/2026): pode ter
+      // 1-2 linhas de filtro/texto antes do cabeçalho real, e a coluna de km costuma vir
+      // como "Km Total" (não mais só "KM"). Varre as primeiras linhas até achar o cabeçalho.
+      var headerRowIdx=-1, iPlaca=-1, iKm=-1, iUnidade=-1;
+      for(var hr=0; hr<Math.min(10,rows.length); hr++){
+        var _iPlaca=-1, _iKm=-1, _iUnidade=-1;
+        (rows[hr]||[]).forEach(function(h,i){
+          var hs=String(h||'').toLowerCase().trim();
+          if(hs.indexOf('placa')>=0 && _iPlaca<0) _iPlaca=i;
+          if((hs==='km'||hs.indexOf('km total')>=0) && _iKm<0) _iKm=i;
+          if(hs==='unidade' && _iUnidade<0) _iUnidade=i;
+        });
+        if(_iPlaca>=0 && _iKm>=0){ headerRowIdx=hr; iPlaca=_iPlaca; iKm=_iKm; iUnidade=_iUnidade; break; }
+      }
+      if(iPlaca<0||iKm<0){ toast('Colunas não identificadas (esperado "Prefixo / Placa" e "Km" ou "Km Total")','error'); return; }
       var kmM={}; try{kmM=JSON.parse(localStorage.getItem('raguife_perf_km_mensal_v1')||'{}');}catch(e){}
       var mk=ano+'_'+mes; if(!kmM[mk]) kmM[mk]={};
-      var added=0, divs=[];
-      rows.slice(1).forEach(function(row){
+      var added=0, divs=[], descartadosLeve=0;
+      rows.slice(headerRowIdx+1).forEach(function(row){
         var cel=String(row[iPlaca]||'').trim(), m=cel.match(/\/\s*([A-Z0-9]{6,8})\s*$/i);
         if(!m) return;
+        // Descarta sempre a frota leve (linhas com Unidade "FROTA LEVE" / "FROTA LEVE - PET"),
+        // a pedido — esses veículos não entram nos indicadores de frota pesada.
+        var unidadeCel = iUnidade>=0 ? String(row[iUnidade]||'').toUpperCase() : '';
+        if(unidadeCel.indexOf('FROTA LEVE')>=0){ descartadosLeve++; return; }
         var placa=m[1].toUpperCase(), km=parseFloat(String(row[iKm]||'0').replace(',','.'));
         if(!km||km<=0) return;
         var cat=typeof perfNormCat==='function'?perfNormCat(cel.split('/')[0]):'';
@@ -26663,8 +27105,8 @@ function ftlImpMensalLer(input){
       if(mes===4&&ano===2026){ Object.keys(kmM[mk]).forEach(function(p){ if(typeof PERF_KM_ABR!=='undefined') PERF_KM_ABR[p]=kmM[mk][p]; }); }
       var stEl=document.getElementById('ftl-imp-mensal-status');
       var mn=['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-      if(stEl){ stEl.style.display='block'; stEl.innerHTML='<div style="padding:8px;background:#f0fdf4;border:1px solid #86efac;border-radius:7px;color:#166534;font-size:11px;font-weight:700">✅ '+added+' placas — '+mn[mes]+'/'+ano+'</div>'+(divs.length?'<div style="margin-top:6px;padding:8px;background:#fef2f2;border:1px solid #fca5a5;border-radius:7px;font-size:11px"><b style="color:#dc2626">⚠️ '+divs.length+' divergência(s)</b><br>'+divs.slice(0,5).map(function(d){return d.placa+': mensal='+d.mensal+' diário='+d.diario+' Δ='+d.diff;}).join('<br>')+'</div>':''); }
-      var log=ftlLoad(FTL_IMP_LOG_KEY)||[]; log.unshift({dt_op:new Date().toISOString(),dt_ref:ano+'-'+String(mes).padStart(2,'0'),arquivo:file.name,total:added,tipo:'mensal',divs:divs.length}); ftlSave(FTL_IMP_LOG_KEY,log.slice(0,200));
+      if(stEl){ stEl.style.display='block'; stEl.innerHTML='<div style="padding:8px;background:#f0fdf4;border:1px solid #86efac;border-radius:7px;color:#166534;font-size:11px;font-weight:700">✅ '+added+' placas — '+mn[mes]+'/'+ano+(descartadosLeve?' · '+descartadosLeve+' da frota leve descartadas':'')+'</div>'+(divs.length?'<div style="margin-top:6px;padding:8px;background:#fef2f2;border:1px solid #fca5a5;border-radius:7px;font-size:11px"><b style="color:#dc2626">⚠️ '+divs.length+' divergência(s)</b><br>'+divs.slice(0,5).map(function(d){return d.placa+': mensal='+d.mensal+' diário='+d.diario+' Δ='+d.diff;}).join('<br>')+'</div>':''); }
+      var log=ftlLoad(FTL_IMP_LOG_KEY)||[]; log.unshift({dt_op:new Date().toISOString(),dt_ref:ano+'-'+String(mes).padStart(2,'0'),arquivo:file.name,total:added,tipo:'mensal',divs:divs.length,descartadosLeve:descartadosLeve}); ftlSave(FTL_IMP_LOG_KEY,log.slice(0,200));
       ftlImpRenderLog(); if(frotaDashInit&&frotaDashInit._cache) frotaDashInit._cache=null;
       input.value=''; toast(added+' placas KM Mensal '+mn[mes]+'/'+ano+(divs.length?' ⚠️ '+divs.length+' diverg.':''),'success');
     }catch(err){ toast('Erro: '+err.message,'error'); }
@@ -32617,7 +33059,7 @@ function perfImportRenderLog(){
       <div id="imp-panel-mensal" style="display:none">
         <div style="font-size:12px;color:#374151;margin-bottom:16px;line-height:1.5">
           Importe o arquivo consolidado de KM mensal por placa.<br>
-          Formato esperado: <strong>Prefixo / Placa | KM</strong> (mesmo formato exportado pelo rastreador)
+          Formato esperado: <strong>Prefixo / Placa | Km Total</strong> (mesmo formato exportado pelo rastreador — a frota leve é descartada automaticamente)
         </div>
 
         <div style="background:#eff6ff;border:2px solid #93c5fd;border-radius:10px;padding:16px;margin-bottom:12px">
