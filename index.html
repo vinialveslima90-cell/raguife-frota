@@ -6912,6 +6912,7 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
     <div style="background:#fff;border:1px solid var(--gb);border-radius:9px;padding:12px 14px">
       <div style="font-size:12px;font-weight:800;color:var(--gd);margin-bottom:4px">📥 Importar um dia de Jornada + Km</div>
       <div style="font-size:10.5px;color:var(--txl);margin-bottom:10px">A data é identificada automaticamente pelo período gravado no arquivo de Km (o mesmo filtro usado na exportação do Gestão de Frota) — não precisa digitar manualmente. Envie os dois arquivos do mesmo dia juntos.</div>
+      <div style="font-size:10.5px;color:#1b5e3a;background:#eaf6ef;border:1px solid #bfe3cd;border-radius:6px;padding:6px 10px;margin-bottom:10px">💾 Os dias importados ficam salvos automaticamente neste navegador — continuam aqui mesmo se você recarregar a página ou abrir uma nova versão deste arquivo.</div>
       <div class="fg g2">
         <div class="form-grp"><label class="form-lbl">CSV de Jornada</label><input type="file" class="form-ctrl" id="jorn-inp-jornada" accept=".csv"></div>
         <div class="form-grp"><label class="form-lbl">XLSX de Km</label><input type="file" class="form-ctrl" id="jorn-inp-km" accept=".xlsx,.xls"></div>
@@ -6920,6 +6921,7 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
         <button class="btn-sec" style="padding:9px 16px;background:var(--gd);color:#fff" onclick="jornDetectarEImportar()">🔎 Detectar e Importar</button>
         <label class="btn-sec" style="padding:9px 16px;cursor:pointer">📋 Importar Relatório RH<input type="file" accept=".csv,.txt" style="display:none" onchange="jornImportarRelatorioRH(this)"></label>
         <button class="btn-sec" style="padding:9px 16px" onclick="jornCarregarExemplo()">🧪 Carregar dados de exemplo</button>
+        <button class="btn-sec" style="padding:9px 16px;color:#b3392c" onclick="jornLimparStorage()">🗑️ Limpar dados salvos no navegador</button>
       </div>
       <div id="jorn-import-log" style="margin-top:10px;font-size:12px;color:var(--txl)"></div>
     </div>
@@ -23168,8 +23170,10 @@ function jornComputeEficienciaSemanal(diasBase){
 // Garante que existe alguma base carregada (mesmo padrão do resto do sistema:
 // mostra dados de exemplo até o usuário importar dados reais).
 function jornGarantirDados(){
-  if(!JORN_DIAS.length && JORN_SEED_DIAS.length){
-    JORN_DIAS = JORN_SEED_DIAS.slice();
+  if(!JORN_DIAS.length && !JORN_PROCESSADO){
+    JORN_PROCESSADO = true;
+    var carregou = jornCarregarStorage();
+    if(!carregou && JORN_SEED_DIAS.length){ JORN_DIAS = JORN_SEED_DIAS.slice(); }
   }
 }
 
@@ -23624,13 +23628,66 @@ function jornContarDivergentes(dia){
   });
   return n;
 }
+// ── PERSISTÊNCIA (localStorage) ─────────────────────────────
+// CORREÇÃO: o módulo de Jornada não salvava nada — cada vez que a página era
+// recarregada (ou o arquivo trocado por uma versão nova), JORN_DIAS voltava
+// vazio e era preciso reimportar tudo de novo. Agora todo dia importado, RH
+// conciliado e motivo preenchido é salvo automaticamente no localStorage do
+// navegador e recarregado sozinho na próxima abertura — inclusive ao abrir um
+// arquivo .html diferente localmente (file://), já que o navegador trata todos
+// os arquivos locais como a mesma origem de armazenamento.
+var JORN_STORAGE_KEY = 'raguife_jornada_v1';
+function jornSalvarStorage(){
+  try{
+    localStorage.setItem(JORN_STORAGE_KEY, JSON.stringify({
+      dias: JORN_DIAS, rhDados: JORN_RH_DADOS, motivos: JORN_MOTIVOS, casosStatus: JORN_CASOS_STATUS
+    }));
+  }catch(e){ /* localStorage indisponível (modo privado, arquivo bloqueado etc.) — segue sem persistir */ }
+}
+function jornCarregarStorage(){
+  try{
+    var raw = localStorage.getItem(JORN_STORAGE_KEY);
+    if(!raw) return false;
+    var obj = JSON.parse(raw);
+    if(obj.dias && obj.dias.length){ JORN_DIAS = obj.dias; }
+    if(obj.rhDados) JORN_RH_DADOS = obj.rhDados;
+    if(obj.motivos) JORN_MOTIVOS = obj.motivos;
+    if(obj.casosStatus) JORN_CASOS_STATUS = obj.casosStatus;
+    return !!(obj.dias && obj.dias.length);
+  }catch(e){ return false; }
+}
+function jornLimparStorage(){
+  if(!confirm('Isso apaga TODOS os dias, conciliações RH e motivos salvos no navegador (não afeta a rede). Continuar?')) return;
+  try{ localStorage.removeItem(JORN_STORAGE_KEY); }catch(e){}
+  JORN_DIAS = []; JORN_RH_DADOS = {}; JORN_MOTIVOS = {}; JORN_CASOS_STATUS = {};
+  jornPosImportacao();
+}
 // ── IMPORTAR ─────────────────────────────────────────────────
+// CORREÇÃO: os CSVs de Jornada/RH sempre eram lidos forçando ISO-8859-1. Na
+// maioria das exportações do Gestão de Frota isso é o certo, mas quando o
+// arquivo vem salvo em UTF-8 (acontece — depende de como foi gerado/reaberto),
+// forçar ISO-8859-1 corrompe silenciosamente os cabeçalhos com acento
+// ("Direção" virava "DireÃ§Ã£o", "Refeição" virava "RefeiÃ§Ã£o"). O código then
+// procura row['Direção'] literal, não acha (undefined→0h), e a checagem de
+// divergência (Total de horas ≠ soma dos segmentos) passa a descartar quase
+// todas as linhas daquele dia — foi exatamente isso que zerou 09/09 (45 de 47
+// motoristas descartados). Agora detecta: tenta decodificar como UTF-8 válido
+// primeiro; se o arquivo não for UTF-8 válido, cai pra Windows-1252 (superset
+// de ISO-8859-1, sempre decodifica sem erro).
+function jornDecodeAuto(buffer){
+  try{
+    return new TextDecoder('utf-8', {fatal:true}).decode(buffer);
+  }catch(e){
+    return new TextDecoder('windows-1252').decode(buffer);
+  }
+}
 function jornLog(msg, erro){
   var el = document.getElementById('jorn-import-log');
   if(el){ el.style.color = erro ? '#b3392c' : '#2c6b3f'; el.textContent = msg; }
   if(typeof toast==='function') toast(msg, erro?'error':'success');
 }
 function jornPosImportacao(){
+  jornSalvarStorage();
   // Sempre pula pra a data mais recente depois de importar — é isso que a pessoa
   // acabou de lançar, não faz sentido continuar mostrando um dia mais antigo.
   var maisRecente = JORN_DIAS.slice().sort(function(a,b){ return a.data.localeCompare(b.data); }).pop();
@@ -23658,7 +23715,7 @@ function jornDetectarEImportar(){
     var readerJ = new FileReader();
     readerJ.onload = function(ej){
       try{
-        var jornadaRows = jornParseJornadaCSV(ej.target.result);
+        var jornadaRows = jornParseJornadaCSV(jornDecodeAuto(ej.target.result));
         var kmMap = jornParseKmXlsx(readerK._buf);
         var tipo = jornClassifyDate(det.dataISO);
         var idx = JORN_DIAS.findIndex(function(d){ return d.data===det.dataISO; });
@@ -23670,7 +23727,7 @@ function jornDetectarEImportar(){
         jornPosImportacao();
       }catch(err){ jornLog('Erro ao processar: '+err.message, true); }
     };
-    readerJ.readAsText(fJornada, 'ISO-8859-1');
+    readerJ.readAsArrayBuffer(fJornada);
   };
   readerK.onloadend = function(){ readerK._buf = readerK.result; };
   readerK.readAsArrayBuffer(fKm);
@@ -23680,7 +23737,7 @@ function jornImportarRelatorioRH(input){
   var reader = new FileReader();
   reader.onload = function(e){
     try{
-      var novo = jornParseRelatorioRH(e.target.result);
+      var novo = jornParseRelatorioRH(jornDecodeAuto(e.target.result));
       var qtd = Object.keys(novo).length;
       Object.keys(novo).forEach(function(nome){
         if(!JORN_RH_DADOS[nome]) JORN_RH_DADOS[nome] = {};
@@ -23688,9 +23745,10 @@ function jornImportarRelatorioRH(input){
       });
       jornLog('Relatório RH processado: '+qtd+' colaborador(es) conciliado(s).', false);
       input.value='';
+      jornSalvarStorage();
     }catch(err){ jornLog('Erro ao processar relatório RH: '+err.message, true); }
   };
-  reader.readAsText(file, 'ISO-8859-1');
+  reader.readAsArrayBuffer(file);
 }
 function jornCarregarExemplo(){
   JORN_DIAS = JORN_SEED_DIAS.slice();
@@ -23751,6 +23809,7 @@ function jornCalcularEstourados(dataAlvo){
 function jornSalvarMotivo(data, nome, motivo){
   var chave = data+'|'+nome;
   if(motivo) JORN_MOTIVOS[chave] = motivo; else delete JORN_MOTIVOS[chave];
+  jornSalvarStorage();
   jornRenderAnaliseDiaria();
 }
 function jornRenderAnaliseDiaria(){
