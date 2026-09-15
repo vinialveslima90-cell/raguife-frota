@@ -3125,6 +3125,23 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
               <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 2v8M5 7l3 3 3-3"/><path d="M2 13h12"/></svg>⛽ Veloe (Abastecimento)
               <input type="file" accept=".xlsx,.xltx,.csv" style="display:none" onchange="abastImportar(this)">
             </label>
+            <!-- Mês/Ano de referência (opcional) — força o mês de todos os registros
+                 importados, ignorando a coluna de data da planilha. Necessário quando
+                 os lançamentos são feitos manualmente depois (ex: abastecimento de
+                 agosto lançado em 10/09 — a coluna de data traria tudo como setembro). -->
+            <div style="display:inline-flex;align-items:center;gap:6px;padding:6px 10px;background:rgba(255,255,255,.1);border:1px dashed rgba(255,255,255,.4);border-radius:8px" title="Se preenchido, todos os registros do próximo arquivo Veloe importado serão gravados nesse mês/ano, ignorando a data da coluna 'Data/Hora transação'. Use quando o lançamento foi feito manualmente depois do fato (ex: agosto lançado em setembro).">
+              <span style="font-size:10px;color:rgba(255,255,255,.85);font-weight:700">Forçar mês:</span>
+              <select id="abast-import-mes-override" style="font-size:11px;padding:3px 6px;border-radius:5px;border:none">
+                <option value="">Usar data da planilha</option>
+                <option value="1">Jan</option><option value="2">Fev</option><option value="3">Mar</option>
+                <option value="4">Abr</option><option value="5">Mai</option><option value="6">Jun</option>
+                <option value="7">Jul</option><option value="8" selected>Ago</option><option value="9">Set</option>
+                <option value="10">Out</option><option value="11">Nov</option><option value="12">Dez</option>
+              </select>
+              <select id="abast-import-ano-override" style="font-size:11px;padding:3px 6px;border-radius:5px;border:none">
+                <option value="2025">2025</option><option value="2026" selected>2026</option><option value="2027">2027</option>
+              </select>
+            </div>
             <!-- Botão 2: Rastreador (KM/L oficial) -->
             <label style="display:inline-flex;align-items:center;gap:7px;padding:9px 16px;background:rgba(22,101,52,.6);border:1px solid rgba(134,239,172,.5);border-radius:8px;color:#fff;cursor:pointer;font-size:11px;font-weight:700" title="Planilha do rastreador NR Group — KM/L oficial da operação" onmouseover="this.style.background='rgba(22,101,52,.8)'" onmouseout="this.style.background='rgba(22,101,52,.6)'">
               <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 2v8M5 7l3 3 3-3"/><path d="M2 13h12"/></svg>🛰️ Rastreador (KM/L)
@@ -4051,6 +4068,16 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
         <option value="11">Novembro</option>
         <option value="12">Dezembro</option>
       </select>
+      <select id="frota-dash-filial" onchange="frotaDashDebounced()" title="Filtrar por filial" style="font-size:12px;padding:6px 10px;font-weight:700;color:#024f2b;background:#fff;border:none;border-radius:6px;cursor:pointer">
+        <option value="MATRIZ" selected>Matriz</option>
+        <option value="BOM_DESPACHO">Bom Despacho</option>
+        <option value="GERAL">Frota Geral</option>
+      </select>
+      <select id="frota-dash-op" onchange="frotaDashDebounced()" title="Filtrar por divisão de negócio" style="font-size:12px;padding:6px 10px;font-weight:700;color:#024f2b;background:#fff;border:none;border-radius:6px;cursor:pointer">
+        <option value="">Aqua + Pet</option>
+        <option value="AQUA">Aqua</option>
+        <option value="PET">Pet</option>
+      </select>
       <select id="frota-dash-cat" onchange="frotaDashDebounced()" style="font-size:12px;padding:6px 10px;font-weight:700;color:#024f2b;background:#fff;border:none;border-radius:6px;cursor:pointer">
         <option value="">Todas categorias</option>
         <option value="TRUCK">Truck</option>
@@ -4061,6 +4088,8 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
         <option value="RODOTREM">Rodotrem</option>
         <option value="BITRUCK SILO">Bitruck Silo</option>
         <option value="CARRETA SILO">Carreta Silo</option>
+        <option value="3/4">3/4</option>
+        <option value="Frota Administrativa">Frota Administrativa</option>
       </select>
       <button onclick="perfImportModalAbrir()" style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.4);border-radius:7px;color:#fff;cursor:pointer;font-size:11px;font-weight:700" onmouseover="this.style.background='rgba(255,255,255,.25)'" onmouseout="this.style.background='rgba(255,255,255,.15)'">
         &#8659; Importar Planilhas
@@ -21609,7 +21638,23 @@ function gpSalvarTrein(){
 }
 
 // ══ GESTÃO DE FROTA ══════════════════════════════════════════
-var FROTA_SEED = [{"id": "FDC4J75", "cavalo": "FDC-4J75", "carr1": "", "carr2": "", "tipo": "BITRUCK SILO", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "", "modelo": "", "anofab": null, "anomod": null}, {"id": "FYA0E10", "cavalo": "FYA-0E10", "carr1": "", "carr2": "", "tipo": "TRUCK", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "", "modelo": "", "anofab": null, "anomod": null}, {"id": "FJU7I19", "cavalo": "FJU-7I19", "carr1": "", "carr2": "", "tipo": "BITRUCK SILO", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volkswagen", "modelo": "Vw/24.280 CRM 8X2", "anofab": 2015, "anomod": 2015}, {"id": "FRO7I25", "cavalo": "FRO-7I25", "carr1": "", "carr2": "", "tipo": "BITRUCK SILO", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "", "modelo": "", "anofab": null, "anomod": null}, {"id": "FVA7B11", "cavalo": "FVA-7B11", "carr1": "", "carr2": "", "tipo": "BITRUCK SILO", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "", "modelo": "", "anofab": null, "anomod": null}, {"id": "GEJ1889", "cavalo": "GEJ-1889", "carr1": "", "carr2": "", "tipo": "BITRUCK SILO", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volvo", "modelo": "Vm 330 8X2R", "anofab": 2017, "anomod": 2018}, {"id": "FSG6F45", "cavalo": "FSG-6F45", "carr1": "", "carr2": "", "tipo": "BITRUCK SILO", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volkswagen", "modelo": "Vw/24.280 CRM 8X2", "anofab": 2014, "anomod": 2014}, {"id": "FVU8I30", "cavalo": "FVU-8I30", "carr1": "", "carr2": "", "tipo": "BITRUCK SILO", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volkswagen", "modelo": "Vw/24.280 CRM 8X2", "anofab": 2015, "anomod": 2015}, {"id": "BBG1D34", "cavalo": "BBG-1D34", "carr1": "", "carr2": "", "tipo": "BITRUCK SILO", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volkswagen", "modelo": "Vw/24.280 CRM 8X2", "anofab": 2016, "anomod": 2017}, {"id": "PQK3I28", "cavalo": "PQK-3I28", "carr1": "", "carr2": "", "tipo": "BITRUCK SILO", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Mercedes", "modelo": "Atego 2430 8x2", "anofab": 2015, "anomod": 2016}, {"id": "BBR9F63", "cavalo": "BBR-9F63", "carr1": "", "carr2": "", "tipo": "BITRUCK SILO", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volkswagen", "modelo": "VW/24.330 CRC 6X2 VTR", "anofab": 2016, "anomod": 2017}, {"id": "GAA6D71", "cavalo": "GAA-6G71", "carr1": "", "carr2": "", "tipo": "BITRUCK SILO", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volkswagen", "modelo": "VW/30.320 CRM 8X2", "anofab": 2024, "anomod": 2025}, {"id": "GAA6D72", "cavalo": "GAA-6D72", "carr1": "", "carr2": "", "tipo": "BITRUCK SILO", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Mercedes", "modelo": "ATEGO 3033/63", "anofab": 2024, "anomod": 2025}, {"id": "GAA5F32", "cavalo": "GAA-5F32", "carr1": "", "carr2": "", "tipo": "BITRUCK SILO", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Mercedes", "modelo": "ATEGO 3033/63", "anofab": 2024, "anomod": 2025}, {"id": "GJP1F30", "cavalo": "GJP-1F30", "carr1": "", "carr2": "", "tipo": "BITRUCK", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "", "modelo": "", "anofab": null, "anomod": null}, {"id": "GIF9G20", "cavalo": "GIF-9G20", "carr1": "", "carr2": "", "tipo": "BITRUCK", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "", "modelo": "", "anofab": null, "anomod": null}, {"id": "FZR4J59", "cavalo": "FZR4J59", "carr1": "", "carr2": "", "tipo": "BITRUCK", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volvo", "modelo": "Vm 330 8X2R", "anofab": 2017, "anomod": 2018}, {"id": "GAA0E42", "cavalo": "GAA-0E42", "carr1": "", "carr2": "", "tipo": "BITRUCK", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volkswagen", "modelo": "VW/30.280 CRM 8X2", "anofab": 2021, "anomod": 2022}, {"id": "GAA2G22", "cavalo": "GAA-2G22", "carr1": "", "carr2": "", "tipo": "BITRUCK", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volkswagen", "modelo": "VW/30.280 CRM 8X2", "anofab": 2021, "anomod": 2022}, {"id": "GAA3F91", "cavalo": "GAA-3F91", "carr1": "", "carr2": "", "tipo": "BITRUCK", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volkswagen", "modelo": "VW/30.320 CRM 8X2", "anofab": 2023, "anomod": 2023}, {"id": "GAA6J73", "cavalo": "GAA-6J73", "carr1": "", "carr2": "", "tipo": "BITRUCK", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volkswagen", "modelo": "VW/30.320 CRM 8X2", "anofab": 2024, "anomod": 2025}, {"id": "GAA6I31", "cavalo": "GAA-6I31", "carr1": "", "carr2": "", "tipo": "BITRUCK", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volkswagen", "modelo": "VW/30.320 CRM 8X2", "anofab": 2024, "anomod": 2025}, {"id": "GAA6F11", "cavalo": "GAA-6F11", "carr1": "", "carr2": "", "tipo": "BITRUCK", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volkswagen", "modelo": "VW/30.320 CRM 8X2", "anofab": 2024, "anomod": 2025}, {"id": "EOH0H57", "cavalo": "EOH0H57", "carr1": "", "carr2": "", "tipo": "TRUCK", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Mercedes", "modelo": "Atego 2430 54 6x2", "anofab": 2019, "anomod": 2019}, {"id": "EBK2I00", "cavalo": "EBK2I00", "carr1": "", "carr2": "", "tipo": "TRUCK", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Mercedes", "modelo": "Atego 2430 54 6x2", "anofab": 2019, "anomod": 2019}, {"id": "NSB3G46", "cavalo": "NSB3G46", "carr1": "", "carr2": "", "tipo": "3/4", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "", "modelo": "", "anofab": null, "anomod": null}, {"id": "FSK8E26", "cavalo": "FSK8E26", "carr1": "", "carr2": "", "tipo": "TRUCK", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volvo", "modelo": "Vm 270 6X2R", "anofab": 2015, "anomod": 2015}, {"id": "GAA2D82", "cavalo": "GAA-2D82", "carr1": "", "carr2": "", "tipo": "TRUCK", "op": "PET", "status": "DISPONÍVEL", "ativo": true, "marca": "Volvo", "modelo": "VM270", "anofab": 2022, "anomod": 2023}, {"id": "GBV2F70", "cavalo": "GBV-2F70", "carr1": "", "carr2": "", "tipo": "TRUCK", "op": "PET", "status": "DISPONÍVEL", "ativo": true, "marca": "Volvo", "modelo": "Vm 270 6X2R", "anofab": 2015, "anomod": 2016}, {"id": "GAA5C71", "cavalo": "GAA-5C71", "carr1": "", "carr2": "", "tipo": "TRUCK", "op": "PET", "status": "DISPONÍVEL", "ativo": true, "marca": "Volkswagen", "modelo": "VW/26.320 CRM 6X2", "anofab": 2023, "anomod": 2023}, {"id": "GAA5D71", "cavalo": "GAA-5D71", "carr1": "", "carr2": "", "tipo": "TRUCK", "op": "PET", "status": "DISPONÍVEL", "ativo": true, "marca": "Volkswagen", "modelo": "VW/26.320 CRM 6X2", "anofab": 2023, "anomod": 2023}, {"id": "GAA4J71", "cavalo": "GAA-4J71", "carr1": "", "carr2": "", "tipo": "TRUCK", "op": "PET", "status": "DISPONÍVEL", "ativo": true, "marca": "Volkswagen", "modelo": "VW/26.320 CRM 6X2", "anofab": 2023, "anomod": 2024}, {"id": "GAA6B33", "cavalo": "GAA-6B33", "carr1": "", "carr2": "", "tipo": "TRUCK", "op": "PET", "status": "DISPONÍVEL", "ativo": true, "marca": "Volkswagen", "modelo": "VW/26.320 CRM 6X2", "anofab": 2024, "anomod": 2025}, {"id": "GAA5J92", "cavalo": "GAA-5J92", "carr1": "", "carr2": "", "tipo": "3/4", "op": "PET", "status": "DISPONÍVEL", "ativo": true, "marca": "Volkswagen", "modelo": "VW/DELIVER 11.180 6X2", "anofab": 2024, "anomod": 2025}, {"id": "GAA6E91", "cavalo": "GAA-6E91", "carr1": "", "carr2": "", "tipo": "3/4", "op": "PET", "status": "DISPONÍVEL", "ativo": true, "marca": "Volkswagen", "modelo": "VW/DELIVER 11.180 6X2", "anofab": 2025, "anomod": 2026}, {"id": "GAA0D97", "cavalo": "GAA-0D97", "carr1": "GAA-1C52", "carr2": "", "tipo": "CARRETA SILO", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volvo", "modelo": "FH460 6X2T", "anofab": 2020, "anomod": 2021}, {"id": "CLW4A48", "cavalo": "CLW-4A48", "carr1": "GEI-4E45", "carr2": "", "tipo": "CARRETA SILO", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "", "modelo": "", "anofab": null, "anomod": null}, {"id": "GAA1C54", "cavalo": "GAA-1C54", "carr1": "GAA-1G72", "carr2": "", "tipo": "LS", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volvo", "modelo": "FH460 6X2T", "anofab": 2020, "anomod": 2021}, {"id": "GAA1C62", "cavalo": "GAA-1C62", "carr1": "GAA-1E72", "carr2": "", "tipo": "LS", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volvo", "modelo": "FH460 6X2T", "anofab": 2021, "anomod": 2021}, {"id": "FOV1C88", "cavalo": "FOV-1C88", "carr1": "FSZ-6A67", "carr2": "", "tipo": "LS", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Man", "modelo": "TGX 28.440 6X2T", "anofab": 2017, "anomod": 2018}, {"id": "GAA2J62", "cavalo": "GAA-2J62", "carr1": "GAA-5D84", "carr2": "", "tipo": "LS", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volvo", "modelo": "FH460- 6X2", "anofab": 2023, "anomod": 2023}, {"id": "GAA6B62", "cavalo": "GAA-6B62", "carr1": "GAA-6C61", "carr2": "", "tipo": "4° EIXO", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volvo", "modelo": "FH 500 6X2", "anofab": 2024, "anomod": 2024}, {"id": "GAA6H61", "cavalo": "GAA-6H61", "carr1": "GAA-5J61", "carr2": "", "tipo": "4° EIXO", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Scania", "modelo": "R460 A6X2 SUPER", "anofab": 2024, "anomod": 2024}, {"id": "GAA6C64", "cavalo": "GAA-6C64", "carr1": "GAA-6J61", "carr2": "", "tipo": "4° EIXO", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Scania", "modelo": "R460 A6X2 SUPER", "anofab": 2024, "anomod": 2024}, {"id": "GAA6H21", "cavalo": "GAA-6H21", "carr1": "GAA-5E41", "carr2": "", "tipo": "4° EIXO", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volvo", "modelo": "FH 500 6X2", "anofab": 2024, "anomod": 2025}, {"id": "DUC3D40", "cavalo": "DUC-3D40", "carr1": "EDJ-0J72", "carr2": "EDJ-0J73", "tipo": "BITREM", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volvo", "modelo": "FH460 6X2T", "anofab": 2019, "anomod": 2020}, {"id": "GAA1C63", "cavalo": "GAA-1C63", "carr1": "FZP-5G93", "carr2": "FXM-8J94", "tipo": "BITREM", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volvo", "modelo": "FH460 6X2T", "anofab": 2021, "anomod": 2021}, {"id": "FRX7H66", "cavalo": "FRX-7H66", "carr1": "GJM-5D09", "carr2": "GHZ-0J69", "tipo": "BITREM", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "", "modelo": "", "anofab": null, "anomod": null}, {"id": "GBF7E64", "cavalo": "GBF-7E64", "carr1": "GHR-2B12", "carr2": "FWF-7F72", "tipo": "BITREM", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Scania", "modelo": "R440 A6X4", "anofab": 2017, "anomod": 2017}, {"id": "EBW2C85", "cavalo": "EBW-2C85", "carr1": "EBM-4C59", "carr2": "DIL-3H30", "tipo": "BITREM", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "", "modelo": "", "anofab": null, "anomod": null}, {"id": "FWB2B34", "cavalo": "FWB-2B34", "carr1": "FNB-0F42", "carr2": "GGX-5H52", "tipo": "BITREM", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Mercedes", "modelo": "Actros 2651S 6x4", "anofab": 2018, "anomod": 2018}, {"id": "FCC9J95", "cavalo": "FCC-9J95", "carr1": "FFI-4F97", "carr2": "FFI-4F98", "tipo": "BITREM", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volvo", "modelo": "FH540 6X4T", "anofab": 2016, "anomod": 2016}, {"id": "FCT5A75", "cavalo": "FCT-5A75", "carr1": "FYF-6H78", "carr2": "FYT-1B51", "tipo": "BITREM", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Man", "modelo": "TGX 29.480 6X4T", "anofab": 2018, "anomod": 2018}, {"id": "QPY8A58", "cavalo": "QPY-8A58", "carr1": "EDJ-0J75", "carr2": "EDJ-0J76", "tipo": "BITREM", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Man", "modelo": "TGX 29.480 6X4T", "anofab": 2018, "anomod": 2019}, {"id": "GAA4I81", "cavalo": "GAA-4I81", "carr1": "GAA0D66", "carr2": "GAA0D68", "tipo": "RODOTREM", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volvo", "modelo": "FH 540 6X4", "anofab": 2023, "anomod": 2023}, {"id": "GAA2G55", "cavalo": "GAA-2G55", "carr1": "QPG7D23", "carr2": "QPG7D16", "tipo": "RODOTREM", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volvo", "modelo": "FH540 6X4T", "anofab": 2021, "anomod": 2022}, {"id": "GAA0D77", "cavalo": "GAA-0D77", "carr1": "GAA-0D72", "carr2": "GAA-0D65", "tipo": "RODOTREM", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volvo", "modelo": "FH540 6X4T", "anofab": 2019, "anomod": 2020}, {"id": "GFI3F08", "cavalo": "GFI-3F08", "carr1": "GCP-5D12", "carr2": "GAA-6B42", "tipo": "RODOTREM", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Scania", "modelo": "R500 A6X4", "anofab": 2020, "anomod": 2020}, {"id": "ENN8F53", "cavalo": "ENN-8F53", "carr1": "GAH-3H55", "carr2": "GAL-5A02", "tipo": "RODOTREM", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Scania", "modelo": "R500 A6X4", "anofab": 2020, "anomod": 2020}, {"id": "GGS0E66", "cavalo": "GGS-0E66", "carr1": "GAA-0D76", "carr2": "GAA-0C76", "tipo": "RODOTREM", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Scania", "modelo": "R500 A6X4", "anofab": 2020, "anomod": 2020}, {"id": "GAA2D71", "cavalo": "GAA-2D71", "carr1": "GAA5C41", "carr2": "GAA5D72", "tipo": "RODOTREM", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volvo", "modelo": "FH 540 6X4", "anofab": 2023, "anomod": 2023}, {"id": "GAA5I02", "cavalo": "GAA-5I02", "carr1": "GAA-6I41", "carr2": "GAA-6C51", "tipo": "RODOTREM", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Daf", "modelo": "XF FTT530", "anofab": 2024, "anomod": 2024}, {"id": "GAA5I03", "cavalo": "GAA-5I03", "carr1": "GAA-5D12", "carr2": "GAA-5C61", "tipo": "RODOTREM", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Daf", "modelo": "XF FTT530", "anofab": 2024, "anomod": 2024}, {"id": "GAA5I53", "cavalo": "GAA-5I53", "carr1": "GAA-5D62", "carr2": "GAA-5D51", "tipo": "RODOTREM", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Daf", "modelo": "XF FTT530", "anofab": 2024, "anomod": 2024}, {"id": "GAA5I61", "cavalo": "GAA-5I61", "carr1": "GAA-5D41", "carr2": "GAA-5D34", "tipo": "RODOTREM", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Daf", "modelo": "XF FTT530", "anofab": 2024, "anomod": 2024}, {"id": "GAA5I62", "cavalo": "GAA-5I62", "carr1": "GAA-5C02", "carr2": "GAA-5C34", "tipo": "RODOTREM", "op": "AQUA", "status": "SINISTRADO", "ativo": true, "marca": "Daf", "modelo": "XF FTT530", "anofab": 2024, "anomod": 2024}];
+var FROTA_SEED = [{"id": "FDC4J75", "cavalo": "FDC-4J75", "carr1": "", "carr2": "", "tipo": "BITRUCK SILO", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "", "modelo": "", "anofab": null, "anomod": null}, {"id": "FYA0E10", "cavalo": "FYA-0E10", "carr1": "", "carr2": "", "tipo": "TRUCK", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "", "modelo": "", "anofab": null, "anomod": null}, {"id": "FJU7I19", "cavalo": "FJU-7I19", "carr1": "", "carr2": "", "tipo": "BITRUCK SILO", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volkswagen", "modelo": "Vw/24.280 CRM 8X2", "anofab": 2015, "anomod": 2015}, {"id": "FRO7I25", "cavalo": "FRO-7I25", "carr1": "", "carr2": "", "tipo": "BITRUCK SILO", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "", "modelo": "", "anofab": null, "anomod": null}, {"id": "FVA7B11", "cavalo": "FVA-7B11", "carr1": "", "carr2": "", "tipo": "BITRUCK SILO", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "", "modelo": "", "anofab": null, "anomod": null}, {"id": "GEJ1889", "cavalo": "GEJ-1889", "carr1": "", "carr2": "", "tipo": "BITRUCK SILO", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volvo", "modelo": "Vm 330 8X2R", "anofab": 2017, "anomod": 2018}, {"id": "FSG6F45", "cavalo": "FSG-6F45", "carr1": "", "carr2": "", "tipo": "BITRUCK SILO", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volkswagen", "modelo": "Vw/24.280 CRM 8X2", "anofab": 2014, "anomod": 2014}, {"id": "FVU8I30", "cavalo": "FVU-8I30", "carr1": "", "carr2": "", "tipo": "BITRUCK SILO", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volkswagen", "modelo": "Vw/24.280 CRM 8X2", "anofab": 2015, "anomod": 2015}, {"id": "BBG1D34", "cavalo": "BBG-1D34", "carr1": "", "carr2": "", "tipo": "BITRUCK SILO", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volkswagen", "modelo": "Vw/24.280 CRM 8X2", "anofab": 2016, "anomod": 2017}, {"id": "PQK3I28", "cavalo": "PQK-3I28", "carr1": "", "carr2": "", "tipo": "BITRUCK SILO", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Mercedes", "modelo": "Atego 2430 8x2", "anofab": 2015, "anomod": 2016}, {"id": "BBR9F63", "cavalo": "BBR-9F63", "carr1": "", "carr2": "", "tipo": "BITRUCK SILO", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volkswagen", "modelo": "VW/24.330 CRC 6X2 VTR", "anofab": 2016, "anomod": 2017}, {"id": "GAA6D71", "cavalo": "GAA-6G71", "carr1": "", "carr2": "", "tipo": "BITRUCK SILO", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volkswagen", "modelo": "VW/30.320 CRM 8X2", "anofab": 2024, "anomod": 2025}, {"id": "GAA6D72", "cavalo": "GAA-6D72", "carr1": "", "carr2": "", "tipo": "BITRUCK SILO", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Mercedes", "modelo": "ATEGO 3033/63", "anofab": 2024, "anomod": 2025}, {"id": "GAA5F32", "cavalo": "GAA-5F32", "carr1": "", "carr2": "", "tipo": "BITRUCK SILO", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Mercedes", "modelo": "ATEGO 3033/63", "anofab": 2024, "anomod": 2025}, {"id": "GJP1F30", "cavalo": "GJP-1F30", "carr1": "", "carr2": "", "tipo": "BITRUCK", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "", "modelo": "", "anofab": null, "anomod": null}, {"id": "GIF9G20", "cavalo": "GIF-9G20", "carr1": "", "carr2": "", "tipo": "BITRUCK", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "", "modelo": "", "anofab": null, "anomod": null}, {"id": "FZR4J59", "cavalo": "FZR4J59", "carr1": "", "carr2": "", "tipo": "BITRUCK", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volvo", "modelo": "Vm 330 8X2R", "anofab": 2017, "anomod": 2018}, {"id": "GAA0E42", "cavalo": "GAA-0E42", "carr1": "", "carr2": "", "tipo": "BITRUCK", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volkswagen", "modelo": "VW/30.280 CRM 8X2", "anofab": 2021, "anomod": 2022}, {"id": "GAA2G22", "cavalo": "GAA-2G22", "carr1": "", "carr2": "", "tipo": "BITRUCK", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volkswagen", "modelo": "VW/30.280 CRM 8X2", "anofab": 2021, "anomod": 2022}, {"id": "GAA3F91", "cavalo": "GAA-3F91", "carr1": "", "carr2": "", "tipo": "BITRUCK", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volkswagen", "modelo": "VW/30.320 CRM 8X2", "anofab": 2023, "anomod": 2023}, {"id": "GAA6J73", "cavalo": "GAA-6J73", "carr1": "", "carr2": "", "tipo": "BITRUCK", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volkswagen", "modelo": "VW/30.320 CRM 8X2", "anofab": 2024, "anomod": 2025}, {"id": "GAA6I31", "cavalo": "GAA-6I31", "carr1": "", "carr2": "", "tipo": "BITRUCK", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volkswagen", "modelo": "VW/30.320 CRM 8X2", "anofab": 2024, "anomod": 2025}, {"id": "GAA6F11", "cavalo": "GAA-6F11", "carr1": "", "carr2": "", "tipo": "BITRUCK", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volkswagen", "modelo": "VW/30.320 CRM 8X2", "anofab": 2024, "anomod": 2025}, {"id": "EOH0H57", "cavalo": "EOH0H57", "carr1": "", "carr2": "", "tipo": "TRUCK", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Mercedes", "modelo": "Atego 2430 54 6x2", "anofab": 2019, "anomod": 2019}, {"id": "EBK2I00", "cavalo": "EBK2I00", "carr1": "", "carr2": "", "tipo": "TRUCK", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Mercedes", "modelo": "Atego 2430 54 6x2", "anofab": 2019, "anomod": 2019}, {"id": "NSB3G46", "cavalo": "NSB3G46", "carr1": "", "carr2": "", "tipo": "3/4", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "", "modelo": "", "anofab": null, "anomod": null}, {"id": "FSK8E26", "cavalo": "FSK8E26", "carr1": "", "carr2": "", "tipo": "TRUCK", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volvo", "modelo": "Vm 270 6X2R", "anofab": 2015, "anomod": 2015}, {"id": "GAA2D82", "cavalo": "GAA-2D82", "carr1": "", "carr2": "", "tipo": "TRUCK", "op": "PET", "status": "DISPONÍVEL", "ativo": true, "marca": "Volvo", "modelo": "VM270", "anofab": 2022, "anomod": 2023}, {"id": "GBV2F70", "cavalo": "GBV-2F70", "carr1": "", "carr2": "", "tipo": "TRUCK", "op": "PET", "status": "DISPONÍVEL", "ativo": true, "marca": "Volvo", "modelo": "Vm 270 6X2R", "anofab": 2015, "anomod": 2016}, {"id": "GAA5C71", "cavalo": "GAA-5C71", "carr1": "", "carr2": "", "tipo": "TRUCK", "op": "PET", "status": "DISPONÍVEL", "ativo": true, "marca": "Volkswagen", "modelo": "VW/26.320 CRM 6X2", "anofab": 2023, "anomod": 2023}, {"id": "GAA5D71", "cavalo": "GAA-5D71", "carr1": "", "carr2": "", "tipo": "TRUCK", "op": "PET", "status": "DISPONÍVEL", "ativo": true, "marca": "Volkswagen", "modelo": "VW/26.320 CRM 6X2", "anofab": 2023, "anomod": 2023}, {"id": "GAA4J71", "cavalo": "GAA-4J71", "carr1": "", "carr2": "", "tipo": "TRUCK", "op": "PET", "status": "DISPONÍVEL", "ativo": true, "marca": "Volkswagen", "modelo": "VW/26.320 CRM 6X2", "anofab": 2023, "anomod": 2024}, {"id": "GAA6B33", "cavalo": "GAA-6B33", "carr1": "", "carr2": "", "tipo": "TRUCK", "op": "PET", "status": "DISPONÍVEL", "ativo": true, "marca": "Volkswagen", "modelo": "VW/26.320 CRM 6X2", "anofab": 2024, "anomod": 2025}, {"id": "GAA5J92", "cavalo": "GAA-5J92", "carr1": "", "carr2": "", "tipo": "3/4", "op": "PET", "status": "DISPONÍVEL", "ativo": true, "marca": "Volkswagen", "modelo": "VW/DELIVER 11.180 6X2", "anofab": 2024, "anomod": 2025}, {"id": "GAA6E91", "cavalo": "GAA-6E91", "carr1": "", "carr2": "", "tipo": "3/4", "op": "PET", "status": "DISPONÍVEL", "ativo": true, "marca": "Volkswagen", "modelo": "VW/DELIVER 11.180 6X2", "anofab": 2025, "anomod": 2026}, {"id": "GAA0D97", "cavalo": "GAA-0D97", "carr1": "GAA-1C52", "carr2": "", "tipo": "CARRETA SILO", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volvo", "modelo": "FH460 6X2T", "anofab": 2020, "anomod": 2021}, {"id": "CLW4A48", "cavalo": "CLW-4A48", "carr1": "GEI-4E45", "carr2": "", "tipo": "CARRETA SILO", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "", "modelo": "", "anofab": null, "anomod": null}, {"id": "GAA1C54", "cavalo": "GAA-1C54", "carr1": "GAA-1G72", "carr2": "", "tipo": "LS", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volvo", "modelo": "FH460 6X2T", "anofab": 2020, "anomod": 2021}, {"id": "GAA1C62", "cavalo": "GAA-1C62", "carr1": "GAA-1E72", "carr2": "", "tipo": "LS", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volvo", "modelo": "FH460 6X2T", "anofab": 2021, "anomod": 2021}, {"id": "FOV1C88", "cavalo": "FOV-1C88", "carr1": "FSZ-6A67", "carr2": "", "tipo": "LS", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Man", "modelo": "TGX 28.440 6X2T", "anofab": 2017, "anomod": 2018}, {"id": "GAA2J62", "cavalo": "GAA-2J62", "carr1": "GAA-5D84", "carr2": "", "tipo": "LS", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volvo", "modelo": "FH460- 6X2", "anofab": 2023, "anomod": 2023}, {"id": "GAA6B62", "cavalo": "GAA-6B62", "carr1": "GAA-6C61", "carr2": "", "tipo": "4° EIXO", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volvo", "modelo": "FH 500 6X2", "anofab": 2024, "anomod": 2024}, {"id": "GAA6H61", "cavalo": "GAA-6H61", "carr1": "GAA-5J61", "carr2": "", "tipo": "4° EIXO", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Scania", "modelo": "R460 A6X2 SUPER", "anofab": 2024, "anomod": 2024}, {"id": "GAA6C64", "cavalo": "GAA-6C64", "carr1": "GAA-6J61", "carr2": "", "tipo": "4° EIXO", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Scania", "modelo": "R460 A6X2 SUPER", "anofab": 2024, "anomod": 2024}, {"id": "GAA6H21", "cavalo": "GAA-6H21", "carr1": "GAA-5E41", "carr2": "", "tipo": "4° EIXO", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volvo", "modelo": "FH 500 6X2", "anofab": 2024, "anomod": 2025}, {"id": "DUC3D40", "cavalo": "DUC-3D40", "carr1": "EDJ-0J72", "carr2": "EDJ-0J73", "tipo": "BITREM", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volvo", "modelo": "FH460 6X2T", "anofab": 2019, "anomod": 2020}, {"id": "GAA1C63", "cavalo": "GAA-1C63", "carr1": "FZP-5G93", "carr2": "FXM-8J94", "tipo": "BITREM", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volvo", "modelo": "FH460 6X2T", "anofab": 2021, "anomod": 2021}, {"id": "FRX7H66", "cavalo": "FRX-7H66", "carr1": "GJM-5D09", "carr2": "GHZ-0J69", "tipo": "BITREM", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "", "modelo": "", "anofab": null, "anomod": null}, {"id": "GBF7E64", "cavalo": "GBF-7E64", "carr1": "GHR-2B12", "carr2": "FWF-7F72", "tipo": "BITREM", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Scania", "modelo": "R440 A6X4", "anofab": 2017, "anomod": 2017}, {"id": "EBW2C85", "cavalo": "EBW-2C85", "carr1": "EBM-4C59", "carr2": "DIL-3H30", "tipo": "BITREM", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "", "modelo": "", "anofab": null, "anomod": null}, {"id": "FWB2B34", "cavalo": "FWB-2B34", "carr1": "FNB-0F42", "carr2": "GGX-5H52", "tipo": "BITREM", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Mercedes", "modelo": "Actros 2651S 6x4", "anofab": 2018, "anomod": 2018}, {"id": "FCC9J95", "cavalo": "FCC-9J95", "carr1": "FFI-4F97", "carr2": "FFI-4F98", "tipo": "BITREM", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volvo", "modelo": "FH540 6X4T", "anofab": 2016, "anomod": 2016}, {"id": "FCT5A75", "cavalo": "FCT-5A75", "carr1": "FYF-6H78", "carr2": "FYT-1B51", "tipo": "BITREM", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Man", "modelo": "TGX 29.480 6X4T", "anofab": 2018, "anomod": 2018}, {"id": "QPY8A58", "cavalo": "QPY-8A58", "carr1": "EDJ-0J75", "carr2": "EDJ-0J76", "tipo": "BITREM", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Man", "modelo": "TGX 29.480 6X4T", "anofab": 2018, "anomod": 2019}, {"id": "GAA4I81", "cavalo": "GAA-4I81", "carr1": "GAA0D66", "carr2": "GAA0D68", "tipo": "RODOTREM", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volvo", "modelo": "FH 540 6X4", "anofab": 2023, "anomod": 2023}, {"id": "GAA2G55", "cavalo": "GAA-2G55", "carr1": "QPG7D23", "carr2": "QPG7D16", "tipo": "RODOTREM", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volvo", "modelo": "FH540 6X4T", "anofab": 2021, "anomod": 2022}, {"id": "GAA0D77", "cavalo": "GAA-0D77", "carr1": "GAA-0D72", "carr2": "GAA-0D65", "tipo": "RODOTREM", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volvo", "modelo": "FH540 6X4T", "anofab": 2019, "anomod": 2020}, {"id": "GFI3F08", "cavalo": "GFI-3F08", "carr1": "GCP-5D12", "carr2": "GAA-6B42", "tipo": "RODOTREM", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Scania", "modelo": "R500 A6X4", "anofab": 2020, "anomod": 2020}, {"id": "ENN8F53", "cavalo": "ENN-8F53", "carr1": "GAH-3H55", "carr2": "GAL-5A02", "tipo": "RODOTREM", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Scania", "modelo": "R500 A6X4", "anofab": 2020, "anomod": 2020}, {"id": "GGS0E66", "cavalo": "GGS-0E66", "carr1": "GAA-0D76", "carr2": "GAA-0C76", "tipo": "RODOTREM", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Scania", "modelo": "R500 A6X4", "anofab": 2020, "anomod": 2020}, {"id": "GAA2D71", "cavalo": "GAA-2D71", "carr1": "GAA5C41", "carr2": "GAA5D72", "tipo": "RODOTREM", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Volvo", "modelo": "FH 540 6X4", "anofab": 2023, "anomod": 2023}, {"id": "GAA5I02", "cavalo": "GAA-5I02", "carr1": "GAA-6I41", "carr2": "GAA-6C51", "tipo": "RODOTREM", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Daf", "modelo": "XF FTT530", "anofab": 2024, "anomod": 2024}, {"id": "GAA5I03", "cavalo": "GAA-5I03", "carr1": "GAA-5D12", "carr2": "GAA-5C61", "tipo": "RODOTREM", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Daf", "modelo": "XF FTT530", "anofab": 2024, "anomod": 2024}, {"id": "GAA5I53", "cavalo": "GAA-5I53", "carr1": "GAA-5D62", "carr2": "GAA-5D51", "tipo": "RODOTREM", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Daf", "modelo": "XF FTT530", "anofab": 2024, "anomod": 2024}, {"id": "GAA5I61", "cavalo": "GAA-5I61", "carr1": "GAA-5D41", "carr2": "GAA-5D34", "tipo": "RODOTREM", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "Daf", "modelo": "XF FTT530", "anofab": 2024, "anomod": 2024}, {"id": "GAA5I62", "cavalo": "GAA-5I62", "carr1": "GAA-5C02", "carr2": "GAA-5C34", "tipo": "RODOTREM", "op": "AQUA", "status": "SINISTRADO", "ativo": true, "marca": "Daf", "modelo": "XF FTT530", "anofab": 2024, "anomod": 2024},
+// ── Veículos cadastrados em 14/09/2026 a partir da análise da planilha de KM
+// de agosto/2026 (import Prefixo/Placa). "filial" é um campo novo (ver
+// frotaFilialPorPlaca) — MATRIZ ou BOM_DESPACHO, independente do "op"
+// (AQUA/PET), pois um veículo pode ser AQUA e estar baseado em Bom Despacho.
+// Veículos cadastrados sem esse campo (todo o restante do FROTA_SEED acima)
+// são tratados como MATRIZ por padrão via frotaFilialPorPlaca.
+{"id": "GAA6G41", "cavalo": "GAA-6G41", "carr1": "", "carr2": "", "tipo": "Frota Administrativa", "op": "ADMINISTRATIVA", "status": "DISPONÍVEL", "ativo": true, "marca": "", "modelo": "", "anofab": null, "anomod": null, "filial": "MATRIZ"},
+{"id": "CYN2D70", "cavalo": "CYN-2D70", "carr1": "", "carr2": "", "tipo": "Frota Administrativa", "op": "ADMINISTRATIVA", "status": "DISPONÍVEL", "ativo": true, "marca": "", "modelo": "", "anofab": null, "anomod": null, "filial": "MATRIZ"},
+{"id": "GAA2E71", "cavalo": "GAA-2E71", "carr1": "", "carr2": "", "tipo": "CARRETA SILO", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "", "modelo": "", "anofab": null, "anomod": null, "filial": "MATRIZ"},
+{"id": "GAA2J52", "cavalo": "GAA-2J52", "carr1": "", "carr2": "", "tipo": "RODOTREM", "op": "BOM_DESPACHO", "status": "DISPONÍVEL", "ativo": true, "marca": "", "modelo": "", "anofab": null, "anomod": null, "filial": "BOM_DESPACHO"},
+{"id": "GAA6G51", "cavalo": "GAA-6G51", "carr1": "", "carr2": "", "tipo": "BITRUCK SILO", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "", "modelo": "", "anofab": null, "anomod": null, "filial": "BOM_DESPACHO"},
+{"id": "GAA6E71", "cavalo": "GAA-6E71", "carr1": "", "carr2": "", "tipo": "BITRUCK SILO", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "", "modelo": "", "anofab": null, "anomod": null, "filial": "BOM_DESPACHO"},
+{"id": "GAA6D41", "cavalo": "GAA-6D41", "carr1": "", "carr2": "", "tipo": "BITRUCK SILO", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "", "modelo": "", "anofab": null, "anomod": null, "filial": "BOM_DESPACHO"},
+{"id": "GAA4D71", "cavalo": "GAA-4D71", "carr1": "", "carr2": "", "tipo": "RODOTREM", "op": "PET", "status": "DISPONÍVEL", "ativo": true, "marca": "", "modelo": "", "anofab": null, "anomod": null, "filial": "BOM_DESPACHO"},
+{"id": "GAA7B93", "cavalo": "GAA-7B93", "carr1": "", "carr2": "", "tipo": "4° EIXO", "op": "AQUA", "status": "DISPONÍVEL", "ativo": true, "marca": "", "modelo": "", "anofab": null, "anomod": null, "filial": "MATRIZ"}
+];
 var DB_FROTA = [];
 var DB_DISP  = []; // [{dt,cavalo,tipo,op,status,obs}]
 
@@ -22665,7 +22710,12 @@ let JORN_PROCESSADO = false;
 
 let JORN_CASOS_STATUS = {};
 
-let JORN_FILTROS = {busca:'', unidade:'MATRIZ', categoria:'', status:'', periodo:'todos', diaSemana:'', tipoHE:'', comSemHE:'', dataInicio:null, dataFim:null, agrupar:'dia'};
+// CORREÇÃO: unidade nascia 'MATRIZ' no estado, mas o <select> Célula na tela
+// abre em "Todas" (value=""). Isso fazia o sistema filtrar só Matriz por baixo
+// dos panos sempre que a pessoa não mexia manualmente nesse combo — Dashboard,
+// Mapa de Calor, Ranking e Casos Críticos ficavam sem os motoristas de Bom
+// Despacho, sem nenhum aviso na tela. Agora o estado inicial bate com a UI.
+let JORN_FILTROS = {busca:'', unidade:'', categoria:'', status:'', periodo:'todos', diaSemana:'', tipoHE:'', comSemHE:'', dataInicio:null, dataFim:null, agrupar:'dia'};
 
 function jornHms(str){
   if(!str) return 0;
@@ -23557,6 +23607,23 @@ function jornRenderEfic(){
     '</tbody></table>';
 }
 
+// DIAGNÓSTICO: conta quantas linhas do CSV daquele dia são descartadas pela
+// checagem de divergência (Total de horas ≠ soma dos segmentos) — a mesma
+// regra usada em jornComputeMotoristas/jornCalcularEstourados. Se esse número
+// bater com o total de motoristas do dia, é isso que está zerando o dia
+// inteiro no Dashboard/Mapa de Calor/Análise, mesmo ele aparecendo "importado
+// com sucesso" aqui na aba Importar (que só conta linhas brutas do CSV).
+function jornContarDivergentes(dia){
+  var n = 0;
+  dia.jornadaRows.forEach(function(row){
+    var nome = (row['Motorista']||'').trim();
+    if(!nome) return;
+    var totalH = jornHms(row['Total de horas']);
+    var somaSeg = jornHms(row['Jornada'])+jornHms(row['Direção'])+jornHms(row['Refeição'])+jornHms(row['Descanso'])+jornHms(row['Espera'])+jornHms(row['Repouso']);
+    if(Math.abs(totalH-somaSeg)>0.02) n++;
+  });
+  return n;
+}
 // ── IMPORTAR ─────────────────────────────────────────────────
 function jornLog(msg, erro){
   var el = document.getElementById('jorn-import-log');
@@ -23771,11 +23838,13 @@ function jornRenderImportPanel(){
   var lista = JORN_DIAS.slice().sort(function(a,b){ return b.data.localeCompare(a.data); });
   if(!lista.length){ el.innerHTML = '<div style="padding:24px;text-align:center;color:var(--txl);font-size:12px">Nenhum dia carregado ainda.</div>'; return; }
   el.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:12px">'+
-    '<thead><tr style="background:var(--bg-chip)"><th style="padding:9px 12px;text-align:left">Data</th><th style="padding:9px 12px;text-align:left">Tipo</th><th style="padding:9px 12px;text-align:right">Motoristas</th><th style="padding:9px 12px;text-align:right">Com Km</th><th style="padding:9px 12px"></th></tr></thead><tbody>'+
+    '<thead><tr style="background:var(--bg-chip)"><th style="padding:9px 12px;text-align:left">Data</th><th style="padding:9px 12px;text-align:left">Tipo</th><th style="padding:9px 12px;text-align:right">Motoristas</th><th style="padding:9px 12px;text-align:right">Com Km</th><th style="padding:9px 12px;text-align:right">Divergentes</th><th style="padding:9px 12px"></th></tr></thead><tbody>'+
     lista.map(function(d){
       var idxReal = JORN_DIAS.indexOf(d);
       var comKm = Object.keys(d.kmMap||{}).filter(function(k){ return d.kmMap[k]>0; }).length;
-      return '<tr style="border-top:1px solid var(--gb)"><td style="padding:7px 12px;font-weight:700">'+jornFmtDataCurta(d.data)+'</td><td style="padding:7px 12px">'+jornTipoLabel(d.tipo)+'</td><td style="padding:7px 12px;text-align:right">'+d.jornadaRows.length+'</td><td style="padding:7px 12px;text-align:right">'+comKm+'</td><td style="padding:7px 12px;text-align:right"><button class="btn-sec" style="padding:4px 10px;font-size:11px;color:#b3392c" onclick="jornRemoverDia('+idxReal+')">Remover</button></td></tr>';
+      var div = jornContarDivergentes(d);
+      var divTxt = div>0 ? '<span style="font-weight:800;color:'+(div===d.jornadaRows.length?'#b3261e':'#a9700b')+'" title="Linhas descartadas por Total de horas não bater com a soma dos segmentos — ficam de fora do Dashboard/Mapa de Calor/Análise.">'+div+'</span>' : '0';
+      return '<tr style="border-top:1px solid var(--gb)'+(div>0 && div===d.jornadaRows.length ? ';background:#fdf2f1' : '')+'"><td style="padding:7px 12px;font-weight:700">'+jornFmtDataCurta(d.data)+'</td><td style="padding:7px 12px">'+jornTipoLabel(d.tipo)+'</td><td style="padding:7px 12px;text-align:right">'+d.jornadaRows.length+'</td><td style="padding:7px 12px;text-align:right">'+comKm+'</td><td style="padding:7px 12px;text-align:right">'+divTxt+'</td><td style="padding:7px 12px;text-align:right"><button class="btn-sec" style="padding:4px 10px;font-size:11px;color:#b3392c" onclick="jornRemoverDia('+idxReal+')">Remover</button></td></tr>';
     }).join('')+
     '</tbody></table>';
 }
@@ -24289,6 +24358,17 @@ function abastImportar(input){
         }, 2000);
       }
 
+      // ── Override de mês/ano (opcional) ──────────────────────────────
+      // Quando preenchido, ignora o mês/ano da coluna de data da planilha —
+      // usado quando o lançamento foi feito manualmente depois do fato (ex:
+      // abastecimento de agosto lançado no sistema em 10/09). Mantém o dia
+      // e horário originais (só troca mês/ano), preservando a ordem relativa
+      // dos lançamentos dentro do arquivo.
+      var mesOverrideEl = document.getElementById('abast-import-mes-override');
+      var anoOverrideEl = document.getElementById('abast-import-ano-override');
+      var mesOverride = mesOverrideEl && mesOverrideEl.value ? parseInt(mesOverrideEl.value) : null;
+      var anoOverride = anoOverrideEl && anoOverrideEl.value ? parseInt(anoOverrideEl.value) : null;
+
       var existKeys=new Set(DB_ABAST.map(abastKey));
       var novos=0,duplic=0,ignorados=0;
 
@@ -24314,18 +24394,35 @@ function abastImportar(input){
           }
         }
         if(!dtObj||isNaN(dtObj)) return;
+        // Aplica o override de mês/ano, se selecionado — troca só mês/ano,
+        // mantém dia e horário originais (evita colapsar tudo no dia 1 e
+        // preserva a ordem relativa dos lançamentos dentro do arquivo).
+        if(mesOverride){
+          var diaOrig = dtObj.getDate();
+          var anoAlvo = anoOverride || dtObj.getFullYear();
+          // Garante um dia válido no mês de destino (ex: dia 31 em mês de 30 dias)
+          var ultimoDiaAlvo = new Date(anoAlvo, mesOverride, 0).getDate();
+          var diaAlvo = Math.min(diaOrig, ultimoDiaAlvo);
+          dtObj = new Date(anoAlvo, mesOverride-1, diaAlvo, dtObj.getHours(), dtObj.getMinutes(), dtObj.getSeconds());
+        }
         var dtStr=dtObj.getFullYear()+'-'+String(dtObj.getMonth()+1).padStart(2,'0')+'-'+String(dtObj.getDate()).padStart(2,'0');
         function pS(v){ return v===null||v===undefined?'':String(v).trim(); }
         var posto   = pS(iPosto>=0?r[iPosto]:'');
         var merc    = pS(iMerc>=0?r[iMerc]:'');
 
         // ── FILTRO FROTA PESADA: só existe no CSV "Análise de Consumo" da Veloe
-        // (coluna "Perfil de uso" = "PERFIL PLACAS PESADAS" ou "PERFIL PLACAS LEVES").
-        // O .xlsx tradicional não tem essa coluna — nesse caso iPerfil fica -1 e nada
-        // é filtrado aqui (mantém o comportamento de sempre pro formato antigo).
+        // (coluna "Perfil de uso"). Alguns exports usam 3 valores: "PERFIL PLACAS
+        // PESADAS", "PERFIL PLACAS LEVES" e "PERFIL PLACAS MEDIO" — o "MEDIO" é
+        // frota real (ex: utilitário de manutenção, 3/4 já cadastrado), não frota
+        // leve/passeio. CORREÇÃO (14/09): antes exigia conter "PESADA", o que
+        // descartava silenciosamente qualquer perfil "MEDIO" mesmo sendo veículo
+        // cadastrado na frota (ex: GAA6E91, GDY0C89 perderam 4 lançamentos de
+        // agosto por causa disso). Agora só descarta o que é explicitamente LEVE.
+        // O .xlsx tradicional não tem essa coluna — nesse caso iPerfil fica -1 e
+        // nada é filtrado aqui (mantém o comportamento de sempre pro formato antigo).
         if(iPerfil>=0){
           var perfilUpper = pS(r[iPerfil]).toUpperCase();
-          if(perfilUpper.indexOf('PESADA')<0){ ignorados++; return; }
+          if(perfilUpper.indexOf('LEVE')>=0){ ignorados++; return; }
         }
 
         // ── FILTRO DE MERCADORIA: aceita apenas Diesel e Arla ──────
@@ -24429,7 +24526,10 @@ function abastImportar(input){
         auditL[k] += (r.qtd||0);
       });
 
+      var mesesNomes=['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+      var overrideMsg = mesOverride ? '<b style="color:#1e40af">📅 Mês forçado: '+mesesNomes[mesOverride]+'/'+(anoOverride||new Date().getFullYear())+' (ignorando a data da planilha)</b><br>' : '';
       var auditHtml = '<div style="font-size:11px;line-height:1.8">'
+        + overrideMsg
         + '<b style="color:var(--gd)">✅ Importação concluída: '+novos+' novos'+(duplic?' · '+duplic+' duplic.':'')+(ignorados?' · '+ignorados+' ignorados (Etanol/Gasolina)':'')+'</b><br>'
         + '<table style="width:100%;border-collapse:collapse;margin-top:8px;font-size:11px">'
         + '<tr style="background:var(--gbg)"><th style="text-align:left;padding:4px 8px;border:1px solid var(--gb)">Operação / Centro</th>'
@@ -30833,10 +30933,15 @@ function perfCalcRanking(mes, cat, mesAte){
     ag.cat      = ag.cat      || r.cat      || '';
   });
 
+  var filialSel = frotaFilialSelecionada();
+  var opSel = frotaOpSelecionada();
   Object.keys(placaAgg).forEach(function(placa){
+    if(filialSel!=='GERAL' && frotaFilialPorPlaca(placa)!==filialSel) return;
+    if(opSel && frotaOpPorPlaca(placa)!==opSel) return;
     var r = placaAgg[placa];
-    var catPlaca = perfNormCat(r.cat || PERF_CATS[placa] || '');
-    if(cat && catPlaca !== cat) return;
+    var catPlaca = perfNormCat(r.cat || PERF_CATS[placa] || perfCategoriaOficialPorPlaca(placa) || '');
+    if(cat){ if(catPlaca !== cat) return; }
+    else if(!perfEhCategoriaOperacional(catPlaca)) return; // sem filtro de categoria: só frota operacional
 
     var metas = PERF_METAS[catPlaca] || {mes:8000, dia:400};
     var mediaDia = r.nv > 0 ? Math.round(r.km / r.nv) : null;
@@ -30918,10 +31023,13 @@ function perfKmMensalMesTotal(ano, mes, cat){
   var kmMensal = perfKmMensalLoad();
   var dados = kmMensal[ano+'_'+mes];
   if(!dados) return null;
+  dados = perfFiltraDadosContexto(dados);
   var tot=0, achou=false;
   Object.keys(dados).forEach(function(placa){
     var d = dados[placa];
-    if(cat && perfNormCat(d.cat)!==perfNormCat(cat)) return;
+    var cEfetiva = perfCategoriaEfetivaPlaca(placa, d);
+    if(cat){ if(cEfetiva!==perfNormCat(cat)) return; }
+    else if(!perfEhCategoriaOperacional(cEfetiva)) return; // total geral: só frota operacional
     tot += (d.km||0); achou=true;
   });
   return achou ? tot : null;
@@ -30948,15 +31056,105 @@ function perfCategoriaOficialPorPlaca(placa){
   var veic = frotaViva.find(function(v){ return intPlacaNorm(v.id||v.cavalo||'')===placaNorm; });
   return veic ? veic.tipo : null;
 }
-function perfKmMensalPorCategoria(ano, mes){
+// ── Categoria efetiva de um registro de Km Mensal (mesma regra usada em
+// perfKmMensalPorCategoria) — pra reaproveitar em todas as demais funções
+// de agregação sem duplicar a lógica de fallback.
+function perfCategoriaEfetivaPlaca(placa, d){
+  return perfNormCat(perfCategoriaOficialPorPlaca(placa) || (d && d.cat));
+}
+// ── Categorias OPERACIONAIS — as que efetivamente rodam frete/rota e entram
+// nos totais/médias "sem filtro de categoria" do dashboard. "Frota
+// Administrativa" (utilitário, munck) e qualquer categoria não reconhecida
+// ficam de fora do agregado geral — só aparecem se o usuário filtrar
+// explicitamente por elas no seletor de categoria. Pedido explícito do
+// usuário (14/09): o total e a contagem de "Veículos Operacionais" não
+// devem contar veículos administrativos/fora de categoria.
+var CATEGORIAS_OPERACIONAIS = ['BITRUCK SILO','BITRUCK','TRUCK','BITREM','RODOTREM','LS','4° EIXO','CARRETA SILO','3/4'];
+function perfEhCategoriaOperacional(catNorm){
+  return CATEGORIAS_OPERACIONAIS.indexOf(catNorm) >= 0;
+}
+// ── Filial do veículo (MATRIZ ou BOM_DESPACHO) ──────────────────
+// Campo novo no cadastro de Frota (ver FROTA_SEED, 14/09/2026). Independente
+// do campo "op" (AQUA/PET/etc — divisão de negócio), pois um veículo pode
+// pertencer a uma divisão de negócio e estar fisicamente baseado em outra
+// filial. Veículo não cadastrado com "filial" explícita (todo o cadastro
+// anterior a essa data) é tratado como MATRIZ por padrão — comportamento
+// já existente preservado.
+function frotaFilialPorPlaca(placa){
+  var frotaViva = (typeof DB_FROTA!=='undefined' && DB_FROTA.length) ? DB_FROTA : (typeof FROTA_SEED!=='undefined'?FROTA_SEED:[]);
+  var placaNorm = intPlacaNorm(placa);
+  var veic = frotaViva.find(function(v){ return intPlacaNorm(v.id||v.cavalo||'')===placaNorm; });
+  return (veic && veic.filial) ? veic.filial : 'MATRIZ';
+}
+// ── Filtro de Filial do Dashboard (Matriz / Bom Despacho / Frota Geral) ──
+// Lido diretamente do seletor da tela (mesmo padrão já usado para "cat" em
+// várias telas deste arquivo) para não precisar alterar a assinatura de
+// todas as funções que consomem KM Mensal. "MATRIZ" é o padrão/base da
+// página (pedido explícito do usuário); "GERAL" desliga o filtro.
+function frotaFilialSelecionada(){
+  var el = document.getElementById('frota-dash-filial');
+  return el ? (el.value || 'MATRIZ') : 'MATRIZ';
+}
+function perfFiltraDadosPorFilial(dados, filial){
+  filial = filial || frotaFilialSelecionada();
+  if(!dados || filial==='GERAL') return dados;
+  var out = {};
+  Object.keys(dados).forEach(function(placa){
+    if(frotaFilialPorPlaca(placa)===filial) out[placa]=dados[placa];
+  });
+  return out;
+}
+// ── Divisão de negócio do veículo (AQUA / PET / etc — campo "op" do
+// cadastro de Frota). Usado pro filtro "Aqua + Pet / Aqua / Pet" do
+// dashboard, pra analisar a frota AQUA da Matriz separada da PET.
+function frotaOpPorPlaca(placa){
+  var frotaViva = (typeof DB_FROTA!=='undefined' && DB_FROTA.length) ? DB_FROTA : (typeof FROTA_SEED!=='undefined'?FROTA_SEED:[]);
+  var placaNorm = intPlacaNorm(placa);
+  var veic = frotaViva.find(function(v){ return intPlacaNorm(v.id||v.cavalo||'')===placaNorm; });
+  return (veic && veic.op) ? String(veic.op).toUpperCase() : '';
+}
+function frotaOpSelecionada(){
+  var el = document.getElementById('frota-dash-op');
+  return el ? (el.value || '') : '';
+}
+function perfFiltraDadosPorOp(dados, op){
+  op = (op===undefined) ? frotaOpSelecionada() : op;
+  if(!dados || !op) return dados;
+  var out = {};
+  Object.keys(dados).forEach(function(placa){
+    if(frotaOpPorPlaca(placa)===op) out[placa]=dados[placa];
+  });
+  return out;
+}
+// Aplica os dois filtros de contexto do dashboard (Filial + Aqua/Pet) juntos,
+// na ordem certa, sempre que uma função lê o KM Mensal de um mês inteiro.
+function perfFiltraDadosContexto(dados){
+  return perfFiltraDadosPorOp(perfFiltraDadosPorFilial(dados));
+}
+// ── Dados do mês já filtrados por filial + apenas categorias operacionais —
+// usado pelas funções "sem categoria" (total geral, média, contagem de
+// veículos) pra não misturar frota administrativa no agregado.
+function perfDadosOperacionaisMes(ano, mes){
   var kmMensal = perfKmMensalLoad();
-  var dados = kmMensal[ano+'_'+mes] || {};
+  var dados = perfFiltraDadosContexto(kmMensal[ano+'_'+mes]);
+  if(!dados) return null;
   var out = {};
   Object.keys(dados).forEach(function(placa){
     if(PLACAS_FORA_RANKING_CATEGORIA.indexOf(placa)>=0) return;
     var d = dados[placa];
-    var catOficial = perfCategoriaOficialPorPlaca(placa);
-    var c = perfNormCat(catOficial || d.cat);
+    if(!perfEhCategoriaOperacional(perfCategoriaEfetivaPlaca(placa, d))) return;
+    out[placa] = d;
+  });
+  return Object.keys(out).length ? out : null;
+}
+function perfKmMensalPorCategoria(ano, mes){
+  var kmMensal = perfKmMensalLoad();
+  var dados = perfFiltraDadosContexto(kmMensal[ano+'_'+mes] || {});
+  var out = {};
+  Object.keys(dados).forEach(function(placa){
+    if(PLACAS_FORA_RANKING_CATEGORIA.indexOf(placa)>=0) return;
+    var d = dados[placa];
+    var c = perfCategoriaEfetivaPlaca(placa, d);
     if(!out[c]) out[c] = {km:0, veic:0};
     out[c].km += (d.km||0);
     out[c].veic += 1;
@@ -30975,8 +31173,7 @@ function perfKmMedioDiaMes(ano, mes, cat){
     if(!c || !c.veic) return null;
     total = c.km; veic = c.veic;
   } else {
-    var kmMensal = perfKmMensalLoad();
-    var dados = kmMensal[ano+'_'+mes];
+    var dados = perfDadosOperacionaisMes(ano, mes);
     if(!dados) return null;
     var placas = Object.keys(dados);
     if(!placas.length) return null;
@@ -30993,8 +31190,7 @@ function perfKmMedioVeiculoMes(ano, mes, cat){
     var c = porCat[perfNormCat(cat)];
     return (c && c.veic) ? c.km/c.veic : null;
   }
-  var kmMensal = perfKmMensalLoad();
-  var dados = kmMensal[ano+'_'+mes];
+  var dados = perfDadosOperacionaisMes(ano, mes);
   if(!dados) return null;
   var placas = Object.keys(dados);
   if(!placas.length) return null;
@@ -31005,14 +31201,16 @@ function perfKmMedioVeiculoMes(ano, mes, cat){
 // Quantidade de veículos com KM Mensal importado no mês (frota ou categoria) —
 // usado como linha de contexto nos gráficos de evolução, para explicar variações
 // de média que não são refletidas no Km Total (ex: menos veículos reportando dado).
+// CORREÇÃO (14/09): a contagem "sem categoria" (frota total) não deve contar
+// veículos de Frota Administrativa nem categorias não reconhecidas — só o que
+// de fato roda frete/rota entra nesse número (pedido explícito do usuário).
 function perfKmMensalVeiculoCount(ano, mes, cat){
   if(cat){
     var porCat = perfKmMensalPorCategoria(ano, mes);
     var c = porCat[perfNormCat(cat)];
     return (c && c.veic) ? c.veic : null;
   }
-  var kmMensal = perfKmMensalLoad();
-  var dados = kmMensal[ano+'_'+mes];
+  var dados = perfDadosOperacionaisMes(ano, mes);
   var n = dados ? Object.keys(dados).length : 0;
   return n>0 ? n : null;
 }
@@ -31831,18 +32029,22 @@ function frotaDashInit(){
   var mes = (mesEl && mesEl.value!=='') ? parseInt(mesEl.value) : (mesEl ? '' : 4);
   var mesAte = (mesAteEl && mesAteEl.value!=='') ? parseInt(mesAteEl.value) : '';
   var cat=(document.getElementById('frota-dash-cat')||{}).value||'';
+  var filial=frotaFilialSelecionada();
+  var op=frotaOpSelecionada();
   var meses=['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  var filialLbl={MATRIZ:'Matriz',BOM_DESPACHO:'Bom Despacho',GERAL:'Frota Geral'}[filial]||'Matriz';
+  var opLbl={AQUA:'Aqua',PET:'Pet'}[op]||'Aqua+Pet';
   var sub=document.getElementById('frota-dash-sub');
   if(sub){
     var rotuloPeriodo;
     if(!mes) rotuloPeriodo = '2026 (todos os meses)';
     else if(mesAte && mesAte>mes) rotuloPeriodo = meses[mes]+' a '+meses[mesAte]+' 2026';
     else rotuloPeriodo = meses[mes]+' 2026';
-    sub.textContent='KM/dia · Ranking · '+(cat||'Todas categorias')+' · '+rotuloPeriodo;
+    sub.textContent='KM/dia · Ranking · '+filialLbl+' · '+opLbl+' · '+(cat||'Todas categorias')+' · '+rotuloPeriodo;
   }
 
-  // Cache: evita recalcular quando mesmo mes+cat
-  var _cacheKey = mes+'_'+mesAte+'_'+cat;
+  // Cache: evita recalcular quando mesmo mes+cat+filial+op
+  var _cacheKey = mes+'_'+mesAte+'_'+cat+'_'+filial+'_'+op;
   var ranking;
   if(!frotaDashInit._cache || frotaDashInit._cache.key !== _cacheKey){
     ranking = perfCalcRanking(mes,cat,mesAte);
@@ -31852,8 +32054,8 @@ function frotaDashInit(){
   }
 
   perfRenderKPIs(mes,ranking);
-  // Gráficos: re-renderiza apenas quando muda o mês (não quando filtra categoria)
-  var _evKey = mes+'_'+cat;
+  // Gráficos: re-renderiza apenas quando muda o mês, categoria, filial ou divisão
+  var _evKey = mes+'_'+cat+'_'+filial+'_'+op;
   if(!frotaDashInit._lastMes || frotaDashInit._lastMes !== _evKey){
     perfRenderEvolucao(cat);
     frotaDashInit._lastMes = _evKey;
@@ -32639,38 +32841,82 @@ function perfImportarMensal(input){
       var ws   = wb.Sheets[wb.SheetNames[0]];
       var rows = XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
 
-      var iPlaca=-1, iKm=-1;
-      (rows[0]||[]).forEach(function(h,i){
-        var hs=String(h||'').toLowerCase().trim();
-        if(hs.indexOf('placa')>=0&&iPlaca<0) iPlaca=i;
-        if(hs==='km'&&iKm<0) iKm=i;
-      });
+      // CORREÇÃO (14/09): o arquivo exportado pelo rastreador pode trazer 1-2
+      // linhas de preâmbulo antes do cabeçalho de verdade (ex: "Filtros
+      // aplicados: ..." + linha em branco), então o cabeçalho nem sempre está
+      // em rows[0] — antes disso fazia a importação inteira falhar com
+      // "Colunas não identificadas". Agora procura a linha de cabeçalho nas
+      // primeiras linhas do arquivo. Também a coluna de Km real se chama
+      // "Km Total" (não "Km" sozinho), por isso a busca usa indexOf('km')
+      // em vez de igualdade exata.
+      var iPlaca=-1, iKm=-1, iUnidade=-1, headerRow=0;
+      for(var hIdx=0; hIdx<Math.min(10, rows.length); hIdx++){
+        var _iPlaca=-1, _iKm=-1, _iUnidade=-1;
+        (rows[hIdx]||[]).forEach(function(h,i){
+          var hs=String(h||'').toLowerCase().trim();
+          if(hs.indexOf('placa')>=0&&_iPlaca<0) _iPlaca=i;
+          if(hs.indexOf('km')>=0&&_iKm<0) _iKm=i;
+          if(hs.indexOf('unidade')>=0&&_iUnidade<0) _iUnidade=i;
+        });
+        if(_iPlaca>=0 && _iKm>=0){
+          iPlaca=_iPlaca; iKm=_iKm; iUnidade=_iUnidade; headerRow=hIdx; break;
+        }
+      }
       if(iPlaca<0||iKm<0){ toast('Colunas não identificadas','error'); return; }
 
       var mesKey = ano+'_'+mes;
       var kmMensalAtual = perfKmMensalLoad(); // só LEITURA aqui — nada é salvo ainda
       var existente = kmMensalAtual[mesKey] || {};
 
+      // Placas com erro de digitação já confirmado no rastreador (dígito/letra
+      // trocados na exportação) — corrigidas na leitura para a placa real já
+      // cadastrada na Frota. FCC9995 → FCC9J95 confirmado em 14/09/2026.
+      var PERF_PLACA_CORRECOES = {'FCC9995':'FCC9J95'};
+
       // Monta a lista de mudanças propostas, SEM gravar nada — cada item já mostra
       // se é uma placa nova ou uma atualização, e o valor anterior pra comparação.
-      var mudancas = []; var puladas = []; var divergencias = [];
-      rows.slice(1).forEach(function(row, idx){
+      // CORREÇÃO (14/09): linhas da MESMA placa aparecendo mais de uma vez no
+      // arquivo (ex: um cavalo que puxou implementos diferentes no mês, como
+      // CLW4A48 puxando ora Carreta Silo ora Bitrem) têm o Km SOMADO numa única
+      // mudança — antes, a segunda linha simplesmente sobrescrevia a primeira e
+      // parte do Km rodado no mês era perdida silenciosamente.
+      // Frota leve é descartada automaticamente (checando tanto o prefixo da
+      // placa quanto a coluna "Unidade", já que nem sempre o prefixo contém a
+      // palavra "LEVE" — ex: prefixo "B D" sob Unidade "FROTA LEVE").
+      var porPlacaTmp = {}; var puladas = []; var divergencias = [];
+      rows.slice(headerRow+1).forEach(function(row, idx){
+        var linhaPlanilha = headerRow+idx+2;
         var cel = String(row[iPlaca]||'').trim();
         if(!cel) return;
         var m = cel.match(/\/\s*([A-Z0-9]{6,8})\s*$/i);
-        if(!m){ puladas.push({linha:idx+2, valor:cel}); return; }
+        if(!m){ puladas.push({linha:linhaPlanilha, valor:cel}); return; }
         var placa = m[1].toUpperCase();
+        placa = PERF_PLACA_CORRECOES[placa] || placa;
+        var prefixo = cel.split('/')[0];
+        var unidadeCel = iUnidade>=0 ? String(row[iUnidade]||'') : '';
+        if(/LEVE/i.test(prefixo) || /LEVE/i.test(unidadeCel)){
+          puladas.push({linha:linhaPlanilha, valor:cel, motivo:'Frota leve — descartada automaticamente'}); return;
+        }
         var km = parseFloat(String(row[iKm]||'0').replace(',','.'));
-        if(!km||km<=0){ puladas.push({linha:idx+2, valor:cel, motivo:'Km vazio ou zero'}); return; }
-        var cat = perfNormCat(cel.split('/')[0]);
+        if(!km||km<=0){ puladas.push({linha:linhaPlanilha, valor:cel, motivo:'Km vazio ou zero'}); return; }
+        var cat = perfNormCat(prefixo);
+        if(!porPlacaTmp[placa]) porPlacaTmp[placa] = {cat:cat, km:0, linhas:0};
+        porPlacaTmp[placa].km += km;
+        porPlacaTmp[placa].linhas += 1;
+      });
+
+      var mudancas = [];
+      Object.keys(porPlacaTmp).forEach(function(placa){
+        var t = porPlacaTmp[placa];
+        var kmFinal = round2(t.km);
         var anterior = existente[placa] ? existente[placa].km : null;
-        mudancas.push({placa:placa, cat:cat, kmNovo:round2(km), kmAntigo:anterior, novo:(anterior===null)});
+        mudancas.push({placa:placa, cat:t.cat, kmNovo:kmFinal, kmAntigo:anterior, novo:(anterior===null), somado:(t.linhas>1)});
 
         var resumoKey = placa+'_'+mesKey;
         var acum = PERF_RESUMO[resumoKey] ? round2(PERF_RESUMO[resumoKey].km) : null;
         if(acum!==null){
-          var diff = Math.abs(km-acum);
-          if(diff > 50) divergencias.push({placa:placa,mensal:km,diario:acum,diff:round2(diff)});
+          var diff = Math.abs(kmFinal-acum);
+          if(diff > 50) divergencias.push({placa:placa,mensal:kmFinal,diario:acum,diff:round2(diff)});
         }
       });
 
@@ -32718,6 +32964,13 @@ function perfImportarMensal(input){
           +divergencias.slice(0,10).map(function(d){ return '<tr><td>'+d.placa+'</td><td>'+d.mensal.toLocaleString('pt-BR')+'</td><td>'+d.diario.toLocaleString('pt-BR')+'</td><td style="color:#dc2626;font-weight:700">'+d.diff.toLocaleString('pt-BR')+'</td></tr>'; }).join('')
           +'</table></div>'
         : '';
+      var somadas = mudancas.filter(function(m2){ return m2.somado; });
+      var somadasHtml = somadas.length
+        ? '<div style="margin-top:10px;padding:10px;background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;font-size:11px">'
+          +'<b style="color:#1e40af">ℹ️ '+somadas.length+' placa(s) apareceram em mais de uma linha do arquivo — o Km foi somado:</b> '
+          +somadas.map(function(m2){ return m2.placa+' ('+m2.kmNovo.toLocaleString('pt-BR')+' km)'; }).join(', ')
+          +'</div>'
+        : '';
 
       var prevEl = document.getElementById('imp-mensal-preview');
       if(prevEl) prevEl.innerHTML =
@@ -32727,7 +32980,7 @@ function perfImportarMensal(input){
         +resumoCatHtml + naoTocadasHtml
         +'<button class="btn-prim" style="margin-top:12px" onclick="perfConfirmarImportarMensal()">✅ Confirmar Importação</button>'
         +'<button class="btn-sec" style="margin-top:12px;margin-left:8px" onclick="perfCancelarImportarMensal()">Cancelar</button>'
-        +'</div>' + puladasHtml + divHtml;
+        +'</div>' + somadasHtml + puladasHtml + divHtml;
 
       input.value='';
     }catch(err){ toast('Erro: '+err.message,'error'); }
