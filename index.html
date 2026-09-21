@@ -545,14 +545,10 @@ if(location.protocol!=='file:'){
       // que está sendo enviado com o que já existe na nuvem. Se a gravação reduzir
       // drasticamente a quantidade de itens (ex: cache antigo sendo empurrado por
       // engano), bloqueia e avisa em vez de sobrescrever silenciosamente.
-      function contarItens(raw){
-        try{
-          var parsed = JSON.parse(raw);
-          if(Array.isArray(parsed)) return parsed.length;
-          if(parsed && typeof parsed==='object') return Object.keys(parsed).length;
-        }catch(e){}
-        return null;
-      }
+      // Usa a mesma contagem "profunda" corrigida (FB._contarItens) — antes essa
+      // cópia local tinha a versão antiga (só contava chaves de 1º nível),
+      // deixando a proteção abaixo cega pro formato da Gestão de Jornada.
+      function contarItens(raw){ return FB._contarItens(raw); }
       var novoCount = contarItens(value);
       firebase.database().ref('sync/'+fbSafeKey(key)).once('value').then(function(snap){
         var remote = snap.val();
@@ -759,10 +755,16 @@ if(location.protocol!=='file:'){
             var bAuto = document.createElement('div');
             bAuto.id = 'exclusao-recente-bloqueada-banner';
             bAuto.style.cssText = 'position:fixed;bottom:20px;right:20px;background:#fef3c7;border:2px solid #d97706;color:#92400e;padding:14px 18px;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.2);z-index:99999;font-size:13px;max-width:340px';
-            bAuto.innerHTML = '<b>⚠️ Viagens recentes preservadas</b><br>'+removidosSuspeitos.length+' viagem(ns) recente(s) sumiram da sua tela, mas NÃO foram apagadas da nuvem (proteção automática). Recarregue a página (F5) pra ver o estado correto.<br><button onclick="this.parentElement.remove()" style="margin-top:8px;padding:6px 14px;border:none;border-radius:6px;background:#92400e;color:#fff;cursor:pointer;font-weight:700">Entendi</button>';
+            bAuto.innerHTML = '<b>⚠️ Viagens recentes preservadas</b><br>'+removidosSuspeitos.length+' viagem(ns) recente(s) sumiram da sua tela, mas NÃO foram apagadas da nuvem (proteção automática). Já estamos buscando a versão correta agora — deve aparecer sozinho em instantes.<br><button onclick="this.parentElement.remove()" style="margin-top:8px;padding:6px 14px;border:none;border-radius:6px;background:#92400e;color:#fff;cursor:pointer;font-weight:700">Entendi</button>';
             if(document.body) document.body.appendChild(bAuto);
           }
           removidosSuspeitos.forEach(function(id){ delete FB._ultimoEstadoViagens[id]; }); // não repete o aviso pra sempre, mas não apaga
+          // CORREÇÃO (18/09): antes, depois de bloquear a exclusão suspeita, o
+          // sistema só avisava e pedia F5 manual — a tela local continuava
+          // mostrando os registros "sumidos" até alguém notar o aviso e agir.
+          // Agora puxa a versão correta da nuvem na hora, automaticamente —
+          // a recuperação não depende mais de nenhuma ação da pessoa.
+          FB._pullViagensPorRegistro();
         }
         removidos = removidosOk;
       }
@@ -1244,14 +1246,8 @@ if(location.protocol!=='file:'){
           var ts = remote._ts||0;
           if(ts <= getKnownTs(key)) return;
 
-          function contarItens(raw){
-            try{
-              var parsed = JSON.parse(raw);
-              if(Array.isArray(parsed)) return parsed.length;
-              if(parsed && typeof parsed==='object') return Object.keys(parsed).length;
-            }catch(e){}
-            return null;
-          }
+          // Mesma contagem "profunda" corrigida usada no envio (FB._contarItens).
+          function contarItens(raw){ return FB._contarItens(raw); }
           var atual = null;
           try{ atual = origGetItem ? origGetItem(key) : localStorage.getItem(key); }catch(e){}
 
@@ -1313,12 +1309,39 @@ if(location.protocol!=='file:'){
       }).catch(function(){ return remoteRaw; });
     },
     // ── Contagem de itens compartilhada (evita duplicar a mesma função em 3 lugares) ──
+    // CORREÇÃO (17/09): contava só as chaves de primeiro nível do objeto. Pra
+    // a maioria das chaves sincronizadas (arrays simples) isso funciona, mas
+    // pra um "contêiner" como o da Gestão de Jornada — {dias:[...],
+    // rhDados:{...}, motivos:{...}, casosStatus:{...}} — o número de chaves de
+    // primeiro nível é sempre 4, não importa se "dias" tem 20 registros ou 2.
+    // Isso deixava a proteção contra sobrescrita "cega": uma cópia antiga (bem
+    // menor por dentro) conseguia substituir uma mais completa na nuvem sem
+    // nunca disparar o alerta de "redução suspeita". Agora, quando os valores
+    // do objeto são coleções (arrays/objetos), soma o tamanho de cada uma —
+    // refletindo a quantidade real de dados guardados, não só a "forma" do
+    // contêiner por fora.
     _contarItens:function(raw){
       try{
-        var parsed = JSON.parse(raw);
-        if(Array.isArray(parsed)) return parsed.length;
-        if(parsed && typeof parsed==='object') return Object.keys(parsed).length;
+        var parsed = (typeof raw==='string') ? JSON.parse(raw) : raw;
+        return FB._contarProfundo(parsed);
       }catch(e){}
+      return null;
+    },
+    _contarProfundo:function(v){
+      if(Array.isArray(v)) return v.length;
+      if(v && typeof v==='object'){
+        var keys = Object.keys(v);
+        var temColecoes = keys.some(function(k){ var vv=v[k]; return Array.isArray(vv) || (vv && typeof vv==='object'); });
+        if(temColecoes){
+          return keys.reduce(function(acc,k){
+            var vv = v[k];
+            if(Array.isArray(vv)) return acc + vv.length;
+            if(vv && typeof vv==='object') return acc + Object.keys(vv).length;
+            return acc + 1;
+          }, 0);
+        }
+        return keys.length;
+      }
       return null;
     },
     // ── Mesclagem automática (em vez de bloquear e exigir ação manual) ──
@@ -1328,6 +1351,39 @@ if(location.protocol!=='file:'){
     // duplicado por engano em algum momento — duplicata exata é automaticamente
     // eliminada). Objetos: mescla chave a chave. Se as formas forem incompatíveis,
     // devolve null e quem chamou cai no bloqueio de segurança como antes.
+    // ── Mesclagem específica da Gestão de Jornada ────────────────────────
+    // O valor salvo aqui não é uma lista simples — é {dias:[...],
+    // rhDados:{...}, motivos:{...}, casosStatus:{...}}. O merge genérico
+    // (_mergeValues) faz Object.assign raso nesse caso, o que substitui o
+    // array "dias" INTEIRO de um lado pelo do outro (perde dias reais em vez
+    // de uni-los). Esta função une de verdade: por data dentro de "dias"
+    // (fica com quem tem mais linhas de motorista naquele dia — mais
+    // completo, não necessariamente "o mais novo"), e por chave dentro dos
+    // demais campos.
+    _mergeJornada:function(localRaw, remoteRaw){
+      try{
+        var local = JSON.parse(localRaw), remoto = JSON.parse(remoteRaw);
+        var porData = {};
+        (remoto.dias||[]).forEach(function(d){ porData[d.data] = d; });
+        (local.dias||[]).forEach(function(d){
+          var existente = porData[d.data];
+          var linhasNovo = (d.jornadaRows||[]).length;
+          var linhasExistente = existente ? (existente.jornadaRows||[]).length : -1;
+          if(!existente || linhasNovo >= linhasExistente) porData[d.data] = d;
+        });
+        var out = { dias: Object.keys(porData).sort().map(function(k){ return porData[k]; }) };
+        var rhOut = {};
+        Object.keys(remoto.rhDados||{}).forEach(function(nome){ rhOut[nome] = Object.assign({}, remoto.rhDados[nome]); });
+        Object.keys(local.rhDados||{}).forEach(function(nome){
+          if(!rhOut[nome]) rhOut[nome] = {};
+          Object.assign(rhOut[nome], local.rhDados[nome]);
+        });
+        out.rhDados = rhOut;
+        out.motivos = Object.assign({}, remoto.motivos||{}, local.motivos||{});
+        out.casosStatus = Object.assign({}, remoto.casosStatus||{}, local.casosStatus||{});
+        return JSON.stringify(out);
+      }catch(e){ return null; }
+    },
     _mergeValues:function(localRaw, remoteRaw){
       try{
         var a = JSON.parse(localRaw), b = JSON.parse(remoteRaw);
@@ -1360,6 +1416,15 @@ if(location.protocol!=='file:'){
         console.warn('[FB Sync][diag] '+key+' caiu no merge antigo (por JSON), motivo: '+motivo);
         return Promise.resolve(FB._mergeValues(localRaw, remoteRaw));
       };
+      // A Jornada tem formato próprio ({dias, rhDados, motivos, casosStatus}) —
+      // usa a mesclagem estrutural dedicada em vez de cair no merge genérico
+      // (que faria Object.assign raso e substituiria "dias" inteiro em vez de
+      // unir por data).
+      if(key==='raguife_jornada_v1'){
+        var mesclado = FB._mergeJornada(localRaw, remoteRaw);
+        if(mesclado!=null) return Promise.resolve(mesclado);
+        return semLapide('mesclagem estrutural da Jornada falhou, caindo pro genérico');
+      }
       if(typeof firebase==='undefined') return semLapide('firebase indisponível');
       var a, b;
       try{ a = JSON.parse(localRaw); b = JSON.parse(remoteRaw); }catch(e){ return semLapide('JSON inválido: '+e.message); }
@@ -1509,6 +1574,17 @@ if(location.protocol!=='file:'){
             }
           }
         }catch(e){ console.warn('[FB Sync] reconstrução dos filtros falhou:', e.message); }
+      }
+      // Abastecimento: mesmo princípio — se a nuvem trouxe uma correção feita
+      // em outra sessão/dispositivo enquanto esta aba já está aberta,
+      // redesenha o Dashboard (onde ficam os gráficos de custo médio) sem
+      // precisar que a pessoa navegue pra fora e volte pra forçar o refresh.
+      if(key==='raguife_abast_v2'){
+        try{
+          var painelAbast = document.getElementById('tab-abastecimento');
+          var visivelAbast = painelAbast && painelAbast.classList.contains('active');
+          if(visivelAbast && typeof abastRenderDash==='function') abastRenderDash();
+        }catch(e){ console.warn('[FB Sync] atualização silenciosa do Abastecimento falhou:', e.message); }
       }
       // Gestão de Jornada: mesmo princípio dos blocos acima — se a nuvem trouxe um
       // dia importado (ou conciliação de RH) de outro navegador/computador enquanto
@@ -3404,6 +3480,24 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
     </div>
     <div style="background:#fff;border:1px solid var(--gb);border-radius:10px;padding:16px 20px">
       <div id="abast-import-log" style="font-size:12px;color:var(--txl);min-height:18px">Nenhum arquivo importado.</div>
+    </div>
+    <div style="background:#fff;border:1px solid var(--gb);border-radius:10px;overflow:hidden">
+      <div style="padding:11px 16px;border-bottom:1px solid var(--gb);background:var(--gbg)"><div style="font-size:12px;font-weight:800;color:var(--gd)">🛠️ Corrigir Preço Unitário (período específico)</div></div>
+      <div style="padding:14px 16px;display:flex;flex-direction:column;gap:10px">
+        <div style="font-size:11px;color:var(--txl)">Use isso quando o preço de um período específico veio errado no arquivo importado — corrige o preço unitário (vUnit) e recalcula o valor total (vTot) só dos lançamentos que casarem com os filtros abaixo. Não mexe em nenhum outro mês/tipo/mercadoria.</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">
+          <div class="form-grp"><label class="form-lbl">Mês</label><select id="abast-corr-mes" class="form-ctrl"><option value="1">Jan</option><option value="2">Fev</option><option value="3">Mar</option><option value="4">Abr</option><option value="5">Mai</option><option value="6">Jun</option><option value="7">Jul</option><option value="8" selected>Ago</option><option value="9">Set</option><option value="10">Out</option><option value="11">Nov</option><option value="12">Dez</option></select></div>
+          <div class="form-grp"><label class="form-lbl">Ano</label><input type="number" id="abast-corr-ano" class="form-ctrl" value="2026" style="width:90px"></div>
+          <div class="form-grp"><label class="form-lbl">Tipo</label><select id="abast-corr-tipo" class="form-ctrl"><option value="Interno">Interno</option><option value="Externo">Externo</option></select></div>
+          <div class="form-grp"><label class="form-lbl">Mercadoria</label><select id="abast-corr-merc" class="form-ctrl"><option value="Diesel S10">Diesel S10</option><option value="Arla 32">Arla 32</option><option value="Diesel Aditivado">Diesel Aditivado</option></select></div>
+          <div class="form-grp"><label class="form-lbl">Preço correto (R$/L)</label><input type="number" id="abast-corr-preco" class="form-ctrl" value="5.99" step="0.01" style="width:100px"></div>
+        </div>
+        <div style="display:flex;gap:10px">
+          <button class="btn-sec" style="padding:8px 14px" onclick="abastPreviewCorrecaoPreco()">👁️ Pré-visualizar efeito</button>
+          <button class="btn-sec" style="padding:8px 14px;background:var(--gd);color:#fff" id="abast-corr-aplicar-btn" onclick="abastAplicarCorrecaoPreco()" disabled>✅ Aplicar correção</button>
+        </div>
+        <div id="abast-corr-preview" style="font-size:12px;color:var(--txl)"></div>
+      </div>
     </div>
     <div style="background:#fff;border:1px solid var(--gb);border-radius:10px;overflow:hidden">
       <div style="padding:11px 16px;border-bottom:1px solid var(--gb);background:var(--gbg);display:flex;justify-content:space-between;align-items:center">
@@ -7161,7 +7255,7 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
       </div>
       <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">
         <button class="btn-sec" style="padding:9px 16px;background:var(--gd);color:#fff" onclick="jornDetectarEImportar()">🔎 Detectar e Importar</button>
-        <label class="btn-sec" style="padding:9px 16px;cursor:pointer">📋 Importar Relatório RH<input type="file" accept=".csv,.txt" style="display:none" onchange="jornImportarRelatorioRH(this)"></label>
+        <label class="btn-sec" style="padding:9px 16px;cursor:pointer">📋 Importar Relatório RH<input type="file" accept=".csv,.txt,.pdf" style="display:none" onchange="jornImportarRelatorioRH(this)"></label>
         <button class="btn-sec" style="padding:9px 16px" onclick="jornCarregarExemplo()">🧪 Carregar dados de exemplo</button>
         <button class="btn-sec" style="padding:9px 16px;color:#b3392c" onclick="jornLimparStorage()">🗑️ Limpar dados salvos no navegador</button>
       </div>
@@ -21053,6 +21147,21 @@ function pessRenderFerias(){
       vistos[chave] = true;
       return true;
     });
+    // CORREÇÃO (16/09): o campo "Agendamento" da tela Editar Motorista grava
+    // dt_agendamento direto no cadastro (PESS_MOT), mas este calendário só lia
+    // PESS_FER — uma lista SEPARADA de períodos de férias lançados por outro
+    // fluxo. Resultado: marcar um agendamento em Editar Motorista nunca
+    // aparecia aqui. Agora complementa com quem tem dt_agendamento caindo
+    // neste mês e ainda não foi contado via PESS_FER (evita duplicar quem já
+    // está nas duas fontes).
+    PESS_MOT.forEach(function(m){
+      if(!m.dt_agendamento || !/^\d{4}-\d{2}-\d{2}$/.test(m.dt_agendamento)) return;
+      if(m.dt_agendamento < inicioMes || m.dt_agendamento > fimMes) return;
+      var chave = m.placa || m.nome;
+      if(vistos[chave]) return;
+      vistos[chave] = true;
+      motMes.push({placa: m.placa||'—', nome: m.nome||'(sem nome)'});
+    });
     var cor = motMes.length===0 ? '#f3f4f6' : motMes.length<=2 ? '#dcfce7' : motMes.length<=4 ? '#fef9c3' : '#fee2e2';
     var textC = motMes.length===0 ? '#9ca3af' : '#374151';
     return '<div style="background:'+cor+';border-radius:8px;padding:10px;border:1px solid rgba(0,0,0,.06)">' +
@@ -21789,7 +21898,29 @@ function gpEditarMot(idx){
 }
 
 function gpExcluirMot(idx){
-  if(!confirm('Excluir motorista "'+PESS_MOT[idx].nome+'"?')) return;
+  var m = PESS_MOT[idx];
+  // CORREÇÃO (17/09): antes, "Excluir" sempre apagava o registro inteiro —
+  // como veículo e motorista ficam juntos no mesmo cadastro, excluir um
+  // veículo vendido também apagava a pessoa (nome, cadastro de férias,
+  // histórico) sem nenhum aviso disso. Agora pergunta explicitamente qual
+  // das duas coisas aconteceu de verdade, porque são ações bem diferentes:
+  // vender o veículo (a pessoa continua na empresa, só fica sem veículo por
+  // enquanto) vs. o motorista realmente sair (aí sim remove tudo).
+  if(m.placa){
+    var manterMotorista = confirm(
+      'O veículo "'+m.placa+'" foi VENDIDO/removido da frota, mas o motorista "'+m.nome+'" continua na empresa?\n\n'+
+      'OK = mantém o motorista (só desvincula o veículo, sem apagar cadastro/férias)\n'+
+      'Cancelar = na verdade o motorista TAMBÉM saiu da empresa (aí sim exclui tudo)'
+    );
+    if(manterMotorista){
+      m.placa = '';
+      gpAtualizarResumo(); gpSavePess(); gpRenderMotHist();
+      if(typeof pessRenderQuadro==='function'){ try{ pessRenderQuadro(); }catch(e){} }
+      toast('Veículo desvinculado — motorista "'+m.nome+'" mantido no cadastro','success');
+      return;
+    }
+  }
+  if(!confirm('Excluir DEFINITIVAMENTE o motorista "'+m.nome+'" (cadastro, férias e histórico)? Essa ação não tem desfazer automático.')) return;
   PESS_MOT.splice(idx,1);
   gpAtualizarResumo(); gpSavePess(); gpRenderMotHist();
   if(typeof pessRenderQuadro==='function'){ try{ pessRenderQuadro(); }catch(e){} }
@@ -22597,6 +22728,25 @@ var PERF_ULTIMOS3 = {"GAA5I61": {"2026-05-22": 7.26, "2026-05-21": 6.27, "2026-0
 
 var PERF_METAS = {"TRUCK": {"mes": 8000, "dia": 400}, "BITRUCK": {"mes": 8000, "dia": 400}, "LS": {"mes": 10000, "dia": 500}, "4° EIXO": {"mes": 10000, "dia": 500}, "BITREM": {"mes": 10000, "dia": 500}, "RODOTREM": {"mes": 10000, "dia": 500}, "BITRUCK SILO": {"mes": 10000, "dia": 500}, "CARRETA SILO": {"mes": 10000, "dia": 500}};
 var PERF_KM_ABR = {"FSK8E26": {"km": 6728.87, "cat": "TRUCK"}, "GAA5I03": {"km": 5162.77, "cat": "RODOTREM"}, "GAA5I61": {"km": 7934.65, "cat": "RODOTREM"}, "GAA5I62": {"km": 1849.96, "cat": "RODOTREM"}, "GAA4I81": {"km": 6533.57, "cat": "RODOTREM"}, "FDC4J74": {"km": 1254.31, "cat": "BITRUCK SILO"}, "GAA5I02": {"km": 6027.05, "cat": "RODOTREM"}, "GAA5I53": {"km": 5927.15, "cat": "RODOTREM"}, "FOV1C88": {"km": 8039.67, "cat": "LS"}, "FDC4J75": {"km": 3614.41, "cat": "BITRUCK SILO"}, "FJU7I19": {"km": 2570.3, "cat": "BITRUCK SILO"}, "FVU8I30": {"km": 5412.08, "cat": "BITRUCK SILO"}, "GJP1F30": {"km": 8406.09, "cat": "BITRUCK"}, "GAA0D77": {"km": 7836.07, "cat": "RODOTREM"}, "GBF7E64": {"km": 9960.5, "cat": "BITREM"}, "CLW4A48": {"km": 6310.97, "cat": "CARRETA SILO"}, "EBW2C85": {"km": 5956.64, "cat": "BITREM"}, "GAA6E91": {"km": 2266.34, "cat": "3"}, "GAA6B62": {"km": 7580.91, "cat": "4° EIXO"}, "GAA6C64": {"km": 7318.6, "cat": "4° EIXO"}, "GAA6H21": {"km": 7903.96, "cat": "4° EIXO"}, "GAA6H61": {"km": 5619.46, "cat": "4° EIXO"}, "FCC9995": {"km": 7170.73, "cat": "BITREM"}, "FCT5A75": {"km": 7438.3, "cat": "BITREM"}, "FRX7H66": {"km": 6110.59, "cat": "BITREM"}, "FWB2B34": {"km": 3851.26, "cat": "BITREM"}, "QPY8A58": {"km": 6784.91, "cat": "BITREM"}, "DUC3D40": {"km": 8559.85, "cat": "LS"}, "GAA1C63": {"km": 7562.09, "cat": "BITREM"}, "FZR4J59": {"km": 8336.95, "cat": "BITRUCK"}, "GAA0E42": {"km": 6731.81, "cat": "BITRUCK"}, "GAA2G22": {"km": 9700.01, "cat": "BITRUCK"}, "GAA3F91": {"km": 6901.94, "cat": "BITRUCK"}, "GAA6F11": {"km": 8228.1, "cat": "BITRUCK"}, "GAA6I31": {"km": 6402.03, "cat": "BITRUCK"}, "GAA6J73": {"km": 7614.48, "cat": "BITRUCK"}, "GIF9G20": {"km": 6118.49, "cat": "BITRUCK"}, "BBG1D34": {"km": 4781.48, "cat": "BITRUCK SILO"}, "BBR9F63": {"km": 6947.87, "cat": "BITRUCK SILO"}, "FRO7I25": {"km": 3465.3, "cat": "BITRUCK SILO"}, "FSG6F45": {"km": 3522.78, "cat": "BITRUCK SILO"}, "FVA7B11": {"km": 4742.7, "cat": "BITRUCK SILO"}, "FYA0E10": {"km": 1225.84, "cat": "BITRUCK SILO"}, "GAA5F32": {"km": 4108.43, "cat": "BITRUCK SILO"}, "GAA6D72": {"km": 6231.46, "cat": "BITRUCK SILO"}, "GAA6D71": {"km": 5447.51, "cat": "BITRUCK SILO"}, "GEJ1889": {"km": 1411.09, "cat": "BITRUCK SILO"}, "PQK3I28": {"km": 5126.64, "cat": "BITRUCK SILO"}, "GAA0D97": {"km": 8430.55, "cat": "CARRETA SILO"}, "GAA1C62": {"km": 9587.07, "cat": "LS"}, "GAA2J62": {"km": 8406.46, "cat": "LS"}, "GAA1C54": {"km": 7292.44, "cat": "LS"}, "ENN8F53": {"km": 7552.14, "cat": "RODOTREM"}, "GAA2D71": {"km": 7500.62, "cat": "RODOTREM"}, "GAA2G55": {"km": 5435.41, "cat": "RODOTREM"}, "GFI3F08": {"km": 6403.84, "cat": "RODOTREM"}, "GGS0E66": {"km": 5899.28, "cat": "RODOTREM"}, "EBK2I00": {"km": 7856.05, "cat": "TRUCK"}, "EOH0H57": {"km": 5809.06, "cat": "TRUCK"}};
+// CORREÇÃO (16/09): PERF_KM_ABR só existia pra Abril (nome literal já entrega),
+// mas o mecanismo de "usar o KM mensal OFICIAL importado em vez do somatório
+// diário" (mais confiável — é o dado consolidado real, não uma agregação de
+// leituras diárias que podem ter falhas) estava hardcoded pra funcionar só
+// nesse mês. Resultado: importar o KM Mensal de Agosto (ou qualquer mês além
+// de Abril) nunca alimentava esse mecanismo — o card "KM Total" do mês
+// continuava calculando pelos dados diários (incompletos), enquanto a tabela
+// "Km Total por Categoria" (outra função, sem essa limitação) já lia certo o
+// KM mensal oficial — daí os dois números baterem só em Abril e divergirem
+// em todo o resto. PERF_KM_OFICIAL_MES generaliza isso por mês; '2026_4'
+// aponta pro MESMO objeto de PERF_KM_ABR (não uma cópia), então todo código
+// antigo que ainda lê/escreve PERF_KM_ABR diretamente continua funcionando
+// exatamente igual, e por baixo dos panos já fica compatível com o novo
+// mecanismo genérico.
+var PERF_KM_OFICIAL_MES = {'2026_4': PERF_KM_ABR};
+function perfKmOficialMes(anoMesKey){
+  if(!PERF_KM_OFICIAL_MES[anoMesKey]) PERF_KM_OFICIAL_MES[anoMesKey] = {};
+  return PERF_KM_OFICIAL_MES[anoMesKey];
+}
 var PERF_RESUMO = {"GAA5I61_2026_4": {"km": 7808.19, "n": 23, "nv": 19, "nm": 1, "nb": 1, "nl": 0, "nc": 0, "condutor": "ALESSANDRO BALTAZAR MOLINA SANCHES", "cat": "RODOTREM"}, "FSK8E26_2026_4": {"km": 6687.63, "n": 23, "nv": 16, "nm": 1, "nb": 4, "nl": 2, "nc": 0, "condutor": "MARCOS CROCIARI", "cat": "TRUCK"}, "GAA5I53_2026_4": {"km": 5918.22, "n": 25, "nv": 16, "nm": 2, "nb": 6, "nl": 0, "nc": 0, "condutor": "EDUARDO GALTER", "cat": "RODOTREM"}, "GAA6B62_2026_4": {"km": 7580.93, "n": 27, "nv": 19, "nm": 2, "nb": 3, "nl": 0, "nc": 0, "condutor": "CLAUDECIR PINHEIRO", "cat": "4° EIXO"}, "GAA6C64_2026_4": {"km": 7242.81, "n": 25, "nv": 22, "nm": 0, "nb": 3, "nl": 0, "nc": 0, "condutor": "CLAUDEMIR TIOSSI", "cat": "4° EIXO"}, "GAA6H21_2026_4": {"km": 7903.9, "n": 28, "nv": 19, "nm": 1, "nb": 4, "nl": 1, "nc": 0, "condutor": "JOÃO CLAUDINEI", "cat": "4° EIXO"}, "GAA6H61_2026_4": {"km": 5540.78, "n": 26, "nv": 15, "nm": 2, "nb": 4, "nl": 1, "nc": 0, "condutor": "JULIANO EGIDIO", "cat": "4° EIXO"}, "EBW2C85_2026_4": {"km": 5956.47, "n": 26, "nv": 15, "nm": 1, "nb": 5, "nl": 0, "nc": 0, "condutor": "LEANDRO DIAS", "cat": "BITREM"}, "FCC9995_2026_4": {"km": 7170.71, "n": 25, "nv": 16, "nm": 1, "nb": 5, "nl": 0, "nc": 0, "condutor": "JULIO BISCAZI", "cat": "BITREM"}, "FCT5A75_2026_4": {"km": 7416.29, "n": 26, "nv": 22, "nm": 2, "nb": 2, "nl": 0, "nc": 0, "condutor": "JOSUE", "cat": "BITREM"}, "FRX7H66_2026_4": {"km": 6110.59, "n": 27, "nv": 18, "nm": 0, "nb": 5, "nl": 0, "nc": 1, "condutor": "LEANDRO FARUTHE", "cat": "BITREM"}, "FWB2B34_2026_4": {"km": 3851.26, "n": 22, "nv": 10, "nm": 6, "nb": 4, "nl": 0, "nc": 2, "condutor": "VALMIR", "cat": "BITREM"}, "GBF7E64_2026_4": {"km": 9960.48, "n": 30, "nv": 21, "nm": 3, "nb": 3, "nl": 0, "nc": 0, "condutor": "EMERSON MATHEUS", "cat": "BITREM"}, "QPY8A58_2026_4": {"km": 6784.92, "n": 25, "nv": 17, "nm": 1, "nb": 4, "nl": 1, "nc": 0, "condutor": "UELITON", "cat": "BITREM"}, "GAA1C63_2026_4": {"km": 7501.82, "n": 28, "nv": 21, "nm": 1, "nb": 3, "nl": 0, "nc": 0, "condutor": "DANIEL", "cat": "BITREM"}, "DUC3D40_2026_4": {"km": 10781.2, "n": 29, "nv": 25, "nm": 1, "nb": 3, "nl": 0, "nc": 0, "condutor": "HELIO", "cat": "LS"}, "FOV1C88_2026_4": {"km": 8032.89, "n": 26, "nv": 20, "nm": 1, "nb": 5, "nl": 0, "nc": 0, "condutor": "RODRIGO BATISTA", "cat": "LS"}, "GAA1C62_2026_4": {"km": 9587.06, "n": 27, "nv": 18, "nm": 0, "nb": 4, "nl": 0, "nc": 2, "condutor": "JEFERSON", "cat": "LS"}, "GAA2J62_2026_4": {"km": 8406.46, "n": 28, "nv": 18, "nm": 0, "nb": 8, "nl": 0, "nc": 0, "condutor": "EDSON BATISTA DOS SANTOS", "cat": "LS"}, "FZR4J59_2026_4": {"km": 8332.72, "n": 27, "nv": 21, "nm": 2, "nb": 3, "nl": 2, "nc": 0, "condutor": "ANDERSON", "cat": "BITRUCK"}, "GAA0E42_2026_4": {"km": 6731.83, "n": 26, "nv": 16, "nm": 2, "nb": 6, "nl": 1, "nc": 0, "condutor": "FLAVIO ANTONIO POLVERE", "cat": "BITRUCK"}, "GAA2G22_2026_4": {"km": 9700.02, "n": 27, "nv": 22, "nm": 1, "nb": 3, "nl": 1, "nc": 0, "condutor": "HARLEY", "cat": "BITRUCK"}, "GAA3F91_2026_4": {"km": 6901.93, "n": 26, "nv": 19, "nm": 2, "nb": 3, "nl": 2, "nc": 0, "condutor": "NATALICIO", "cat": "BITRUCK"}, "GAA6F11_2026_4": {"km": 8227.0, "n": 26, "nv": 21, "nm": 1, "nb": 4, "nl": 0, "nc": 0, "condutor": "PAULO LEITÃO", "cat": "BITRUCK"}, "GAA6I31_2026_4": {"km": 6310.31, "n": 24, "nv": 19, "nm": 0, "nb": 4, "nl": 1, "nc": 0, "condutor": "ADEMILSON", "cat": "BITRUCK"}, "GAA6J73_2026_4": {"km": 7614.46, "n": 26, "nv": 22, "nm": 1, "nb": 3, "nl": 0, "nc": 0, "condutor": "THOMPSON", "cat": "BITRUCK"}, "GIF9G20_2026_4": {"km": 6118.5, "n": 23, "nv": 14, "nm": 5, "nb": 3, "nl": 1, "nc": 0, "condutor": "PAULO SENICIATO", "cat": "BITRUCK"}, "GJP1F30_2026_4": {"km": 8406.08, "n": 26, "nv": 20, "nm": 0, "nb": 6, "nl": 1, "nc": 0, "condutor": "DANIELA", "cat": "BITRUCK"}, "BBG1D34_2026_4": {"km": 4781.49, "n": 25, "nv": 16, "nm": 0, "nb": 5, "nl": 2, "nc": 7, "condutor": "CLAUDEMIR MACHADO VIDAL", "cat": "BITRUCK SILO"}, "BBR9F63_2026_4": {"km": 6405.22, "n": 26, "nv": 18, "nm": 0, "nb": 3, "nl": 1, "nc": 8, "condutor": "VALDAIR", "cat": "BITRUCK SILO"}, "FDC4J75_2026_4": {"km": 3614.41, "n": 17, "nv": 10, "nm": 0, "nb": 5, "nl": 1, "nc": 0, "condutor": "SERGIO", "cat": "BITRUCK SILO"}, "FJU7I19_2026_4": {"km": 2570.27, "n": 22, "nv": 11, "nm": 1, "nb": 1, "nl": 5, "nc": 0, "condutor": "VARLEI", "cat": "BITRUCK SILO"}, "FRO7I25_2026_4": {"km": 3465.33, "n": 24, "nv": 10, "nm": 3, "nb": 6, "nl": 5, "nc": 0, "condutor": "ADRIANO DE JESUS FERRARI", "cat": "BITRUCK SILO"}, "FSG6F45_2026_4": {"km": 3802.76, "n": 22, "nv": 13, "nm": 2, "nb": 4, "nl": 3, "nc": 7, "condutor": "FRANCISCO", "cat": "BITRUCK SILO"}, "FVA7B11_2026_4": {"km": 4742.69, "n": 25, "nv": 18, "nm": 0, "nb": 4, "nl": 5, "nc": 4, "condutor": "ALEXANDRE", "cat": "BITRUCK SILO"}, "FVU8I30_2026_4": {"km": 5407.89, "n": 24, "nv": 15, "nm": 2, "nb": 4, "nl": 3, "nc": 0, "condutor": "SEM CONDUTOR", "cat": "BITRUCK SILO"}, "GAA5F32_2026_4": {"km": 4108.44, "n": 27, "nv": 20, "nm": 0, "nb": 0, "nl": 0, "nc": 21, "condutor": "ALCEMIR", "cat": "BITRUCK SILO"}, "GAA6D72_2026_4": {"km": 6231.49, "n": 23, "nv": 16, "nm": 1, "nb": 3, "nl": 4, "nc": 2, "condutor": "MARCO ANTONIO FERREIRA", "cat": "BITRUCK SILO"}, "GAA6G71_2026_4": {"km": 5447.53, "n": 28, "nv": 18, "nm": 0, "nb": 2, "nl": 0, "nc": 18, "condutor": "RONALDO", "cat": "BITRUCK SILO"}, "GEJ1889_2026_4": {"km": 1411.07, "n": 24, "nv": 8, "nm": 0, "nb": 0, "nl": 8, "nc": 0, "condutor": "DOUGLAS", "cat": "BITRUCK SILO"}, "PQK3I28_2026_4": {"km": 5126.64, "n": 22, "nv": 14, "nm": 0, "nb": 3, "nl": 4, "nc": 0, "condutor": "JEFFERSON RENZETE", "cat": "BITRUCK SILO"}, "CLW4A48_2026_4": {"km": 6310.98, "n": 19, "nv": 15, "nm": 0, "nb": 3, "nl": 0, "nc": 4, "condutor": "ANTONIO CARLOS FAV.", "cat": "CARRETA SILO"}, "GAA0D97_2026_4": {"km": 8430.55, "n": 26, "nv": 17, "nm": 0, "nb": 8, "nl": 0, "nc": 7, "condutor": "ELIEZER", "cat": "CARRETA SILO"}, "ENN8F53_2026_4": {"km": 7538.34, "n": 26, "nv": 19, "nm": 0, "nb": 3, "nl": 0, "nc": 0, "condutor": "ALCINO", "cat": "RODOTREM"}, "GAA0D77_2026_4": {"km": 7745.14, "n": 27, "nv": 20, "nm": 2, "nb": 3, "nl": 0, "nc": 3, "condutor": "CLEBER", "cat": "RODOTREM"}, "GAA2D71_2026_4": {"km": 7500.4, "n": 26, "nv": 20, "nm": 1, "nb": 4, "nl": 0, "nc": 0, "condutor": "PAULO LOPES", "cat": "RODOTREM"}, "GAA2G55_2026_4": {"km": 5435.42, "n": 28, "nv": 16, "nm": 2, "nb": 4, "nl": 0, "nc": 0, "condutor": "FABIO", "cat": "RODOTREM"}, "GAA4I81_2026_4": {"km": 6533.57, "n": 26, "nv": 18, "nm": 2, "nb": 4, "nl": 0, "nc": 1, "condutor": "ALENIR", "cat": "RODOTREM"}, "GAA5I02_2026_4": {"km": 5109.78, "n": 22, "nv": 14, "nm": 1, "nb": 4, "nl": 0, "nc": 0, "condutor": "EDSON GONCALVES DE AGUIAR", "cat": "RODOTREM"}, "GAA5I03_2026_4": {"km": 5162.75, "n": 22, "nv": 12, "nm": 0, "nb": 4, "nl": 0, "nc": 1, "condutor": "ROGERIO FERREIRA", "cat": "RODOTREM"}, "GFI3F08_2026_4": {"km": 6403.74, "n": 27, "nv": 16, "nm": 7, "nb": 1, "nl": 1, "nc": 0, "condutor": "ALEX FABIANO", "cat": "RODOTREM"}, "GGS0E66_2026_4": {"km": 5899.23, "n": 25, "nv": 17, "nm": 2, "nb": 3, "nl": 0, "nc": 0, "condutor": "CLODOALDO", "cat": "RODOTREM"}, "EBK2I00_2026_4": {"km": 7510.23, "n": 22, "nv": 19, "nm": 1, "nb": 2, "nl": 0, "nc": 0, "condutor": "ALEXANDRO", "cat": "TRUCK"}, "EOH0H57_2026_4": {"km": 5809.03, "n": 23, "nv": 14, "nm": 0, "nb": 4, "nl": 2, "nc": 0, "condutor": "EDER", "cat": "TRUCK"}, "GAA5I62_2026_4": {"km": 1849.98, "n": 14, "nv": 3, "nm": 6, "nb": 4, "nl": 0, "nc": 0, "condutor": "VALMIR", "cat": "RODOTREM"}, "GAA1C54_2026_4": {"km": 7271.33, "n": 24, "nv": 17, "nm": 0, "nb": 5, "nl": 1, "nc": 0, "condutor": "RODRIGO BATISTA", "cat": "LS"}, "FYA0E10_2026_4": {"km": 1225.85, "n": 21, "nv": 14, "nm": 2, "nb": 3, "nl": 7, "nc": 0, "condutor": "SEM CONDUTOR", "cat": "BITRUCK SILO"}, "TRUCKGRANEL/EBK2I00_2026_4": {"km": 1.85, "n": 1, "nv": 0, "nm": 0, "nb": 1, "nl": 0, "nc": 0, "condutor": "ALEXANDRO", "cat": "TRUCK"}, "TRUCKGRANEL/EOH0H57_2026_4": {"km": 0.04, "n": 1, "nv": 0, "nm": 0, "nb": 1, "nl": 0, "nc": 0, "condutor": "EDER", "cat": "TRUCK"}, "TRUCKGRANEL/FSK8E26_2026_4": {"km": 41.23, "n": 1, "nv": 0, "nm": 1, "nb": 0, "nl": 0, "nc": 0, "condutor": "MARCOS CROCIARI", "cat": "TRUCK"}, "GAA5I03_2026_5": {"km": 8850.8, "n": 23, "nv": 19, "nm": 0, "nb": 3, "nl": 0, "nc": 0, "condutor": "ROGERIO", "cat": "RODOTREM"}, "GAA5I62_2026_5": {"km": 2790.97, "n": 8, "nv": 7, "nm": 0, "nb": 0, "nl": 0, "nc": 0, "condutor": "ALESSANDRO", "cat": "RODOTREM"}, "FJU7I19_2026_5": {"km": 3398.0, "n": 18, "nv": 12, "nm": 0, "nb": 3, "nl": 7, "nc": 0, "condutor": "VARLEI", "cat": "BITRUCK"}, "GAA6B62_2026_5": {"km": 6851.04, "n": 23, "nv": 17, "nm": 1, "nb": 1, "nl": 0, "nc": 0, "condutor": "CLAUDECIR PINHEIRO", "cat": "4° EIXO"}, "GAA6C64_2026_5": {"km": 4771.92, "n": 21, "nv": 12, "nm": 3, "nb": 5, "nl": 0, "nc": 0, "condutor": "JEFERSON", "cat": "4° EIXO"}, "GAA6H21_2026_5": {"km": 5227.39, "n": 19, "nv": 16, "nm": 0, "nb": 2, "nl": 0, "nc": 0, "condutor": "JOÃO CLAUDINEI", "cat": "4° EIXO"}, "GAA6H61_2026_5": {"km": 5830.67, "n": 20, "nv": 14, "nm": 0, "nb": 4, "nl": 0, "nc": 2, "condutor": "JULIANO EGIDIO", "cat": "4° EIXO"}, "EBW2C85_2026_5": {"km": 1601.36, "n": 15, "nv": 4, "nm": 0, "nb": 10, "nl": 0, "nc": 1, "condutor": "JULIO CESAR", "cat": "BITREM"}, "FCC9995_2026_5": {"km": 1587.75, "n": 13, "nv": 3, "nm": 2, "nb": 7, "nl": 0, "nc": 1, "condutor": "SEM CONDUTOR", "cat": "BITREM"}, "FCT5A75_2026_5": {"km": 5779.44, "n": 22, "nv": 15, "nm": 1, "nb": 4, "nl": 0, "nc": 0, "condutor": "JOSUE", "cat": "BITREM"}, "FRX7H66_2026_5": {"km": 6151.22, "n": 22, "nv": 19, "nm": 0, "nb": 2, "nl": 0, "nc": 0, "condutor": "LEANDRO FARUTHE", "cat": "BITREM"}, "FWB2B34_2026_5": {"km": 5377.68, "n": 20, "nv": 14, "nm": 0, "nb": 3, "nl": 0, "nc": 2, "condutor": "CLEBER", "cat": "BITREM"}, "GBF7E64_2026_5": {"km": 6354.19, "n": 22, "nv": 17, "nm": 0, "nb": 3, "nl": 0, "nc": 0, "condutor": "EMERSON MATHEUS", "cat": "BITREM"}, "QPY8A58_2026_5": {"km": 711.57, "n": 14, "nv": 1, "nm": 1, "nb": 12, "nl": 0, "nc": 0, "condutor": "UELITON", "cat": "BITREM"}, "DUC3D40_2026_5": {"km": 5736.72, "n": 22, "nv": 13, "nm": 0, "nb": 7, "nl": 0, "nc": 0, "condutor": "HELIO", "cat": "BITREM"}, "GAA1C63_2026_5": {"km": 4746.36, "n": 19, "nv": 12, "nm": 0, "nb": 4, "nl": 0, "nc": 1, "condutor": "DANIEL", "cat": "BITREM"}, "FZR4J59_2026_5": {"km": 4133.79, "n": 19, "nv": 11, "nm": 0, "nb": 7, "nl": 1, "nc": 0, "condutor": "TIAGO", "cat": "BITRUCK"}, "GAA0E42_2026_5": {"km": 7373.27, "n": 21, "nv": 19, "nm": 0, "nb": 2, "nl": 0, "nc": 0, "condutor": "FLAVIO ANTONIO POLVERE", "cat": "BITRUCK"}, "GAA3F91_2026_5": {"km": 3799.3, "n": 19, "nv": 11, "nm": 1, "nb": 7, "nl": 1, "nc": 0, "condutor": "NATALICIO", "cat": "BITRUCK"}, "GAA6F11_2026_5": {"km": 4772.92, "n": 17, "nv": 12, "nm": 0, "nb": 4, "nl": 1, "nc": 0, "condutor": "PAULO LEITÃO", "cat": "BITRUCK"}, "GAA6I31_2026_5": {"km": 5836.31, "n": 20, "nv": 17, "nm": 0, "nb": 1, "nl": 1, "nc": 0, "condutor": "ADEMILSON", "cat": "BITRUCK"}, "GAA6J73_2026_5": {"km": 5306.23, "n": 20, "nv": 13, "nm": 0, "nb": 7, "nl": 0, "nc": 0, "condutor": "THOMPSON", "cat": "BITRUCK"}, "GIF9G20_2026_5": {"km": 4896.25, "n": 19, "nv": 11, "nm": 2, "nb": 5, "nl": 0, "nc": 0, "condutor": "PAULO SENICIATO", "cat": "BITRUCK"}, "GJP1F30_2026_5": {"km": 3621.17, "n": 18, "nv": 10, "nm": 0, "nb": 8, "nl": 0, "nc": 0, "condutor": "DANIELA", "cat": "BITRUCK"}, "BBG1D34_2026_5": {"km": 2639.54, "n": 22, "nv": 13, "nm": 0, "nb": 3, "nl": 14, "nc": 2, "condutor": "CLAUDEMIR MACHADO VIDAL", "cat": "BITRUCK SILO"}, "BBR9F63_2026_5": {"km": 4948.42, "n": 20, "nv": 12, "nm": 1, "nb": 4, "nl": 1, "nc": 4, "condutor": "VALDAIR", "cat": "BITRUCK SILO"}, "FSG6F45_2026_5": {"km": 3656.69, "n": 21, "nv": 14, "nm": 0, "nb": 1, "nl": 7, "nc": 6, "condutor": "FRANCISCO", "cat": "BITRUCK SILO"}, "FVA7B11_2026_5": {"km": 4872.14, "n": 21, "nv": 18, "nm": 0, "nb": 2, "nl": 11, "nc": 0, "condutor": "ALEXANDRE", "cat": "BITRUCK SILO"}, "GAA5F32_2026_5": {"km": 2861.17, "n": 21, "nv": 10, "nm": 0, "nb": 1, "nl": 3, "nc": 13, "condutor": "ALCEMIR", "cat": "BITRUCK SILO"}, "GAA6D72_2026_5": {"km": 4533.44, "n": 19, "nv": 12, "nm": 0, "nb": 2, "nl": 6, "nc": 3, "condutor": "MARCO ANTONIO FERREIRA", "cat": "BITRUCK SILO"}, "GAA6G71_2026_5": {"km": 5627.03, "n": 19, "nv": 14, "nm": 0, "nb": 3, "nl": 1, "nc": 6, "condutor": "RONALDO", "cat": "BITRUCK SILO"}, "GEJ1889_2026_5": {"km": 739.23, "n": 20, "nv": 2, "nm": 0, "nb": 1, "nl": 19, "nc": 0, "condutor": "DOUGLAS", "cat": "BITRUCK SILO"}, "CLW4A48_2026_5": {"km": 6004.18, "n": 20, "nv": 16, "nm": 0, "nb": 4, "nl": 2, "nc": 0, "condutor": "ANTONIO CARLOS FAV.", "cat": "CARRETA SILO"}, "GAA0D97_2026_5": {"km": 4882.57, "n": 19, "nv": 13, "nm": 0, "nb": 5, "nl": 0, "nc": 3, "condutor": "PAULO MARCOLINO DA PAIXAO", "cat": "CARRETA SILO"}, "FOV1C88_2026_5": {"km": 2679.89, "n": 11, "nv": 5, "nm": 0, "nb": 5, "nl": 0, "nc": 1, "condutor": "ALEXANDER", "cat": "LS"}, "GAA1C62_2026_5": {"km": 5222.29, "n": 20, "nv": 12, "nm": 1, "nb": 6, "nl": 0, "nc": 0, "condutor": "EDSON BATISTA DOS SANTOS", "cat": "LS"}, "ENN8F53_2026_5": {"km": 2316.65, "n": 19, "nv": 6, "nm": 4, "nb": 8, "nl": 0, "nc": 0, "condutor": "SEM CONDUTOR", "cat": "RODOTREM"}, "GAA0D77_2026_5": {"km": 6784.33, "n": 23, "nv": 16, "nm": 0, "nb": 3, "nl": 0, "nc": 0, "condutor": "ALENIR", "cat": "RODOTREM"}, "GAA2D71_2026_5": {"km": 7457.5, "n": 21, "nv": 17, "nm": 0, "nb": 1, "nl": 0, "nc": 0, "condutor": "PAULO LOPES", "cat": "RODOTREM"}, "GAA2G55_2026_5": {"km": 5315.02, "n": 19, "nv": 16, "nm": 0, "nb": 2, "nl": 0, "nc": 0, "condutor": "FABIO", "cat": "RODOTREM"}, "GAA4I81_2026_5": {"km": 5934.95, "n": 20, "nv": 17, "nm": 0, "nb": 3, "nl": 0, "nc": 0, "condutor": "EDGAR NOVAIS MARTINS DE SOUZA", "cat": "RODOTREM"}, "GAA5I02_2026_5": {"km": 2913.11, "n": 18, "nv": 8, "nm": 0, "nb": 3, "nl": 0, "nc": 6, "condutor": "ALCINO", "cat": "RODOTREM"}, "GAA5I53_2026_5": {"km": 1582.33, "n": 4, "nv": 3, "nm": 0, "nb": 1, "nl": 0, "nc": 0, "condutor": "EDUARDO GALTER", "cat": "RODOTREM"}, "GFI3F08_2026_5": {"km": 3861.97, "n": 21, "nv": 10, "nm": 0, "nb": 3, "nl": 0, "nc": 0, "condutor": "ALEX", "cat": "RODOTREM"}, "GGS0E66_2026_5": {"km": 7413.37, "n": 21, "nv": 18, "nm": 0, "nb": 3, "nl": 0, "nc": 0, "condutor": "CLODOALDO", "cat": "RODOTREM"}, "EOH0H57_2026_5": {"km": 5697.49, "n": 17, "nv": 11, "nm": 0, "nb": 6, "nl": 0, "nc": 0, "condutor": "EDER", "cat": "TRUCK"}, "FSK8E26_2026_5": {"km": 2945.26, "n": 15, "nv": 9, "nm": 0, "nb": 4, "nl": 1, "nc": 0, "condutor": "MARCOS CROCIARI", "cat": "TRUCK"}, "GAA2G22_2026_5": {"km": 5476.08, "n": 20, "nv": 13, "nm": 0, "nb": 5, "nl": 1, "nc": 0, "condutor": "HARLEY", "cat": "BITRUCK"}, "FDC4J75_2026_5": {"km": 3150.48, "n": 16, "nv": 11, "nm": 0, "nb": 2, "nl": 9, "nc": 0, "condutor": "LINCOLN", "cat": "BITRUCK SILO"}, "FRO7I25_2026_5": {"km": 374.97, "n": 7, "nv": 2, "nm": 0, "nb": 5, "nl": 1, "nc": 0, "condutor": "ADRIANO DE JESUS FERRARI", "cat": "BITRUCK SILO"}, "FVU8I30_2026_5": {"km": 3376.55, "n": 12, "nv": 9, "nm": 0, "nb": 2, "nl": 2, "nc": 0, "condutor": "SERGIO", "cat": "BITRUCK SILO"}, "FYA0E10_2026_5": {"km": 1244.64, "n": 18, "nv": 6, "nm": 0, "nb": 1, "nl": 16, "nc": 0, "condutor": "PEDRO", "cat": "BITRUCK SILO"}, "PQK3I28_2026_5": {"km": 4401.05, "n": 19, "nv": 13, "nm": 0, "nb": 4, "nl": 7, "nc": 0, "condutor": "JEFFERSON RENZETE", "cat": "BITRUCK SILO"}, "GAA5I61_2026_5": {"km": 5078.38, "n": 18, "nv": 13, "nm": 1, "nb": 3, "nl": 0, "nc": 0, "condutor": "ALESSANDRO", "cat": "RODOTREM"}, "4GAA6C64_2026_5": {"km": 540.05, "n": 1, "nv": 1, "nm": 0, "nb": 0, "nl": 0, "nc": 0, "condutor": "JEFERSON", "cat": "4° EIXO"}, "GAA2J62_2026_5": {"km": 5249.37, "n": 17, "nv": 9, "nm": 0, "nb": 8, "nl": 0, "nc": 0, "condutor": "JEFERSON", "cat": "LS"}, "EBK2I00_2026_5": {"km": 3205.94, "n": 17, "nv": 11, "nm": 0, "nb": 6, "nl": 0, "nc": 0, "condutor": "ALEXANDRO", "cat": "TRUCK"}, "GAA1C54_2026_5": {"km": 4677.52, "n": 18, "nv": 11, "nm": 0, "nb": 6, "nl": 0, "nc": 0, "condutor": "RODRIGO", "cat": "LS"}, "NSB3G46_2026_5": {"km": 2198.24, "n": 9, "nv": 5, "nm": 0, "nb": 4, "nl": 1, "nc": 0, "condutor": "LEANDRO SILVEIRA", "cat": "TRUCK"}, "RODOTREM/ENN8F53_2026_5": {"km": 312.72, "n": 1, "nv": 1, "nm": 0, "nb": 0, "nl": 0, "nc": 0, "condutor": "ALCINO", "cat": "RODOTREM"}, "RODOTREM/GAA0D77_2026_5": {"km": 0.0, "n": 1, "nv": 0, "nm": 0, "nb": 0, "nl": 0, "nc": 0, "condutor": "ALENIR", "cat": "RODOTREM"}, "RODOTREM/GAA2D71_2026_5": {"km": 552.55, "n": 1, "nv": 1, "nm": 0, "nb": 0, "nl": 0, "nc": 0, "condutor": "PAULO LOPES", "cat": "RODOTREM"}, "RODOTREM/GAA2G55_2026_5": {"km": 432.73, "n": 1, "nv": 1, "nm": 0, "nb": 0, "nl": 0, "nc": 0, "condutor": "FABIO", "cat": "RODOTREM"}, "RODOTREM/GAA4I81_2026_5": {"km": 439.39, "n": 1, "nv": 1, "nm": 0, "nb": 0, "nl": 0, "nc": 0, "condutor": "EDGAR NOVAIS MARTINS DE SOUZA", "cat": "RODOTREM"}, "RODOTREM/GAA5I03_2026_5": {"km": 15.93, "n": 1, "nv": 0, "nm": 0, "nb": 0, "nl": 0, "nc": 0, "condutor": "ROGERIO FERREIRA", "cat": "RODOTREM"}, "RODOTREM/GGS0E66_2026_5": {"km": 311.31, "n": 1, "nv": 1, "nm": 0, "nb": 0, "nl": 0, "nc": 0, "condutor": "CLODOALDO", "cat": "RODOTREM"}};
 var PERF_CONDUTORES = {"GAA5I61": "ALESSANDRO BALTAZAR MOLINA SANCHES", "FSK8E26": "MARCOS CROCIARI", "GAA5I53": "EDUARDO GALTER", "GAA6B62": "CLAUDECIR PINHEIRO", "GAA6C64": "JEFERSON", "GAA6H21": "JOÃO CLAUDINEI", "GAA6H61": "JULIANO EGIDIO", "EBW2C85": "SEM CONDUTOR", "FCC9995": "JOSUE", "FCT5A75": "DEGMAR", "FRX7H66": "LEANDRO FARUTHE", "FWB2B34": "CLEBER", "GBF7E64": "EMERSON MATHEUS", "QPY8A58": "UELITON", "GAA1C63": "DANIEL", "DUC3D40": "HELIO", "FOV1C88": "SEM CONDUTOR", "GAA1C62": "EDSON BATISTA DOS SANTOS", "GAA2J62": "ELEZER", "FZR4J59": "TIAGO", "GAA0E42": "FLAVIO ANTONIO POLVERE", "GAA2G22": "HARLEY", "GAA3F91": "NATALICIO", "GAA6F11": "PAULO LEITÃO", "GAA6I31": "ADEMILSON", "GAA6J73": "THOMPSON", "GIF9G20": "PAULO SENICIATO", "GJP1F30": "DANIELA", "BBG1D34": "CLAUDEMIR MACHADO VIDAL", "BBR9F63": "VALDAIR", "FDC4J75": "LINCOLN", "FJU7I19": "VARLEI", "FRO7I25": "ADRIANO DE JESUS FERRARI", "FSG6F45": "FRANCISCO", "FVA7B11": "ALEXANDRE", "FVU8I30": "SERGIO", "GAA5F32": "ALCEMIR", "GAA6D72": "MARCO ANTONIO FERREIRA", "GAA6D71": "RONALDO", "GEJ1889": "DOUGLAS", "PQK3I28": "JEFFERSON RENZETE", "CLW4A48": "ANTONIO CARLOS FAV.", "GAA0D97": "PAULO MARCOLINO DA PAIXAO", "ENN8F53": "ALCINO", "GAA0D77": "ALENIR", "GAA2D71": "PAULO LOPES", "GAA2G55": "FABIO", "GAA4I81": "EDGAR NOVAIS MARTINS DE SOUZA", "GAA5I02": "JULIO", "GAA5I03": "ROGERIO FERREIRA", "GFI3F08": "ALEX", "GGS0E66": "CLODOALDO", "EBK2I00": "ALEXANDRO", "EOH0H57": "EDER", "GAA5I62": "VALMIR", "GAA1C54": "RODRIGO", "FYA0E10": "PEDRO", "TRUCKGRANEL/EBK2I00": "ALEXANDRO", "TRUCKGRANEL/EOH0H57": "EDER", "TRUCKGRANEL/FSK8E26": "MARCOS CROCIARI", "4GAA6C64": "JEFERSON", "NSB3G46": "MARCOS CROCIARI", "RODOTREM/ENN8F53": "ALCINO", "RODOTREM/GAA0D77": "ALENIR", "RODOTREM/GAA2D71": "PAULO LOPES", "RODOTREM/GAA2G55": "FABIO", "RODOTREM/GAA4I81": "EDGAR NOVAIS MARTINS DE SOUZA", "RODOTREM/GAA5I03": "ROGERIO FERREIRA", "RODOTREM/GGS0E66": "CLODOALDO"};
 var PERF_CATS = {"GAA5I61": "RODOTREM", "FSK8E26": "TRUCK", "GAA5I53": "RODOTREM", "GAA6B62": "4° EIXO", "GAA6C64": "4° EIXO", "GAA6H21": "4° EIXO", "GAA6H61": "4° EIXO", "EBW2C85": "BITREM", "FCC9995": "BITREM", "FCT5A75": "BITREM", "FRX7H66": "BITREM", "FWB2B34": "BITREM", "GBF7E64": "BITREM", "QPY8A58": "BITREM", "GAA1C63": "BITREM", "DUC3D40": "BITREM", "FOV1C88": "LS", "GAA1C62": "LS", "GAA2J62": "LS", "FZR4J59": "BITRUCK", "GAA0E42": "BITRUCK", "GAA2G22": "BITRUCK", "GAA3F91": "BITRUCK", "GAA6F11": "BITRUCK", "GAA6I31": "BITRUCK", "GAA6J73": "BITRUCK", "GIF9G20": "BITRUCK", "GJP1F30": "BITRUCK", "BBG1D34": "BITRUCK SILO", "BBR9F63": "BITRUCK SILO", "FDC4J75": "BITRUCK SILO", "FJU7I19": "BITRUCK SILO", "FRO7I25": "BITRUCK SILO", "FSG6F45": "BITRUCK SILO", "FVA7B11": "BITRUCK SILO", "FVU8I30": "BITRUCK SILO", "GAA5F32": "BITRUCK SILO", "GAA6D72": "BITRUCK SILO", "GAA6D71": "BITRUCK SILO", "GEJ1889": "BITRUCK SILO", "PQK3I28": "BITRUCK SILO", "CLW4A48": "CARRETA SILO", "GAA0D97": "CARRETA SILO", "ENN8F53": "RODOTREM", "GAA0D77": "RODOTREM", "GAA2D71": "RODOTREM", "GAA2G55": "RODOTREM", "GAA4I81": "RODOTREM", "GAA5I02": "RODOTREM", "GAA5I03": "RODOTREM", "GFI3F08": "RODOTREM", "GGS0E66": "RODOTREM", "EBK2I00": "TRUCK", "EOH0H57": "TRUCK", "GAA5I62": "RODOTREM", "GAA1C54": "LS", "FYA0E10": "BITRUCK SILO", "TRUCKGRANEL/EBK2I00": "TRUCK", "TRUCKGRANEL/EOH0H57": "TRUCK", "TRUCKGRANEL/FSK8E26": "TRUCK", "4GAA6C64": "4° EIXO", "NSB3G46": "TRUCK", "RODOTREM/ENN8F53": "RODOTREM", "RODOTREM/GAA0D77": "RODOTREM", "RODOTREM/GAA2D71": "RODOTREM", "RODOTREM/GAA2G55": "RODOTREM", "RODOTREM/GAA4I81": "RODOTREM", "RODOTREM/GAA5I03": "RODOTREM", "RODOTREM/GGS0E66": "RODOTREM"};
@@ -22791,6 +22941,67 @@ function abastGetOpFrota(placa){
   var v = DB_FROTA.find(function(f){ return f.ativo!==false && String(f.cavalo||'').toUpperCase().replace(/[^A-Z0-9]/g,'')=== p; });
   if(!v) v = abastCorrigirPlacaPorFrota(p);
   return v ? (v.op||'') : '';
+}
+
+// ── Correção de preço unitário por período (16/09) ────────────────────────
+// Ferramenta pontual: corrige o vUnit (e recalcula vTot) só dos lançamentos
+// que casarem com mês+ano+tipo+mercadoria escolhidos — nunca mexe em outro
+// período. Sempre exige pré-visualização (contagem + média antes/depois)
+// antes de liberar o botão de aplicar, e usa abastSave() ao final, que já é
+// o mesmo caminho de sempre — ou seja, sincroniza pra nuvem automaticamente,
+// igual qualquer outra gravação do módulo.
+function abastFiltrarParaCorrecao(){
+  var mes = parseInt(document.getElementById('abast-corr-mes').value, 10);
+  var ano = parseInt(document.getElementById('abast-corr-ano').value, 10);
+  var tipo = document.getElementById('abast-corr-tipo').value;
+  var merc = document.getElementById('abast-corr-merc').value;
+  return DB_ABAST.filter(function(r){
+    return r.mes===mes && r.ano===ano && r.tipo===tipo && r.mercadoria===merc;
+  });
+}
+function abastPreviewCorrecaoPreco(){
+  var alvo = abastFiltrarParaCorrecao();
+  var novoPreco = parseFloat(document.getElementById('abast-corr-preco').value);
+  var btn = document.getElementById('abast-corr-aplicar-btn');
+  var out = document.getElementById('abast-corr-preview');
+  if(!alvo.length){
+    out.innerHTML = '⚠️ Nenhum lançamento encontrado com esses filtros — nada seria alterado.';
+    btn.disabled = true;
+    return;
+  }
+  var qtdTotal = alvo.reduce(function(a,r){ return a+(r.qtd||0); }, 0);
+  var vTotAtual = alvo.reduce(function(a,r){ return a+(r.vTot||0); }, 0);
+  var mediaAtual = qtdTotal>0 ? vTotAtual/qtdTotal : 0;
+  var vTotNovo = qtdTotal * novoPreco;
+  out.innerHTML = '<b>'+alvo.length+' lançamento(s)</b> serão corrigidos ('+qtdTotal.toLocaleString('pt-BR',{maximumFractionDigits:0})+' L no total).<br>'
+    + 'Preço médio atual: <b>R$ '+mediaAtual.toFixed(3)+'/L</b> → depois da correção: <b>R$ '+novoPreco.toFixed(3)+'/L</b><br>'
+    + 'Valor total atual: R$ '+vTotAtual.toLocaleString('pt-BR',{minimumFractionDigits:2}) +' → depois: R$ '+vTotNovo.toLocaleString('pt-BR',{minimumFractionDigits:2});
+  btn.disabled = false;
+  btn.dataset.preco = novoPreco;
+  btn.dataset.qtdAlvo = alvo.length;
+}
+function abastAplicarCorrecaoPreco(){
+  var alvo = abastFiltrarParaCorrecao();
+  var btn = document.getElementById('abast-corr-aplicar-btn');
+  var novoPreco = parseFloat(btn.dataset.preco);
+  if(!alvo.length || !novoPreco || parseInt(btn.dataset.qtdAlvo,10)!==alvo.length){
+    alert('A pré-visualização não bate mais com os dados atuais (algo mudou). Clique em "Pré-visualizar efeito" de novo antes de aplicar.');
+    return;
+  }
+  var mes = document.getElementById('abast-corr-mes').selectedOptions[0].text;
+  var ano = document.getElementById('abast-corr-ano').value;
+  var tipo = document.getElementById('abast-corr-tipo').value;
+  var merc = document.getElementById('abast-corr-merc').value;
+  var confirmado = confirm('Confirma a correção de '+alvo.length+' lançamento(s) de '+merc+' ('+tipo+') em '+mes+'/'+ano+' para R$ '+novoPreco.toFixed(2)+'/L?\n\nIsso grava direto na base (com sincronização automática) — não afeta nenhum outro período.');
+  if(!confirmado) return;
+  alvo.forEach(function(r){
+    r.vUnit = novoPreco;
+    r.vTot = Math.round((r.qtd||0) * novoPreco * 100) / 100;
+  });
+  abastSave();
+  document.getElementById('abast-corr-preview').innerHTML = '✅ Correção aplicada e salva ('+alvo.length+' lançamento(s)).';
+  btn.disabled = true;
+  if(typeof abastRenderDash==='function'){ try{ abastRenderDash(); }catch(e){} }
 }
 
 // ── Storage ─────────────────────────────────────────────────
@@ -23216,13 +23427,18 @@ function jornComputeMotoristas(periodo){
       const meta = jornLookupMeta(catRaw);
 
       if(!out[nome]){
-        out[nome] = {nome:nome, cat:catRaw, unidade:unidade, h50:0,h70:0,h100:0, km:0, kmDias:0, jornadaSoma:0, jornadaDias:0, meta:meta};
+        out[nome] = {nome:nome, cat:catRaw, unidade:unidade, h50:0,h70:0,h100:0, km:0, kmDias:0, jornadaSoma:0, jornadaDias:0, meta:meta, _diasComExcedente:{}};
       }
       const m = out[nome];
       m.h50+=h50; m.h70+=h70; m.h100+=h100;
       m.cat=catRaw; m.unidade=unidade; m.meta=meta;
       if(km!==undefined){ m.km+=km; m.kmDias+=1; }
       m.jornadaSoma+=jornadaEf; m.jornadaDias+=1;
+      // CORREÇÃO (16/09): guarda, por data, se a jornada REAL desse dia (vinda do
+      // CSV/telemetria) passou da base (8h em dia útil, 4h em sábado). É essa
+      // marcação que vai impedir, mais abaixo, que o saldo de banco do RH apareça
+      // como "hora extra" num dia em que o motorista nem bateu a jornada normal.
+      m._diasComExcedente[dia.data] = (dia.tipo==='util' || dia.tipo==='sabado') ? (jornadaEf > base) : true;
     });
   });
 
@@ -23255,6 +23471,16 @@ function jornComputeMotoristas(periodo){
       let credito50=0, abatimento50=0, he70RH=0, he100RH=0, algumDia=false;
       datasConsideradas.forEach(function(data){
         if(rh[data]){
+          // CORREÇÃO (16/09): saldo de banco (RH) só entra no cálculo de HE se
+          // a jornada REAL daquele dia específico (medida pelo CSV/telemetria)
+          // passou da base normal (8h útil / 4h sábado). Sem isso, um crédito
+          // acumulado de dias anteriores aparecia como "hora extra" num dia em
+          // que o motorista nem chegou a bater a jornada normal — o que não é
+          // hora extra nenhuma, é só saldo de banco de outro dia sendo exibido
+          // no lugar errado. O crédito em si não é perdido: continua existindo
+          // no banco, só deixa de ser contado como HE DESTE dia específico.
+          const bateuJornadaNormal = m._diasComExcedente ? (m._diasComExcedente[data]!==false) : true;
+          if(!bateuJornadaNormal) return;
           algumDia = true;
           credito50 += rh[data].credito50;
           abatimento50 += rh[data].abatimento50;
@@ -23420,11 +23646,21 @@ function jornComputeEficienciaSemanal(diasBase){
 // Garante que existe alguma base carregada (mesmo padrão do resto do sistema:
 // mostra dados de exemplo até o usuário importar dados reais).
 function jornGarantirDados(){
-  if(!JORN_DIAS.length && !JORN_PROCESSADO){
-    JORN_PROCESSADO = true;
-    var carregou = jornCarregarStorage();
-    if(!carregou && JORN_SEED_DIAS.length){ JORN_DIAS = JORN_SEED_DIAS.slice(); }
+  // CORREÇÃO (17/09): antes, isso só rodava UMA vez por sessão (JORN_PROCESSADO
+  // trancava depois da primeira chamada). Se a pessoa entrasse em Gestão de
+  // Jornada rápido, antes do Firebase terminar de puxar a versão mais nova pro
+  // localStorage (é assíncrono — tem uma corrida real aí), o módulo ficava
+  // preso com um retrato antigo/incompleto pro resto da sessão, mesmo depois
+  // do dado certo já ter chegado no localStorage segundos depois. Agora
+  // relê o localStorage toda vez que o módulo é acessado (é barato, e como
+  // toda edição local já grava no localStorage na hora via jornSalvarStorage,
+  // ele nunca fica "atrás" da memória — só pode estar igual ou mais novo,
+  // nunca mais velho, então é seguro preferir sempre o que está lá).
+  var carregouAgora = jornCarregarStorage();
+  if(!carregouAgora && !JORN_DIAS.length && JORN_SEED_DIAS.length && !JORN_PROCESSADO){
+    JORN_DIAS = JORN_SEED_DIAS.slice();
   }
+  JORN_PROCESSADO = true;
 }
 
 // Recalcula JORN_MOTORISTAS a partir de JORN_DIAS + filtro de período atual.
@@ -23982,21 +24218,65 @@ function jornDetectarEImportar(){
   readerK.onloadend = function(){ readerK._buf = readerK.result; };
   readerK.readAsArrayBuffer(fKm);
 }
+// Extrai texto de um PDF preservando as QUEBRAS DE LINHA reais do documento —
+// necessário porque o pdf.js, por padrão, devolve os itens de texto da página
+// soltos (sem indicar onde termina uma linha), e o parser do Relatório RH
+// (jornParseRelatorioRH) depende de "uma ocorrência por linha" pra funcionar.
+// Agrupa os itens pela posição Y (com tolerância, já que fontes/negrito podem
+// deslocar o baseline em 1-2px), ordena cada grupo da esquerda pra direita, e
+// junta os grupos de cima pra baixo — reconstruindo o texto como ele aparece
+// visualmente no PDF, linha por linha.
+function jornExtrairTextoPDF(arrayBuffer){
+  return new Promise(function(resolve, reject){
+    if(typeof pdfjsLib === 'undefined'){ reject(new Error('PDF.js não carregado — abra o sistema com conexão à internet')); return; }
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+    pdfjsLib.getDocument({data: arrayBuffer}).promise.then(function(pdf){
+      var paginas = [];
+      for(var p=1; p<=pdf.numPages; p++){
+        paginas.push(pdf.getPage(p).then(function(pg){
+          return pg.getTextContent().then(function(tc){
+            var itens = tc.items.map(function(it){ return {x:it.transform[4], y:it.transform[5], str:it.str}; });
+            itens.sort(function(a,b){ return b.y-a.y || a.x-b.x; });
+            var linhas = [], atual = null, refY = null;
+            itens.forEach(function(it){
+              if(atual===null || Math.abs(it.y-refY)>2){ atual=[]; linhas.push(atual); refY=it.y; }
+              atual.push(it);
+            });
+            return linhas.map(function(l){
+              return l.sort(function(a,b){ return a.x-b.x; }).map(function(o){ return o.str; }).join(' ');
+            }).join('\n');
+          });
+        }));
+      }
+      Promise.all(paginas).then(function(textosPorPagina){ resolve(textosPorPagina.join('\n')); }).catch(reject);
+    }).catch(reject);
+  });
+}
 function jornImportarRelatorioRH(input){
   var file = input.files[0]; if(!file) return;
+  var ehPDF = /\.pdf$/i.test(file.name);
   var reader = new FileReader();
   reader.onload = function(e){
-    try{
-      var novo = jornParseRelatorioRH(jornDecodeAuto(e.target.result));
-      var qtd = Object.keys(novo).length;
-      Object.keys(novo).forEach(function(nome){
-        if(!JORN_RH_DADOS[nome]) JORN_RH_DADOS[nome] = {};
-        Object.keys(novo[nome]).forEach(function(dt){ JORN_RH_DADOS[nome][dt] = novo[nome][dt]; });
+    var processarTexto = function(texto){
+      try{
+        var novo = jornParseRelatorioRH(texto);
+        var qtd = Object.keys(novo).length;
+        Object.keys(novo).forEach(function(nome){
+          if(!JORN_RH_DADOS[nome]) JORN_RH_DADOS[nome] = {};
+          Object.keys(novo[nome]).forEach(function(dt){ JORN_RH_DADOS[nome][dt] = novo[nome][dt]; });
+        });
+        jornLog('Relatório RH processado: '+qtd+' colaborador(es) conciliado(s).', false);
+        input.value='';
+        jornSalvarStorage();
+      }catch(err){ jornLog('Erro ao processar relatório RH: '+err.message, true); }
+    };
+    if(ehPDF){
+      jornExtrairTextoPDF(new Uint8Array(e.target.result)).then(processarTexto).catch(function(err){
+        jornLog('Erro ao ler PDF do relatório RH: '+err.message, true);
       });
-      jornLog('Relatório RH processado: '+qtd+' colaborador(es) conciliado(s).', false);
-      input.value='';
-      jornSalvarStorage();
-    }catch(err){ jornLog('Erro ao processar relatório RH: '+err.message, true); }
+    } else {
+      processarTexto(jornDecodeAuto(e.target.result));
+    }
   };
   reader.readAsArrayBuffer(file);
 }
@@ -24315,17 +24595,18 @@ function jornRenderMapaCalorSemanal(){
     var unidade = '';
     var celulas = diasSemana.map(function(dt){
       var m = porDia[dt][nome];
-      if(!m){ return '<td style="padding:0;text-align:center;color:#ccc;height:48px">—</td>'; }
+      if(!m){ return '<td style="padding:0;text-align:center;color:#ccc;height:58px">—</td>'; }
       unidade = m.unidade;
       var totalDia = (m.h50||0)+(m.h70||0)+(m.h100||0);
       totalSemHE += totalDia;
       var grav = jornGravidadeDia(m, tipoPorDia[dt]);
       var cc = jornCorGravidade(grav.score);
-      var titulo = jornTitleCase(nome)+' — '+jornFmtDataCurta(dt)+': jornada '+(m.jornadaMedia!=null?m.jornadaMedia.toFixed(1):'0')+'h (prevista '+grav.base+'h, excedente '+grav.excedente.toFixed(1)+'h), HE50 '+m.h50.toFixed(1)+'h, HE70 '+m.h70.toFixed(1)+'h, HE100 '+m.h100.toFixed(1)+'h — '+cc.label;
-      return '<td style="background:'+cc.cor+';color:'+cc.texto+';text-align:center;padding:0;height:48px;cursor:pointer" title="'+titulo+'" onclick="jornAbrirDetalheDiaMotorista(\''+dt+'\',\''+nome.replace(/'/g,"\\'")+'\')">'
-        +'<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:48px;line-height:1.15">'
+      var titulo = jornTitleCase(nome)+' — '+jornFmtDataCurta(dt)+': jornada '+(m.jornadaMedia!=null?m.jornadaMedia.toFixed(1):'0')+'h (prevista '+grav.base+'h, excedente '+grav.excedente.toFixed(1)+'h), HE50 '+m.h50.toFixed(1)+'h, HE70 '+m.h70.toFixed(1)+'h, HE100 '+m.h100.toFixed(1)+'h, Km '+jornFmtKm(m.km)+' — '+cc.label;
+      return '<td style="background:'+cc.cor+';color:'+cc.texto+';text-align:center;padding:0;height:58px;cursor:pointer" title="'+titulo+'" onclick="jornAbrirDetalheDiaMotorista(\''+dt+'\',\''+nome.replace(/'/g,"\\'")+'\')">'
+        +'<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:58px;line-height:1.1">'
         +'<span style="font-size:11px;font-weight:800">'+(m.jornadaMedia!=null?m.jornadaMedia.toFixed(1):'0')+'h'+(grav.excedente>0?' (+'+grav.excedente.toFixed(1)+')':'')+'</span>'
         +'<span style="font-size:9px;opacity:.9">HE '+totalDia.toFixed(1)+'h</span>'
+        +'<span style="font-size:9px;opacity:.85">'+jornFmtKm(m.km)+'</span>'
         +'</div></td>';
     }).join('');
     html += '<tr><td style="position:sticky;left:0;background:var(--wh);padding:7px 10px;font-weight:700;cursor:pointer;color:var(--gd)" onclick="jornAbrirMotorista(\''+nome.replace(/'/g,"\\'")+'\')">'+jornTitleCase(nome)+'</td>'
@@ -27511,7 +27792,7 @@ function ftlImpMensalLer(input){
         if(rk){ var diff=Math.abs(km-rk.km); if(diff>50) divs.push({placa:placa,mensal:km,diario:Math.round(rk.km),diff:Math.round(diff)}); }
       });
       try{localStorage.setItem('raguife_perf_km_mensal_v1',JSON.stringify(kmM));}catch(e){}
-      if(mes===4&&ano===2026){ Object.keys(kmM[mk]).forEach(function(p){ if(typeof PERF_KM_ABR!=='undefined') PERF_KM_ABR[p]=kmM[mk][p]; }); }
+      if(ano===2026){ Object.keys(kmM[mk]).forEach(function(p){ perfKmOficialMes(ano+'_'+mes)[p]=kmM[mk][p]; }); }
       var stEl=document.getElementById('ftl-imp-mensal-status');
       var mn=['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
       if(stEl){ stEl.style.display='block'; stEl.innerHTML='<div style="padding:8px;background:#f0fdf4;border:1px solid #86efac;border-radius:7px;color:#166534;font-size:11px;font-weight:700">✅ '+added+' placas — '+mn[mes]+'/'+ano+(descartadosLeve?' · '+descartadosLeve+' da frota leve descartadas':'')+'</div>'+(divs.length?'<div style="margin-top:6px;padding:8px;background:#fef2f2;border:1px solid #fca5a5;border-radius:7px;font-size:11px"><b style="color:#dc2626">⚠️ '+divs.length+' divergência(s)</b><br>'+divs.slice(0,5).map(function(d){return d.placa+': mensal='+d.mensal+' diário='+d.diario+' Δ='+d.diff;}).join('<br>')+'</div>':''); }
@@ -30299,7 +30580,7 @@ function mntRenderDash(){
       // chave = '2026_M' (mesmo padrão usado no restante do sistema)
       var chave = (anoSelKm)+'_'+m;
       var porPlaca = kmMensalRaw[chave];
-      if(!porPlaca && m===4 && typeof PERF_KM_ABR!=='undefined') porPlaca = PERF_KM_ABR; // retrocompatibilidade (seed de Abril)
+      if(!porPlaca) porPlaca = PERF_KM_OFICIAL_MES[chave]; // dado oficial importado (qualquer mês, não só Abril)
       if(!porPlaca) return null;
       var soma = 0, achou = false;
       Object.keys(porPlaca).forEach(function(placa){
@@ -31256,7 +31537,8 @@ function perfCalcRanking(mes, cat, mesAte){
     var mediaDia = r.nv > 0 ? Math.round(r.km / r.nv) : null;
     var pctMeta  = mediaDia !== null ? Math.round(mediaDia / metas.dia * 100) : null;
     // KM mensal do arquivo oficial (apenas Abril por ora)
-    var kmMensal = (!usaIntervalo && mesStr==='4' && PERF_KM_ABR[placa]) ? PERF_KM_ABR[placa].km : r.km;
+    var _kmOfMes = (!usaIntervalo && mesStr) ? PERF_KM_OFICIAL_MES['2026_'+mesStr] : null;
+    var kmMensal = (_kmOfMes && _kmOfMes[placa]) ? _kmOfMes[placa].km : r.km;
 
     result.push({
       placa:    placa,
@@ -32272,11 +32554,17 @@ function perfResumoRebuild(){
     // 2) KM mensais oficiais (raguife_perf_km_mensal_v1)
     var kmMensal = JSON.parse(localStorage.getItem('raguife_perf_km_mensal_v1') || '{}');
     Object.keys(kmMensal).forEach(function(mk){
-      // mk = '2026_5'
+      // mk = '2026_5', '2026_8' etc — agora processa QUALQUER mês, não só Abril.
+      // Antes: "if(ano !== 2026 || mes !== 4) return;" descartava silenciosamente
+      // o KM mensal oficial de todo mês além de Abril — era exatamente isso que
+      // fazia o card "KM Total" do mês ficar bem abaixo da tabela por categoria
+      // (que lê perfKmMensalLoad() direto, sem essa restrição) em qualquer mês
+      // que não fosse Abril.
       var parts = mk.split('_'), ano = parseInt(parts[0]), mes = parseInt(parts[1]);
-      if(ano !== 2026 || mes !== 4) return; // so sobrescreve PERF_KM_ABR para Abril (meses anteriores ja tem seed)
+      if(ano !== 2026) return; // limitação pré-existente do módulo (só suporta 2026 por ora)
+      var destino = perfKmOficialMes(mk);
       Object.keys(kmMensal[mk]).forEach(function(placa){
-        PERF_KM_ABR[placa] = kmMensal[mk][placa];
+        destino[placa] = kmMensal[mk][placa];
       });
     });
   } catch(e){ console.warn('[Raguife] perfResumoRebuild erro:', e); }
@@ -33310,9 +33598,7 @@ function perfConfirmarImportarMensal(){
   });
   perfKmMensalSave(kmMensal);
 
-  if(p.mes===4 && p.ano===2026){
-    p.mudancas.forEach(function(m){ PERF_KM_ABR[m.placa]={km:m.kmNovo,cat:m.cat}; });
-  }
+  p.mudancas.forEach(function(m){ perfKmOficialMes(p.ano+'_'+p.mes)[m.placa]={km:m.kmNovo,cat:m.cat}; });
 
   var log=perfImportLogLoad();
   log.unshift({dt_import:new Date().toISOString(),dt_ref:p.ano+'-'+String(p.mes).padStart(2,'0'),
@@ -33388,14 +33674,12 @@ function perfImportRenderLog(){
         PERF_ULTIMOS3[placa][dt]=d.km;
       });
     });
-    // Restaura KM mensal
+    // Restaura KM mensal oficial — todos os meses presentes, não só Abril/2026
     var kmMensal=perfKmMensalLoad();
-    var key2026_4='2026_4';
-    if(kmMensal[key2026_4]){
-      Object.keys(kmMensal[key2026_4]).forEach(function(placa){
-        PERF_KM_ABR[placa]=kmMensal[key2026_4][placa];
-      });
-    }
+    Object.keys(kmMensal).forEach(function(mk){
+      var destino = perfKmOficialMes(mk);
+      Object.keys(kmMensal[mk]).forEach(function(placa){ destino[placa]=kmMensal[mk][placa]; });
+    });
   }catch(e){}
 })();
 
