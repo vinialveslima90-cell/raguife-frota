@@ -1643,6 +1643,21 @@ if(location.protocol!=='file:'){
         FB._earlyWrite[key] = value; // guarda para reavaliar depois do pull
         return;
       }
+      // CORREÇÃO (21/09): antes, o "carimbo" de proteção (setKnownTs) só era
+      // aplicado no FINAL de _pushOne, depois de uma ida-e-volta assíncrona até
+      // o Firebase (a checagem de "redução suspeita" espera uma resposta da
+      // rede antes de gravar de verdade). Nesse intervalo — que pode durar de
+      // dezenas de milissegundos a alguns segundos, dependendo da rede — o
+      // ouvinte em tempo real (_attachListeners) podia receber uma atualização
+      // e, como o carimbo ainda não tinha sido atualizado, aceitá-la como
+      // "mais nova" e sobrescrever silenciosamente o que acabara de ser salvo
+      // localmente (foi exatamente isso que apagou o dia 18/09 importado —
+      // sem nenhum aviso, sem nenhuma proteção pegando, porque a checagem de
+      // eco/redução olha pro carimbo, e o carimbo ainda não tinha mudado).
+      // Marcando aqui, de forma síncrona, no instante exato da escrita, fecha
+      // essa janela por completo — não existe mais um momento em que uma
+      // gravação local fica "sem crachá" esperando a rede responder.
+      setKnownTs(key, Date.now());
       FB._pushOne(key, value);
     }
   };
@@ -23014,7 +23029,26 @@ function abastLoadDb(){
   try{var raw=localStorage.getItem('raguife_abast_v2');if(raw){var d=JSON.parse(raw);loaded=d.r||[];DB_ABAST_LOG=d.log||[];}}catch(e){}
   if(!loaded.length) loaded=sR;
   loaded.forEach(function(r){if((r.op==='SEM_CENTRO'||r.op===''||!r.op)&&r.mes===5&&r.ano===2026)r.op='AQUA';});
-  DB_ABAST=loaded;
+  // CORREÇÃO (21/09): abastKey() já existia especificamente pra detectar
+  // duplicatas, mas só era usada DENTRO de uma importação (contra o que já
+  // estava carregado NAQUELE momento na tela). Se duas sessões/dispositivos
+  // importassem arquivos sobrepostos antes de sincronizar entre si, cada
+  // lançamento podia entrar duas vezes sem nenhuma das duas sessões perceber
+  // — daí litros/valores "a mais" no total. Agora deduplica toda vez que a
+  // base é carregada (mesmo padrão que o módulo de Diárias já usa), então
+  // não importa de onde veio a duplicata, ela é limpa sozinha.
+  var vistos = {}, semDup = [], removidos = 0;
+  loaded.forEach(function(r){
+    var k = abastKey(r);
+    if(vistos[k]){ removidos++; return; }
+    vistos[k] = true;
+    semDup.push(r);
+  });
+  DB_ABAST = semDup;
+  if(removidos>0){
+    console.warn('[abastLoadDb] '+removidos+' lançamento(s) duplicado(s) removido(s) automaticamente.');
+    abastSave();
+  }
 }
 
 // ── Chave de deduplicação ───────────────────────────────────
