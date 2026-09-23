@@ -1637,7 +1637,24 @@ if(location.protocol!=='file:'){
   // qualquer gravação local fica em espera (nunca sobe "vazio" por cima do que já
   // existe na nuvem). Isso evita que um cache local recém-limpo apague dados reais.
   localStorage.setItem = function(key, value){
-    origSetItem(key, value);
+    // CORREÇÃO (22/09): antes, se o navegador estivesse sem espaço (limite de
+    // localStorage excedido — bem comum com Jornada, que acumula dados
+    // detalhados de dezenas de motoristas por dia), o setItem original lançava
+    // um erro que interrompia essa função ALI MESMO — o código de envio pra
+    // nuvem, mais abaixo, nunca chegava a rodar. Resultado: quando o espaço
+    // local acabava, o dado se perdia tanto localmente quanto na nuvem, sem
+    // nenhum aviso (foi exatamente isso que apagou o dia 18/09 importado).
+    // Agora esse erro é capturado e avisado — mas o envio pra nuvem continua
+    // acontecendo de qualquer forma, porque o Firebase não tem esse limite de
+    // espaço; a nuvem é o que realmente protege o dado quando o navegador
+    // local não tem mais lugar pra guardar.
+    var localOk = true;
+    try{
+      origSetItem(key, value);
+    }catch(e){
+      localOk = false;
+      console.warn('[FB Sync] gravação local de "'+key+'" falhou ('+e.message+') — espaço do navegador provavelmente esgotado. Enviando direto pra nuvem mesmo assim, sem guardar cópia local por enquanto.');
+    }
     if(isSyncKey(key)){
       if(!FB._pulledKeys[key]){
         FB._earlyWrite[key] = value; // guarda para reavaliar depois do pull
@@ -24236,27 +24253,50 @@ function jornContarDivergentes(dia){
 // os arquivos locais como a mesma origem de armazenamento.
 var JORN_STORAGE_KEY = 'raguife_jornada_v1';
 function jornSalvarStorage(){
-  try{
-    var payload = JSON.stringify({
-      dias: JORN_DIAS, rhDados: JORN_RH_DADOS, motivos: JORN_MOTIVOS, casosStatus: JORN_CASOS_STATUS
-    });
-    console.log('[jorn-diag] jornSalvarStorage: salvando '+JORN_DIAS.length+' dia(s):', JORN_DIAS.map(function(d){return d.data;}).sort());
-    localStorage.setItem(JORN_STORAGE_KEY, payload);
-    console.log('[jorn-diag] jornSalvarStorage: logo após o setItem, localStorage tem '+(JSON.parse(localStorage.getItem(JORN_STORAGE_KEY)).dias||[]).length+' dia(s)');
-  }catch(e){ console.warn('[jorn-diag] jornSalvarStorage ERRO:', e.message); }
+  var payloadObj = { dias: JORN_DIAS, rhDados: JORN_RH_DADOS, motivos: JORN_MOTIVOS, casosStatus: JORN_CASOS_STATUS };
+  var fullPayload = JSON.stringify(payloadObj);
+  // CORREÇÃO (22/09): a causa raiz do dia 18/09 (e de qualquer outro que
+  // sumir do mesmo jeito) era o armazenamento local do navegador ficando sem
+  // espaço — a base de Jornada cresce bastante (dados detalhados de 50+
+  // motoristas por dia). Quando isso acontecia, a gravação falhava por
+  // completo, inclusive pra nuvem. Agora o envio pra nuvem acontece direto,
+  // com o histórico SEMPRE completo, nunca dependendo de sobrar espaço no
+  // navegador local pra isso funcionar — a nuvem é a fonte de verdade.
+  if(window.FB_SYNC && typeof window.FB_SYNC._pushOne==='function'){
+    try{ window.FB_SYNC._pushOne(JORN_STORAGE_KEY, fullPayload); }catch(e){ console.warn('[Jornada] Envio direto pra nuvem falhou:', e.message); }
+  }
+  // Cópia local: só pra abrir mais rápido e funcionar offline — nunca é a
+  // única cópia dos dados (a nuvem já recebeu tudo acima). Se não couber
+  // inteira no navegador, guarda só os dias mais recentes; se nem isso
+  // couber, segue sem cópia local — não é crítico, porque a próxima
+  // sincronização com a nuvem repõe tudo.
+  var rawSetItem = (typeof Storage!=='undefined' && Storage.prototype.setItem)
+    ? function(k,v){ Storage.prototype.setItem.call(localStorage, k, v); }
+    : function(k,v){ localStorage.setItem(k, v); };
+  try{ rawSetItem(JORN_STORAGE_KEY, fullPayload); return; }catch(e){ /* tenta reduzido abaixo */ }
+  var ordenados = JORN_DIAS.slice().sort(function(a,b){ return b.data.localeCompare(a.data); });
+  var janela = Math.min(20, ordenados.length);
+  while(janela > 0){
+    var reduzido = JSON.stringify({ dias: ordenados.slice(0, janela), rhDados: JORN_RH_DADOS, motivos: JORN_MOTIVOS, casosStatus: JORN_CASOS_STATUS });
+    try{
+      rawSetItem(JORN_STORAGE_KEY, reduzido);
+      console.warn('[Jornada] Base completa ('+ordenados.length+' dias) não coube no navegador — guardando só os '+janela+' dias mais recentes localmente. O histórico completo já está salvo na nuvem.');
+      return;
+    }catch(e){ janela = Math.floor(janela/2); }
+  }
+  console.warn('[Jornada] Espaço do navegador esgotado — sem cópia local por enquanto. A nuvem já recebeu o histórico completo.');
 }
 function jornCarregarStorage(){
   try{
     var raw = localStorage.getItem(JORN_STORAGE_KEY);
-    if(!raw){ console.log('[jorn-diag] jornCarregarStorage: localStorage vazio'); return false; }
+    if(!raw) return false;
     var obj = JSON.parse(raw);
-    console.log('[jorn-diag] jornCarregarStorage: lendo '+((obj.dias||[]).length)+' dia(s) do localStorage:', (obj.dias||[]).map(function(d){return d.data;}).sort());
     if(obj.dias && obj.dias.length){ JORN_DIAS = obj.dias; }
     if(obj.rhDados) JORN_RH_DADOS = obj.rhDados;
     if(obj.motivos) JORN_MOTIVOS = obj.motivos;
     if(obj.casosStatus) JORN_CASOS_STATUS = obj.casosStatus;
     return !!(obj.dias && obj.dias.length);
-  }catch(e){ console.warn('[jorn-diag] jornCarregarStorage ERRO:', e.message); return false; }
+  }catch(e){ console.warn('[jornCarregarStorage] erro:', e.message); return false; }
 }
 function jornLimparStorage(){
   if(!confirm('Isso apaga TODOS os dias, conciliações RH e motivos salvos no navegador (não afeta a rede). Continuar?')) return;
@@ -24323,7 +24363,6 @@ function jornDetectarEImportar(){
         var idx = JORN_DIAS.findIndex(function(d){ return d.data===det.dataISO; });
         var entrada = {data:det.dataISO, tipo:tipo, jornadaRows:jornadaRows, kmMap:kmMap};
         if(idx>=0) JORN_DIAS[idx] = entrada; else JORN_DIAS.push(entrada);
-        console.log('[jorn-diag] import: '+(idx>=0?'atualizou':'adicionou')+' '+det.dataISO+' — JORN_DIAS agora tem '+JORN_DIAS.length+' dia(s):', JORN_DIAS.map(function(d){return d.data;}).sort());
         jornLog((idx>=0?'Dia atualizado':'Dia importado')+': '+jornFmtDataCurta(det.dataISO)+' ('+jornTipoLabel(tipo)+') — '+jornadaRows.length+' motoristas.', false);
         document.getElementById('jorn-inp-jornada').value='';
         document.getElementById('jorn-inp-km').value='';
@@ -24542,7 +24581,6 @@ function jornRenderRankingMotivos(){
 function jornRenderImportPanel(){
   var el = document.getElementById('jorn-import-dias'); if(!el) return;
   var lista = JORN_DIAS.slice().sort(function(a,b){ return b.data.localeCompare(a.data); });
-  console.log('[jorn-diag] jornRenderImportPanel: desenhando '+lista.length+' dia(s):', lista.map(function(d){return d.data;}));
   if(!lista.length){ el.innerHTML = '<div style="padding:24px;text-align:center;color:var(--txl);font-size:12px">Nenhum dia carregado ainda.</div>'; return; }
   el.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:12px">'+
     '<thead><tr style="background:var(--bg-chip)"><th style="padding:9px 12px;text-align:left">Data</th><th style="padding:9px 12px;text-align:left">Tipo</th><th style="padding:9px 12px;text-align:right">Motoristas</th><th style="padding:9px 12px;text-align:right">Com Km</th><th style="padding:9px 12px;text-align:right">Divergentes</th><th style="padding:9px 12px"></th></tr></thead><tbody>'+
