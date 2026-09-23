@@ -23838,6 +23838,7 @@ function jornSetPeriodoPreset(tipo){
   jornAtualizarPillsPeriodo(tipo);
   jornRecalcular();
   jornPopularFiltrosUI();
+  _jornForcarSemanaDoFiltro = true; // CORREÇÃO (23/09): ver comentário em jornPopularSelectSemana
   jornRenderTabAtiva();
 }
 function jornAplicarPeriodoPersonalizado(){
@@ -23849,6 +23850,7 @@ function jornAplicarPeriodoPersonalizado(){
   jornAtualizarPillsPeriodo('personalizado');
   jornRecalcular();
   jornPopularFiltrosUI();
+  _jornForcarSemanaDoFiltro = true; // CORREÇÃO (23/09): ver comentário em jornPopularSelectSemana
   jornRenderTabAtiva();
 }
 function jornAtualizarPillsPeriodo(ativo){
@@ -24340,6 +24342,7 @@ function jornPosImportacao(){
     if(iniInp){ iniInp.value = maisRecente.data; fimInp.value = maisRecente.data; }
     jornAtualizarPillsPeriodo('personalizado');
   }
+  _jornForcarSemanaDoFiltro = true; // CORREÇÃO (23/09): ver comentário em jornPopularSelectSemana
   jornRecalcular();
   jornPopularFiltrosUI();
   jornRenderImportPanel();
@@ -24693,6 +24696,7 @@ function jornSemanasDisponiveis(){
   });
   return Object.keys(semanas).sort().reverse().map(function(seg){ return {seg:seg, dias:semanas[seg].sort()}; });
 }
+var _jornForcarSemanaDoFiltro = false;
 function jornPopularSelectSemana(){
   var sel = document.getElementById('jorn-mc-semana'); if(!sel) return null;
   var semanas = jornSemanasDisponiveis();
@@ -24701,9 +24705,23 @@ function jornPopularSelectSemana(){
     var fimSemana = new Date(s.seg+'T00:00:00'); fimSemana.setDate(fimSemana.getDate()+6);
     return '<option value="'+s.seg+'">Semana de '+jornFmtDataCurta(s.seg)+' a '+jornFmtDataCurta(jornFmtISO(fimSemana))+'</option>';
   }).join('');
+  // CORREÇÃO (23/09): antes, o seletor "Semana de..." nunca olhava pro filtro
+  // de PERÍODO do cabeçalho — só mantinha a semana que já estava selecionada
+  // (ou caía na mais recente, se a seleção não existisse mais). Resultado:
+  // trocar o período lá em cima (ou importar dias novos) não fazia o Mapa de
+  // Calor pular pra semana certa — a pessoa via um período diferente do que
+  // tinha acabado de escolher, sem nenhum aviso. Quando esta função é chamada
+  // por causa de uma mudança no filtro de período (flag abaixo, setada em
+  // jornSetPeriodoPreset/jornAplicarPeriodoPersonalizado), força a semana pra
+  // a que contém a data final desse filtro — só nesse caso; um clique manual
+  // direto no dropdown continua respeitado normalmente.
+  var padrao = atual;
+  if(_jornForcarSemanaDoFiltro && JORN_FILTROS.dataFim){
+    padrao = jornGetWeekKey(JORN_FILTROS.dataFim);
+    _jornForcarSemanaDoFiltro = false;
+  }
   // Se o campo ainda não tem valor escolhido (ex: primeira renderização após
   // trocar pro último dia disponível), abre já na semana do último dia.
-  var padrao = atual;
   if(!padrao || !semanas.some(function(s){return s.seg===padrao;})){
     var ultimaData = jornUltimaDataDisponivel();
     padrao = jornGetWeekKey(ultimaData);
