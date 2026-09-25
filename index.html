@@ -858,6 +858,32 @@ if(location.protocol!=='file:'){
         Object.keys(val).forEach(function(id){
           if(val[id] && val[id].data){ var r = val[id].data; if(!r._id) r._id = id; arr.push(r); tsMap[r._id] = val[id]._ts; }
         });
+        // CORREÇÃO (25/09): confirmado ao vivo (base do Rastreamento, 25/09) que
+        // uma única leitura (.once('value')) na coleção inteira de viagens —
+        // que já passa de 1500 registros — pode voltar com MENOS filhos do que
+        // realmente existem, mesmo sem nenhum erro reportado e mesmo com os
+        // registros faltantes confirmados presentes por leitura individual
+        // direta. É um comportamento raro de leituras grandes, não uma perda
+        // de dado real. Como não há como garantir de antemão que isso não vai
+        // acontecer de novo, faz uma SEGUNDA leitura da mesma coleção logo em
+        // seguida e funde (união, nunca remove) o que a primeira deixou de
+        // trazer — protege contra o caso sem precisar saber a causa exata.
+        return new Promise(function(resolve){
+          recordsRef.once('value').then(function(snap2){
+            var val2 = snap2.val() || {};
+            var vistos = {}; arr.forEach(function(r){ vistos[r._id] = true; });
+            var recuperados = 0;
+            Object.keys(val2).forEach(function(id){
+              if(vistos[id]) return;
+              if(val2[id] && val2[id].data){
+                var r2 = val2[id].data; if(!r2._id) r2._id = id;
+                arr.push(r2); tsMap[r2._id] = val2[id]._ts; recuperados++;
+              }
+            });
+            if(recuperados>0) console.warn('[FB Sync] Verificação pós-pull recuperou '+recuperados+' viagem(ns) que a primeira leitura da coleção tinha deixado de fora.');
+            resolve();
+          }).catch(function(){ resolve(); }); // se a segunda leitura falhar, segue só com a primeira (não bloqueia o carregamento)
+        }).then(function(){
         var localRaw = origGetItem(VIAGENS_KEY);
         origSetItem(VIAGENS_KEY, JSON.stringify(arr));
         // CORREÇÃO CRÍTICA (12/08): a variável DB em memória é montada uma única
@@ -895,6 +921,7 @@ if(location.protocol!=='file:'){
         FB._pulledKeys[VIAGENS_KEY] = true;
         FB._resolveEarlyWrite(VIAGENS_KEY, null);
         FB._attachViagensListener();
+        });
       }).catch(function(e){
         console.warn('[FB Sync] Pull de viagens por registro falhou:', e.message);
         FB._pulledKeys[VIAGENS_KEY] = true;
