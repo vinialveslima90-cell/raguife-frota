@@ -885,7 +885,20 @@ if(location.protocol!=='file:'){
           }).catch(function(){ resolve(); }); // se a segunda leitura falhar, segue só com a primeira (não bloqueia o carregamento)
         }).then(function(){
         var localRaw = origGetItem(VIAGENS_KEY);
-        origSetItem(VIAGENS_KEY, JSON.stringify(arr));
+        // CORREÇÃO CRÍTICA (25/09): esta gravação no navegador não estava
+        // protegida — quando o armazenamento local está cheio (confirmado ao
+        // vivo no computador do Rastreamento: "exceeded the quota"), o erro
+        // interrompia a função inteira NESTE PONTO, pulando direto pro catch lá
+        // embaixo. Isso significa que TUDO que vem depois — sincronizar a
+        // variável DB em memória (o que a tela realmente usa), ligar o ouvinte
+        // em tempo real, marcar o pull como concluído — nunca chegava a
+        // acontecer. Era essa a causa real das 18 viagens sumidas, não uma
+        // falha da leitura grande da nuvem (a correção de verificação acima
+        // continua útil, mas sozinha não resolvia isso). Agora, se a gravação
+        // local falhar, a tela e a memória são atualizadas mesmo assim — a
+        // cópia local é só uma conveniência, nunca pode ser um bloqueio.
+        try{ origSetItem(VIAGENS_KEY, JSON.stringify(arr)); }
+        catch(e){ console.warn('[FB Sync] Não coube cópia local das viagens (espaço do navegador esgotado) — seguindo só com a versão em memória, que é a que a tela usa.'); }
         // CORREÇÃO CRÍTICA (12/08): a variável DB em memória é montada uma única
         // vez, na carga do script, a partir do que já estava salvo no navegador
         // naquele instante. Essa busca na nuvem roda em paralelo (assíncrona) e,
@@ -973,7 +986,7 @@ if(location.protocol!=='file:'){
         var arr = lerArrayLocal();
         if(!arr.some(function(r){ return r._id===id; })){
           arr.push(novo);
-          origSetItem(VIAGENS_KEY, JSON.stringify(arr));
+          try{ origSetItem(VIAGENS_KEY, JSON.stringify(arr)); }catch(e){ /* cópia local é só conveniência — segue mesmo assim */ }
         }
         syncDBComRegistro(id, novo);
         FB._ultimoEstadoViagens[id] = serialNovo;
@@ -987,7 +1000,7 @@ if(location.protocol!=='file:'){
         var arr = lerArrayLocal();
         var idx = arr.findIndex(function(r){ return r._id===id; });
         if(idx>=0) arr[idx]=novo; else arr.push(novo);
-        origSetItem(VIAGENS_KEY, JSON.stringify(arr));
+        try{ origSetItem(VIAGENS_KEY, JSON.stringify(arr)); }catch(e){ /* cópia local é só conveniência — segue mesmo assim */ }
         syncDBComRegistro(id, novo);
         FB._ultimoEstadoViagens[id] = JSON.stringify(novo);
         if(!FB._ultimoTsViagens) FB._ultimoTsViagens = {};
@@ -998,7 +1011,7 @@ if(location.protocol!=='file:'){
         var id = snap.key;
         var arr = lerArrayLocal();
         var idx = arr.findIndex(function(r){ return r._id===id; });
-        if(idx>=0){ arr.splice(idx,1); origSetItem(VIAGENS_KEY, JSON.stringify(arr)); }
+        if(idx>=0){ arr.splice(idx,1); try{ origSetItem(VIAGENS_KEY, JSON.stringify(arr)); }catch(e){ /* cópia local é só conveniência — segue mesmo assim */ } }
         syncDBComRegistro(id, null);
         delete FB._ultimoEstadoViagens[id];
         if(FB._ultimoTsViagens) delete FB._ultimoTsViagens[id];
