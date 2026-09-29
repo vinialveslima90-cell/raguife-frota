@@ -8372,10 +8372,13 @@ function renderKPIs(data){
     if(cFiltroPend && r.cat!==cFiltroPend) return false;
     return r.status_pgto!=='PAGO';
   }).reduce(function(a,r){ return a+((parseFloat(r.vfr)||0)-(parseFloat(r.vl_pgto)||0)-(parseFloat(r.vl_adt)||0)); },0);
+  // CORREÇÃO (28/09): mesmo motivo do rec_ft acima — o pendente do Frete de
+  // Terceiros é dinheiro que a EMPRESA DEVE pagar ao transportador contratado
+  // (uma conta a pagar), não algo "a receber". Não entra mais aqui.
+  const pagar_ft_terceiros = rec_ft_dedicado_pend; // conta a pagar: frete de terceiros ainda não quitado
   const rec_ft_pend = data.filter(r=>r.is_terceiro&&r.ft_pgto==='pendente').reduce((a,r)=>a+(r.ft_valor||0),0)
     + data.filter(r=>r.is_terceiro&&r.ft_pgto==='parcial').reduce((a,r)=>a+((r.ft_vl_total||r.ft_valor||0)-(r.ft_vl_pago||0)),0)
-    + data.filter(r=>r.tipo_ret&&r.tipo_ret!=='Retorno'&&r.tipo_ret!=='MP'&&r.tipo_ret!=='Outros'&&r.retorno==='Sim'&&r.pagamento!=='Pago').reduce((a,r)=>a+r.vl_total,0)
-    + rec_ft_dedicado_pend;
+    + data.filter(r=>r.tipo_ret&&r.tipo_ret!=='Retorno'&&r.tipo_ret!=='MP'&&r.tipo_ret!=='Outros'&&r.retorno==='Sim'&&r.pagamento!=='Pago').reduce((a,r)=>a+r.vl_total,0);
   // CORREÇÃO CRÍTICA (24/08): rec_ft_pago só contava viagem terceirizada com
   // ft_pgto==='pago' — cobrança já recebida. Isso deixava a receita gerada por
   // frete terceirizado invisível na Receita Gerada até o pagamento cair,
@@ -8405,7 +8408,19 @@ function renderKPIs(data){
   // conciliação de planilha (rec_outros) e o módulo dedicado com NF (rec_ft_dedicado).
   // rec_outros deixa de ser somado separadamente no total geral (linha abaixo) pra não
   // contar em dobro — ele já está embutido aqui dentro de rec_ft.
-  const rec_ft = data.filter(r=>r.is_terceiro).reduce((a,r)=>a+(parseFloat(r.ft_valor)||0),0) + rec_ft_dedicado + rec_outros;
+  // CORREÇÃO (28/09): "Frete Terceiros" (módulo dedicado, base DB_FT/vfr) é
+  // frete CONTRATADO pela empresa — a empresa paga um transportador externo.
+  // Isso é DESPESA (custo de transporte), nunca receita. A versão anterior
+  // deste código somava rec_ft_dedicado aqui dentro de rec_ft (Receita
+  // Gerada) por engano — confirmado agora com o usuário que são coisas
+  // opostas: "Frota Terceirizada" (is_terceiro/ft_valor — o caminhão da
+  // PRÓPRIA empresa carregando frete de terceiros, aí sim é receita) e
+  // "Frete de Terceiros" (DB_FT/vfr — contratar terceiros pra rodar, isso é
+  // despesa) são dois grupos opostos que não podem ficar somados juntos.
+  // rec_ft_dedicado continua calculado (usado agora como despesa lá embaixo
+  // e no DRE do Financeiro), só não entra mais na receita.
+  const rec_ft = data.filter(r=>r.is_terceiro).reduce((a,r)=>a+(parseFloat(r.ft_valor)||0),0) + rec_outros;
+  const desp_ft_terceiros = rec_ft_dedicado; // despesa: frete contratado de terceiros
   const rec = rec_ret + rec_mp + rec_entrega + rec_ft;
   // Pendências: usa as PERNAS explodidas, não o campo consolidado da viagem — porque
   // r.pagamento só vira "Pago" quando TODAS as pernas estão pagas. Numa viagem de 2
@@ -12904,13 +12919,27 @@ function finRenderDashboard(){
   var dadosChart = todas.filter(function(x){ return !fAno || x.r.dt_carg.slice(0,4)===fAno; });
 
   var receitaTotal = dadosKpi.reduce(function(s,x){return s+x.receitaTotal;},0);
-  var custoTotal = dadosKpi.reduce(function(s,x){return s+x.custo.custoTotal;},0);
+  var custoOperacional = dadosKpi.reduce(function(s,x){return s+x.custo.custoTotal;},0);
+  // CORREÇÃO (28/09): "Frete de Terceiros" (base DB_FT/vfr — frete CONTRATADO
+  // de transportadores externos pela empresa) nunca entrava neste DRE — o
+  // Custo Operacional Total só somava o custo das viagens da frota própria
+  // (diesel, pneu, manutenção etc.), deixando essa despesa real invisível no
+  // resultado. Agora soma junto, filtrado pelo mesmo Ano/Mês já selecionado
+  // aqui em cima, pra não misturar períodos diferentes no mesmo total.
+  var custoFreteTerceiros = (typeof DB_FT!=='undefined'?DB_FT:[]).filter(function(r){
+    if(!r._user) return false; // exclui dados de amostra (SEED_FT)
+    if(fAno && !String(r.mes||'').endsWith('/'+fAno)) return false;
+    if(fMes && String(r.mes||'').split('/')[0]!==String(parseInt(fMes)).padStart(2,'0')) return false;
+    return true;
+  }).reduce(function(a,r){ return a+(parseFloat(r.vfr)||0); },0);
+  var custoTotal = custoOperacional + custoFreteTerceiros;
   var lucroTotal = receitaTotal-custoTotal;
   var margem = receitaTotal>0 ? lucroTotal/receitaTotal*100 : null;
 
   g('fin-d-kpis').innerHTML = [
     {lbl:'Receita Total', val:freteRC(receitaTotal)},
-    {lbl:'Custo Operacional Total', val:freteRC(custoTotal)},
+    {lbl:'Custo Operacional Total', val:freteRC(custoOperacional)},
+    {lbl:'Frete de Terceiros (despesa)', val:freteRC(custoFreteTerceiros)},
     {lbl:'Lucro Operacional', val:freteRC(lucroTotal), cor: lucroTotal>=0?'#16a34a':'#dc2626'},
     {lbl:'Margem de Rentabilidade', val: margem!=null?N(margem,1)+'%':'—'}
   ].map(function(k){
@@ -12921,9 +12950,9 @@ function finRenderDashboard(){
   var kmTotal = dadosKpi.reduce(function(s,x){return s+(x.custo.kmReal||0);},0);
   var tonTotal = dadosKpi.reduce(function(s,x){return s+((parseFloat(x.r.peso_ent)||0)/1000)+((parseFloat(x.r.peso_ret)||0)/1000);},0);
   g('fin-d-produtividade').innerHTML = [
-    {lbl:'Custo por Km', val: kmTotal>0?freteRC(custoTotal/kmTotal):'—'},
-    {lbl:'Custo por Tonelada', val: tonTotal>0?freteRC(custoTotal/tonTotal):'—'},
-    {lbl:'Custo por Viagem', val: dadosKpi.length>0?freteRC(custoTotal/dadosKpi.length):'—'}
+    {lbl:'Custo por Km', val: kmTotal>0?freteRC(custoOperacional/kmTotal):'—'},
+    {lbl:'Custo por Tonelada', val: tonTotal>0?freteRC(custoOperacional/tonTotal):'—'},
+    {lbl:'Custo por Viagem', val: dadosKpi.length>0?freteRC(custoOperacional/dadosKpi.length):'—'}
   ].map(function(k){
     return '<div class="rec-panel" style="padding:14px 16px"><div style="font-size:11px;color:var(--txl);font-weight:600">'+k.lbl+'</div><div style="font-size:17px;font-weight:800;color:var(--txt);margin-top:4px">'+k.val+'</div></div>';
   }).join('');
@@ -17162,23 +17191,12 @@ function recBuildRows(tab){
           conta:r.conta||'', pagamento:r.pagamento||'', obs:r.obs||''});
       }
     });
-    // (c) Módulo dedicado "Frete Terceiros" (com Nota Fiscal, base DB_FT) — mesma
-    // base já somada na Receita Gerada (rec_ft_dedicado). CORREÇÃO: antes esse
-    // relatório não incluía essas linhas, então o total daqui nunca batia com o
-    // card do dashboard (que soma os 3 módulos juntos) — este bloco fecha essa
-    // conta. Edição fica só pelo módulo Frete Terceiros mesmo (tem campos que não
-    // cabem no popover genérico daqui: NF, adiantamento, aprovador).
-    (typeof DB_FT!=='undefined'?DB_FT:[]).forEach(function(r){
-      if(!r._user) return; // exclui dados de amostra (SEED_FT)
-      var stMapFt = {SEM_PGTO:'Pendente', ADIANTAMENTO:'Parcial', PAGO:'Pago'};
-      out.push({_dbRow:r, _pernaIdx:null, _kind:'dbft',
-        dt_carg:r.dt, placa:r.conj, categoria:r.cat,
-        origem_cidade:'', origem_uf:'',
-        dest_cidade:r.cid||'', dest_uf:r.uf||'',
-        tipo:'Terceirizado (NF)', peso:r.peso||0, vton:r.vton||0, vl_total:parseFloat(r.vfr)||0,
-        conta:r.cnt||'', pagamento: stMapFt[r.status_pgto]||'Pendente',
-        obs:r.nf?('NF '+r.nf):''});
-    });
+    // CORREÇÃO (28/09): o módulo dedicado "Frete Terceiros" (base DB_FT) não
+    // entra mais aqui — ele é despesa (frete contratado de terceiros pela
+    // empresa), não receita de Frota Terceirizada (que é o caminhão da
+    // PRÓPRIA empresa carregando frete de terceiros). Misturar os dois neste
+    // relatório de receita não faz mais sentido agora que o card do
+    // dashboard também não soma mais os dois juntos.
   } else {
     // CORREÇÃO (regra combinada — Frete Retorno usa Data de Descarga no Cliente):
     // essa aba já era filtrada por um período (rec-de/rec-ate) que o outer filter
