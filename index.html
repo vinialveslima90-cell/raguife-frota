@@ -5279,7 +5279,7 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
     <div class="form-body">
       <!-- FRETE ENTREGA -->
       <div class="form-div" style="margin-top:8px">Frete de Entrega</div>
-      <div class="fg g3">
+      <div class="fg g4">
         <div class="form-grp">
           <label class="form-lbl">Razão Social do Cliente</label>
           <input type="text" class="form-ctrl" id="fi-cliente" list="fi-cliente-list" placeholder="Ex: COOPERATIVA AGRÁRIA LTDA" oninput="this.value=this.value.toUpperCase()" onblur="fiClienteLookup()">
@@ -5287,8 +5287,12 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
           <div id="fi-cliente-hint" style="font-size:11px;color:var(--txl);margin-top:4px"></div>
         </div>
         <div class="form-grp">
-          <label class="form-lbl">Valor Frete Entrega (R$)</label>
-          <input type="number" class="form-ctrl" id="fi-vl-entrega" placeholder="0,00" step="0.01" min="0">
+          <label class="form-lbl">R$/Ton</label>
+          <input type="number" class="form-ctrl" id="fi-vton-entrega" placeholder="0,00" step="0.01" min="0" oninput="fiCalcFreteEntrega()">
+        </div>
+        <div class="form-grp">
+          <label class="form-lbl">Valor do Frete (R$)</label>
+          <input type="number" class="form-ctrl" id="fi-vl-entrega" readonly style="background:var(--gg);font-weight:800" placeholder="0,00">
         </div>
         <div class="form-grp" style="display:flex;align-items:flex-end;padding-bottom:2px">
           <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 14px;background:var(--gg);border:1px solid var(--gb);border-radius:8px;width:100%">
@@ -5369,12 +5373,76 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
           <div class="fg g4">
             <div class="form-grp">
               <label class="form-lbl">Origem do Frete <span class="req">*</span></label>
-              <input type="text" class="form-ctrl" id="fi-ft-origem" placeholder="Ex: SANTA FÉ DO SUL" oninput="this.value=this.value.toUpperCase()" style="border-color:#fde68a">
+              <input type="text" class="form-ctrl" id="fi-ft-origem" placeholder="Ex: ARCOS" oninput="this.value=this.value.toUpperCase()" style="border-color:#fde68a">
+            </div>
+            <div class="form-grp">
+              <label class="form-lbl">Estado (UF) Origem <span class="req">*</span></label>
+              <select class="form-ctrl" id="fi-ft-origem-uf" style="border-color:#fde68a"><option value="">Selecione…</option>
+<option value="AC">AC</option>
+<option value="AL">AL</option>
+<option value="AM">AM</option>
+<option value="AP">AP</option>
+<option value="BA">BA</option>
+<option value="CE">CE</option>
+<option value="DF">DF</option>
+<option value="ES">ES</option>
+<option value="GO">GO</option>
+<option value="MA">MA</option>
+<option value="MG">MG</option>
+<option value="MS">MS</option>
+<option value="MT">MT</option>
+<option value="PA">PA</option>
+<option value="PB">PB</option>
+<option value="PE">PE</option>
+<option value="PI">PI</option>
+<option value="PR">PR</option>
+<option value="RJ">RJ</option>
+<option value="RN">RN</option>
+<option value="RO">RO</option>
+<option value="RR">RR</option>
+<option value="RS">RS</option>
+<option value="SC">SC</option>
+<option value="SE">SE</option>
+<option value="SP">SP</option>
+<option value="TO">TO</option></select>
             </div>
             <div class="form-grp">
               <label class="form-lbl">Destino do Frete <span class="req">*</span></label>
               <input type="text" class="form-ctrl" id="fi-ft-destino" placeholder="Ex: SORRISO" oninput="this.value=this.value.toUpperCase()" style="border-color:#fde68a">
             </div>
+            <div class="form-grp">
+              <label class="form-lbl">Estado (UF) Destino <span class="req">*</span></label>
+              <select class="form-ctrl" id="fi-ft-destino-uf" style="border-color:#fde68a"><option value="">Selecione…</option>
+<option value="AC">AC</option>
+<option value="AL">AL</option>
+<option value="AM">AM</option>
+<option value="AP">AP</option>
+<option value="BA">BA</option>
+<option value="CE">CE</option>
+<option value="DF">DF</option>
+<option value="ES">ES</option>
+<option value="GO">GO</option>
+<option value="MA">MA</option>
+<option value="MG">MG</option>
+<option value="MS">MS</option>
+<option value="MT">MT</option>
+<option value="PA">PA</option>
+<option value="PB">PB</option>
+<option value="PE">PE</option>
+<option value="PI">PI</option>
+<option value="PR">PR</option>
+<option value="RJ">RJ</option>
+<option value="RN">RN</option>
+<option value="RO">RO</option>
+<option value="RR">RR</option>
+<option value="RS">RS</option>
+<option value="SC">SC</option>
+<option value="SE">SE</option>
+<option value="SP">SP</option>
+<option value="TO">TO</option></select>
+            </div>
+          </div>
+          <div class="fg g4" style="margin-top:8px">
             <div class="form-grp">
               <label class="form-lbl">Peso (kg) <span class="req">*</span></label>
               <input type="number" class="form-ctrl" id="fi-ft-peso" placeholder="0" min="0" step="0.01" oninput="fiCalcFreteTerceiro()" onblur="corrigirPesoMilhar(this);fiCalcFreteTerceiro()" style="border-color:#fde68a">
@@ -5506,7 +5574,7 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
 <option value="SE">SE</option>
 <option value="SP">SP</option>
 <option value="TO">TO</option></select></div>
-        <div class="form-grp"><label class="form-lbl">Peso Carregado (kg)</label><input type="number" class="form-ctrl" id="fi-pe" placeholder="0" min="0" onblur="corrigirPesoMilhar(this)"></div>
+        <div class="form-grp"><label class="form-lbl">Peso Carregado (kg)</label><input type="number" class="form-ctrl" id="fi-pe" placeholder="0" min="0" oninput="fiCalcFreteEntrega()" onblur="corrigirPesoMilhar(this);fiCalcFreteEntrega()"></div>
       </div>
       <div class="form-div">Destino</div>
       <div class="fg g4">
@@ -7451,7 +7519,19 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
         </div>
         <div class="form-grp">
           <label class="form-lbl">Peso Carregado (kg)</label>
-          <input type="number" class="form-ctrl" id="me1-pe" min="0">
+          <input type="number" class="form-ctrl" id="me1-pe" min="0" oninput="me1CalcFreteEntrega()">
+        </div>
+      </div>
+
+      <div class="form-div">Frete de Entrega</div>
+      <div class="fg g2">
+        <div class="form-grp">
+          <label class="form-lbl">R$/Ton</label>
+          <input type="number" class="form-ctrl" id="me1-vton-entrega" placeholder="0,00" step="0.01" min="0" oninput="me1CalcFreteEntrega()">
+        </div>
+        <div class="form-grp">
+          <label class="form-lbl">Valor do Frete (R$)</label>
+          <input type="number" class="form-ctrl" id="me1-vl-entrega" readonly style="background:var(--gg);font-weight:800">
         </div>
       </div>
 
@@ -8839,6 +8919,13 @@ function viagemExecutarExclusao(r, motivo, eraConcluida){
 }
 
 
+function me1CalcFreteEntrega(){
+  var peso = parseFloat(document.getElementById('me1-pe').value) || 0;
+  var vton = parseFloat(document.getElementById('me1-vton-entrega').value) || 0;
+  var val  = peso > 0 && vton > 0 ? (peso / 1000 * vton) : 0;
+  var el   = document.getElementById('me1-vl-entrega');
+  if(el) el.value = val > 0 ? val.toFixed(2) : '';
+}
 function openModal(idx){
   modalIdx = idx;
   const r = DB[idx];
@@ -8849,11 +8936,13 @@ function openModal(idx){
   g('me1-dtc').value          = r.dt_carg || '';
   g('me1-km-saida').value     = r.km_saida || '';
   g('me1-motorista').value    = r.motorista || '';
-  g('me1-orig-cidade').value  = r.origem_cidade || (r.is_terceiro ? (r.ft_origem||'') : '');
-  g('me1-orig-uf').value      = r.origem_uf || '';
-  g('me1-pe').value           = r.peso_ent || (r.is_terceiro ? (r.ft_peso||'') : '');
-  g('me1-dest-cidade').value  = r.destino_cidade || (r.is_terceiro ? (r.ft_destino||'') : '');
-  g('me1-dest-uf').value      = r.destino_uf || '';
+  g('me1-orig-cidade').value  = r.is_terceiro ? (r.ft_origem||'') : (r.origem_cidade||'');
+  g('me1-orig-uf').value      = r.is_terceiro ? (r.ft_origem_uf||'') : (r.origem_uf||'');
+  g('me1-pe').value           = r.is_terceiro ? (r.ft_peso||'') : (r.peso_ent||'');
+  g('me1-vton-entrega').value = r.vton_ent || '';
+  g('me1-vl-entrega').value   = r.vl_ent || '';
+  g('me1-dest-cidade').value  = r.is_terceiro ? (r.ft_destino||'') : (r.destino_cidade||'');
+  g('me1-dest-uf').value      = r.is_terceiro ? (r.ft_destino_uf||'') : (r.destino_uf||'');
   g('me1-kmg').value          = r.km_grupo ? String(r.km_grupo) : '';
   g('me1-km').value           = r.km || '';
 
@@ -9167,6 +9256,8 @@ function saveEtapa1Modal(){
   r.km_grupo_label = 'GRUPO ' + kmg + ' (' + kmLow + ' a ' + (kmLow+99) + ')';
   r.km             = parseFloat(g('me1-km').value) || kmLow;
   r.peso_ent       = parseFloat(g('me1-pe').value) || 0;
+  r.vton_ent       = parseFloat(g('me1-vton-entrega').value) || 0;
+  r.vl_ent         = parseFloat(g('me1-vl-entrega').value) || 0;
 
   save();
   if(typeof finRefreshSeVisivel==='function') finRefreshSeVisivel();
@@ -9650,7 +9741,7 @@ function validateEtapa1(){
     // a obrigatoriedade passa para os campos da seção "Dados do Frete Terceirizado".
     // KM de Saída continua obrigatório mesmo aqui — sem ele, o motor de custo real não
     // consegue calcular o Km rodado (Km Final − Km Saída) no fechamento da Etapa 2.
-    fields=fields.concat([['fi-ft-origem','Origem do Frete'],['fi-ft-destino','Destino do Frete'],['fi-ft-peso','Peso (kg)'],['fi-ft-vton','R$/Ton'],['fi-km-saida','KM de Saída']]);
+    fields=fields.concat([['fi-ft-origem','Origem do Frete'],['fi-ft-origem-uf','Estado (UF) Origem'],['fi-ft-destino','Destino do Frete'],['fi-ft-destino-uf','Estado (UF) Destino'],['fi-ft-peso','Peso (kg)'],['fi-ft-vton','R$/Ton'],['fi-km-saida','KM de Saída']]);
     // Limpa marcação de erro residual nos campos que deixaram de ser obrigatórios
     ['fi-orig-cidade','fi-orig-uf','fi-dest-cidade','fi-dest-uf','fi-kmg'].forEach(id=>{const el=g(id);if(el)el.classList.remove('err');});
   } else {
@@ -9679,6 +9770,9 @@ function fiToggleTerceirizado(){
   if(chk && !chk.checked){
     // Limpar campos ao desmarcar
     ['fi-ft-origem','fi-ft-destino','fi-ft-peso','fi-ft-vton','fi-ft-valor','fi-ft-dt-pgto'].forEach(function(id){
+      var el=document.getElementById(id); if(el) el.value='';
+    });
+    ['fi-ft-origem-uf','fi-ft-destino-uf'].forEach(function(id){
       var el=document.getElementById(id); if(el) el.value='';
     });
     var sel=document.getElementById('fi-ft-pgto'); if(sel) sel.value='';
@@ -9818,6 +9912,13 @@ function corrigirPesoMilhar(el){
   var corrigido = Math.round(parseFloat(raw) * 1000);
   el.value = corrigido;
   if(typeof toast==='function') toast('Peso ajustado: "'+raw+'" interpretado como '+corrigido.toLocaleString('pt-BR')+' kg (ponto = separador de milhar)','success');
+}
+function fiCalcFreteEntrega(){
+  var peso = parseFloat(document.getElementById('fi-pe').value) || 0;
+  var vton = parseFloat(document.getElementById('fi-vton-entrega').value) || 0;
+  var val  = peso > 0 && vton > 0 ? (peso / 1000 * vton) : 0;
+  var el   = document.getElementById('fi-vl-entrega');
+  if(el) el.value = val > 0 ? val.toFixed(2) : '';
 }
 function fiCalcFreteTerceiro(){
   var peso = parseFloat(document.getElementById('fi-ft-peso').value) || 0;
@@ -10231,12 +10332,21 @@ function saveEtapa1(){
 
   const terceirizado = g('fi-terceirizado') && g('fi-terceirizado').checked;
   const kmg=parseInt(g('fi-kmg').value)||0, kmLow=kmg?(kmg-1)*100:0;
-  // Frete Terceirizado: origem/destino próprios podem ficar em branco; usa os dados
-  // da seção terceirizada (fi-ft-*) para manter o registro com informação útil.
-  const origCidade=(g('fi-orig-cidade').value.trim()||(terceirizado?g('fi-ft-origem').value.trim():'')).toUpperCase();
-  const destCidade=(g('fi-dest-cidade').value.trim()||(terceirizado?g('fi-ft-destino').value.trim():'')).toUpperCase();
-  const origUf=g('fi-orig-uf').value;
-  const destUf=g('fi-dest-uf').value;
+  // CORREÇÃO (29/09): antes, quando "Frete Terceirizado" estava marcado, a
+  // origem/destino da viagem só usavam os campos próprios do Terceirizado
+  // (fi-ft-*) SE os campos principais (fi-orig-cidade/fi-dest-cidade)
+  // estivessem vazios. Só que esses campos principais, mesmo escondidos
+  // nesse fluxo, são preenchidos automaticamente com "SANTA FÉ DO SUL" toda
+  // vez que o formulário é limpo pra um novo lançamento (ver linhas com
+  // g('fi-orig-cidade').value='SANTA FÉ DO SUL') — ou seja, NUNCA ficavam
+  // vazios de verdade, e o Frete Terceirizado nunca era usado, mesmo com a
+  // origem certa digitada ali. Agora, quando Terceirizado está marcado, os
+  // campos próprios (fi-ft-*) vêm PRIMEIRO — os principais (escondidos, e
+  // por isso irrelevantes nesse fluxo) só entram se não for terceirizado.
+  const origCidade=(terceirizado?g('fi-ft-origem').value.trim():g('fi-orig-cidade').value.trim()).toUpperCase();
+  const destCidade=(terceirizado?g('fi-ft-destino').value.trim():g('fi-dest-cidade').value.trim()).toUpperCase();
+  const origUf=terceirizado?(g('fi-ft-origem-uf')?g('fi-ft-origem-uf').value:''):g('fi-orig-uf').value;
+  const destUf=terceirizado?(g('fi-ft-destino-uf')?g('fi-ft-destino-uf').value:''):g('fi-dest-uf').value;
   DB.push({
     _id: 'v_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,9),
     placa:g('fi-placa').value.trim().toUpperCase(),categoria:g('fi-cat').value,dt_carg:g('fi-dtc').value,
@@ -10251,9 +10361,12 @@ function saveEtapa1(){
     tipo_ret:'',peso_ret:0,vl_ton:0,vl_total:0,pagamento:'',conta:'',obs:'',
     cliente:g('fi-cliente')?g('fi-cliente').value.trim():'',
     vl_ent:parseFloat(g('fi-vl-entrega')?g('fi-vl-entrega').value:0)||0,
+    vton_ent:parseFloat(g('fi-vton-entrega')?g('fi-vton-entrega').value:0)||0,
     is_terceiro:!!(g('fi-terceirizado')&&g('fi-terceirizado').checked),
     ft_origem:g('fi-ft-origem')?g('fi-ft-origem').value.trim():'',
+    ft_origem_uf:g('fi-ft-origem-uf')?g('fi-ft-origem-uf').value:'',
     ft_destino:g('fi-ft-destino')?g('fi-ft-destino').value.trim():'',
+    ft_destino_uf:g('fi-ft-destino-uf')?g('fi-ft-destino-uf').value:'',
     ft_peso:parseFloat(g('fi-ft-peso')?g('fi-ft-peso').value:0)||0,
     ft_vton:parseFloat(g('fi-ft-vton')?g('fi-ft-vton').value:0)||0,
     ft_valor:parseFloat(g('fi-ft-valor')?g('fi-ft-valor').value:0)||0,
@@ -10288,7 +10401,7 @@ g('fi-km').addEventListener('input',()=>{
 
 function clearForm(){
   // Limpar campos frete terceirizado
-  ['fi-cliente','fi-vl-entrega','fi-ft-origem','fi-ft-destino','fi-ft-peso','fi-ft-vton','fi-ft-valor','fi-ft-dt-pgto','fi-ft-vl-total','fi-ft-vl-pago','fi-ft-pct-pago'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});var pg=document.getElementById('fi-ft-parcial-grp');if(pg)pg.style.display='none';;
+  ['fi-cliente','fi-vl-entrega','fi-vton-entrega','fi-ft-origem','fi-ft-destino','fi-ft-peso','fi-ft-vton','fi-ft-valor','fi-ft-dt-pgto','fi-ft-vl-total','fi-ft-vl-pago','fi-ft-pct-pago'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});var pg=document.getElementById('fi-ft-parcial-grp');if(pg)pg.style.display='none';;
   var chk=document.getElementById('fi-terceirizado');if(chk)chk.checked=false;
   var sel=document.getElementById('fi-ft-pgto');if(sel)sel.value='';
   var grp=document.getElementById('fi-terceirizado-grp');if(grp)grp.style.display='none';
@@ -17158,8 +17271,8 @@ function recBuildRows(tab){
       out.push({
         _dbRow:r, _pernaIdx:null, _kind:'ft',
         dt_carg:r.dt_carg, placa:r.placa, categoria:r.categoria,
-        origem_cidade:r.ft_origem||r.origem_cidade||'', origem_uf:r.origem_uf||'',
-        dest_cidade:r.ft_destino||'', dest_uf:'',
+        origem_cidade:r.ft_origem||'', origem_uf:r.ft_origem_uf||'',
+        dest_cidade:r.ft_destino||'', dest_uf:r.ft_destino_uf||'',
         tipo:'Terceirizado',
         peso:r.ft_peso||0, vton:r.ft_vton||0, vl_total:r.ft_valor||0,
         conta:r.ft_conta||'', pagamento: stMap[r.ft_pgto]||'Pendente',
