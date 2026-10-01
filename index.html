@@ -123,7 +123,7 @@ if(location.protocol!=='file:'){
   // verificável (evita a ambiguidade que já causou confusão: build parada há
   // semanas enquanto o código mudava por baixo, sem nenhum jeito de confirmar
   // qual versão estava rodando de fato).
-  var RAGUIFE_BUILD_LOCAL = '2026-10-01-G';
+  var RAGUIFE_BUILD_LOCAL = '2026-10-01-I';
   window.RAGUIFE_BUILD_LOCAL = RAGUIFE_BUILD_LOCAL;
 
   var FB = {
@@ -150,6 +150,57 @@ if(location.protocol!=='file:'){
     // resolver duplicidade, recuperar do histórico, etc.) num histórico visível.
     // Resolve diretamente a queixa de "mudou sozinho, sem rastro": a partir de
     // agora, toda ação dessas grava quem fez, quando, e um resumo do que mudou.
+    // ── EXCLUSÃO SÓ EXPLÍCITA (01/10) ────────────────────────────────────
+    // Uma viagem só é apagada da nuvem se passou por aqui — chamado pelas
+    // telas no instante em que a pessoa manda excluir. Viagem que apenas
+    // "sumiu" da lista em memória (leitura incompleta, cópia local velha,
+    // aba antiga, bug) NUNCA é apagada: é recarregada da nuvem.
+    _exclusoesExplicitas:{},
+    marcarExclusao:function(lista){
+      (lista||[]).forEach(function(x){
+        var id = (x && typeof x==='object') ? x._id : x;
+        if(id) FB._exclusoesExplicitas[id] = Date.now();
+      });
+    },
+    _versaoDesatualizada:false,
+    // ── CÓPIA DIÁRIA + ALARME DE QUEDA (01/10) ───────────────────────────
+    // Uma cópia completa da base por dia (30 dias), independente de haver
+    // exclusão. Se a base vier mais de 5% menor que a cópia do dia anterior,
+    // avisa na tela e registra no Log — e não grava esse estado suspeito.
+    _backupDiario:function(arr){
+      try{
+        if(!Array.isArray(arr) || !arr.length || typeof firebase==='undefined') return;
+        var d = new Date();
+        var dia = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+        var d30 = new Date(Date.now()-30*86400000);
+        var limite = d30.getFullYear()+'-'+String(d30.getMonth()+1).padStart(2,'0')+'-'+String(d30.getDate()).padStart(2,'0');
+        var ref = firebase.database().ref('sync_backup_diario/raguife_v3');
+        ref.child('_indice').once('value').then(function(s){
+          var idx = s.val() || {};
+          var dias = Object.keys(idx).sort();
+          var anteriores = dias.filter(function(x){ return x < dia; });
+          var ultimo = anteriores.length ? idx[anteriores[anteriores.length-1]] : null;
+          if(ultimo && arr.length < ultimo*0.95){
+            var msg = 'A base de viagens carregou com '+arr.length+' viagens, mas a cópia de '+anteriores[anteriores.length-1]+' tinha '+ultimo+'.';
+            console.error('[ALARME] '+msg);
+            try{ FB.registrarLog('ALARME: queda na base de viagens', msg); }catch(e){}
+            if(!document.getElementById('alarme-queda-banner') && document.body){
+              var b = document.createElement('div'); b.id='alarme-queda-banner';
+              b.style.cssText='position:fixed;top:0;left:0;right:0;background:#7f1d1d;color:#fff;padding:12px 20px;text-align:center;font-size:13px;font-weight:700;z-index:100001';
+              b.innerHTML='🚨 '+msg+' Não edite nada: recarregue a página (Ctrl+Shift+R). Se o número continuar baixo, avise o administrador — existe cópia de segurança diária.';
+              document.body.insertBefore(b, document.body.firstChild);
+            }
+            return; // não grava cópia de um estado suspeito
+          }
+          if(idx[dia] && arr.length <= idx[dia]) return; // já existe cópia de hoje, igual ou maior
+          var upd = {};
+          upd[dia] = { data: JSON.stringify(arr), _ts: Date.now(), n: arr.length };
+          upd['_indice/'+dia] = arr.length;
+          dias.forEach(function(x){ if(x < limite){ upd[x] = null; upd['_indice/'+x] = null; } });
+          return ref.update(upd);
+        }).catch(function(e){ console.warn('[Cópia diária] falhou:', e.message); });
+      }catch(e){ console.warn('[Cópia diária] erro:', e.message); }
+    },
     registrarLog:function(acao, detalhe){
       if(typeof firebase==='undefined') return;
       try{
@@ -397,11 +448,12 @@ if(location.protocol!=='file:'){
         // de ninguém lembrar de checar manualmente. Se for a mais nova vista até
         // agora, atualiza a referência pra todo mundo.
         if(typeof firebase!=='undefined'){
-          firebase.database().ref('sync/_versao_atual').once('value').then(function(snap){
+          firebase.database().ref('sync/_versao_atual').on('value', function(snap){
             var versaoNuvem = snap.val();
-            if(!versaoNuvem || versaoNuvem <= RAGUIFE_BUILD_LOCAL){
+            if(!versaoNuvem || versaoNuvem < RAGUIFE_BUILD_LOCAL){
               firebase.database().ref('sync/_versao_atual').set(RAGUIFE_BUILD_LOCAL);
             } else if(versaoNuvem > RAGUIFE_BUILD_LOCAL){
+              if(window.FB_SYNC) FB_SYNC._versaoDesatualizada = true;
               verBadge.style.cssText = 'margin-left:6px;padding:2px 8px;font-size:9px;font-weight:800;color:#fff;background:#dc2626;border-radius:8px;cursor:pointer';
               verBadge.textContent = '⚠️ desatualizado';
               verBadge.title = 'Sua versão ('+RAGUIFE_BUILD_LOCAL+') é mais antiga que a mais nova já vista ('+versaoNuvem+'). Clique pra atualizar.';
@@ -415,7 +467,7 @@ if(location.protocol!=='file:'){
                 if(document.body) document.body.insertBefore(bVer, document.body.firstChild);
               }
             }
-          }).catch(function(e){ console.warn('[Versão] Falha ao checar versão na nuvem:', e.message); });
+          }, function(e){ console.warn('[Versão] Falha ao checar versão na nuvem:', e.message); });
         }
       };
       tryAttach();
@@ -611,6 +663,11 @@ if(location.protocol!=='file:'){
        existia com o blob único — duas pessoas editando viagens diferentes ao
        mesmo tempo nunca mais se atropelam, porque cada viagem é seu próprio nó. */
     _pushViagensPorRegistro:function(rawValue){
+      if(FB._versaoDesatualizada){
+        console.error('[FB Sync] Gravação BLOQUEADA: esta aba usa uma versão antiga do sistema. Recarregue (Ctrl+Shift+R).');
+        if(!FB._avisouVersao){ FB._avisouVersao = true; alert('⚠️ Esta aba está com uma versão ANTIGA do sistema e não pode gravar (proteção contra perda de dados).\n\nSua última alteração NÃO foi salva. Recarregue a página (Ctrl+Shift+R) e refaça.'); }
+        return;
+      }
       if(FB._lockAtivaParaOutros()){
         console.warn('[FB Sync] Gravação de viagens bloqueada — sistema em manutenção por '+(FB._lockState.byName||'outro usuário'));
         return;
@@ -726,6 +783,17 @@ if(location.protocol!=='file:'){
       });
     },
     _finalizarPushViagens:function(updates, removidos, ts){
+      if(removidos.length){
+        var _explicitos = [], _implicitos = [];
+        removidos.forEach(function(id){ (FB._exclusoesExplicitas[id] ? _explicitos : _implicitos).push(id); });
+        if(_implicitos.length){
+          console.warn('[FB Sync] '+_implicitos.length+' viagem(ns) sumiram da lista em memória SEM ninguém mandar excluir — NÃO foram apagadas da nuvem. Recarregando da nuvem.', _implicitos);
+          _implicitos.forEach(function(id){ delete FB._ultimoEstadoViagens[id]; });
+          FB._pullViagensPorRegistro();
+        }
+        _explicitos.forEach(function(id){ delete FB._exclusoesExplicitas[id]; });
+        removidos = _explicitos;
+      }
       // CORREÇÃO CRÍTICA (10/09) — fecha o ciclo real do incidente: até aqui,
       // QUALQUER salvamento normal (não só o botão "Forçar Envio") propagava pra
       // nuvem, como exclusão com lápide, qualquer registro que sumisse da tela
@@ -737,7 +805,10 @@ if(location.protocol!=='file:'){
       // data de carregamento recente (últimos 10 dias) ou futura — isso nunca é
       // uma exclusão intencional de dado antigo, é o padrão de sessão
       // desatualizada. Esses ficam de fora da exclusão automática.
-      if(removidos.length){
+      // (01/10) Com a exclusão só explícita acima, o que chega aqui foi pedido
+      // pela pessoa — a heurística antiga de "recente = suspeito" impediria uma
+      // exclusão legítima. Fica desligada (mantida só como referência).
+      if(removidos.length && FB._modoExclusaoLegado){
         var LIMITE_DIAS_RECENTE_AUTO = 10;
         var hojeStrAuto = new Date(Date.now() - LIMITE_DIAS_RECENTE_AUTO*24*60*60*1000).toISOString().slice(0,10);
         var removidosSuspeitos = [];
@@ -777,7 +848,7 @@ if(location.protocol!=='file:'){
       if(removidos.length > 10 && !_liberadoLote){
         console.error('[FB Sync] BLOQUEADO: salvamento tentou apagar '+removidos.length+' viagens da nuvem de uma vez. Nada foi apagado. Recarregando da nuvem.');
         try{ if(FB.registrarLog) FB.registrarLog('Exclusão em massa BLOQUEADA automaticamente', removidos.length+' viagens que sumiram da tela não foram apagadas da nuvem'); }catch(e){}
-        FB._notifyBlockedPush(VIAGENS_KEY, Object.keys(FB._ultimoEstadoViagens).length-removidos.length, Object.keys(FB._ultimoEstadoViagens).length);
+        FB._notifyBlockedPush(VIAGENS_KEY, Object.keys(FB._ultimoEstadoViagens).length, Object.keys(FB._ultimoEstadoViagens).length-removidos.length);
         removidos.forEach(function(id){ delete FB._ultimoEstadoViagens[id]; });
         removidos = [];
         FB._pullViagensPorRegistro();
@@ -926,6 +997,7 @@ if(location.protocol!=='file:'){
         // a variável DB é sincronizada aqui mesmo, no momento em que o pull
         // termina, igual já era feito no caminho de envio (_pushViagensPorRegistro).
         if(typeof DB!=='undefined'){ DB.length=0; arr.forEach(function(x){DB.push(x);}); }
+        try{ FB._backupDiario(arr); }catch(e){}
         // CORREÇÃO CRÍTICA (13/08): _dbIsSeedFallback é decidida uma única vez, no
         // carregamento da página — se o cache local estava vazio naquele instante
         // (ex: logo após "Forçar Repull da Nuvem", ou primeiro acesso), ela ficava
@@ -7898,7 +7970,14 @@ const g=id=>document.getElementById(id);
     // memória (seja lá o que for) em vez de arriscar substituí-lo por um
     // instantâneo incompleto.
     var dbMudouPorReleitura = false;
-    if(pullConfirmado){
+    // CORREÇÃO CRÍTICA (01/10, 15:13): o pull da nuvem JÁ atualiza o DB em
+    // memória (correção de 12/08). Reler o localStorage aqui era perigoso
+    // quando a cópia local não cabe (cota cheia): a gravação falha, o
+    // localStorage continua com uma cópia ANTIGA, e esta linha trocava o DB
+    // certo (2.280 viagens) por essa cópia velha (1.677) — o salvamento
+    // seguinte tentou apagar as 603 de diferença (bloqueado pela trava).
+    // Agora só relê se o DB em memória estiver vazio.
+    if(pullConfirmado && (!Array.isArray(DB) || DB.length===0)){
       try{
         var atual = JSON.parse(localStorage.getItem('raguife_v3')||'null');
         if(Array.isArray(atual)){ DB = atual; dbMudouPorReleitura = true; }
@@ -9437,7 +9516,7 @@ function renderRecs(){
     </tr>`;}).join('');
   g('rec-count').textContent=`${rows.length} registros`;g('rec-foot').textContent=`${rows.length} de ${DB.length} registros`;
 }
-const delRec=i=>{if(!confirm('Remover?'))return;var _idRem=DB[i]&&DB[i]._id;DB.splice(i,1);if(_idRem&&typeof FB_SYNC!=='undefined'&&FB_SYNC.tombstone)FB_SYNC.tombstone('raguife_v3',[_idRem]);save();renderRecs();renderAll();renderKanban();toast('Removido','success');};
+const delRec=i=>{if(!confirm('Remover?'))return;var _idRem=DB[i]&&DB[i]._id;if(window.FB_SYNC&&FB_SYNC.marcarExclusao)FB_SYNC.marcarExclusao([_idRem]);DB.splice(i,1);if(_idRem&&typeof FB_SYNC!=='undefined'&&FB_SYNC.tombstone)FB_SYNC.tombstone('raguife_v3',[_idRem]);save();renderRecs();renderAll();renderKanban();toast('Removido','success');};
 const restoreAll=()=>{DB=JSON.parse(JSON.stringify(SEED));_dbIsSeedFallback=false;save();renderRecs();renderAll();renderKanban();initFilters();toast('Dados restaurados','success');};
 
 function initFilters(){
@@ -10760,6 +10839,7 @@ function abrirSubstituirBaseJSON(){
       if(!confirm(msg)) return;
       if(seraoRemovidas.length > DB.length*0.5 && !confirm('Isso remove mais da METADE da base atual ('+seraoRemovidas.length+' de '+DB.length+'). Tem certeza absoluta?')) return;
       novaLista.forEach(function(r){ if(!r._id) r._id = 'v_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,9); });
+      if(window.FB_SYNC){ FB_SYNC.marcarExclusao(seraoRemovidas); FB_SYNC._permitirExclusaoEmMassa = Date.now(); }
       DB = novaLista;
       save();
       if(typeof FB_SYNC!=='undefined' && FB_SYNC.registrarLog) FB_SYNC.registrarLog('Substituiu a base de viagens por arquivo', DB.length+' mantidas/adicionadas, '+seraoRemovidas.length+' removidas');
@@ -20074,7 +20154,7 @@ function vdupCorrigirSiloConhecidos(){
     +'\nConfirma?')) return;
 
   var _idsLapideBS = indicesParaRemover.map(function(i){ return DB[i] && DB[i]._id; }).filter(Boolean);
-  if(window.FB_SYNC) FB_SYNC._permitirExclusaoEmMassa=Date.now(); indicesParaRemover.sort(function(a,b){return b-a;}).forEach(function(i){ DB.splice(i,1); });
+  if(window.FB_SYNC) FB_SYNC._permitirExclusaoEmMassa=Date.now(); indicesParaRemover.sort(function(a,b){return b-a;}).forEach(function(i){ if(window.FB_SYNC&&FB_SYNC.marcarExclusao) FB_SYNC.marcarExclusao([DB[i]]); DB.splice(i,1); });
   if(_idsLapideBS.length && typeof FB_SYNC!=='undefined' && FB_SYNC.tombstone) FB_SYNC.tombstone('raguife_v3', _idsLapideBS);
   linhasParaInserir.forEach(function(l){ if(!l._id) l._id='v_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,9); DB.push(l); });
 
@@ -20380,7 +20460,7 @@ function revisaoAmbiguaMesclar(gi){
   });
   mesclado._id = membros.map(function(m){ return m._id; }).sort()[0]; // mantém o _id mais antigo
   var remover = idxs.slice().sort(function(a,b){ return b-a; });
-  remover.forEach(function(i){ DB.splice(i,1); });
+  remover.forEach(function(i){ if(window.FB_SYNC&&FB_SYNC.marcarExclusao) FB_SYNC.marcarExclusao([DB[i]]); DB.splice(i,1); });
   DB.push(mesclado);
   window._revisaoAmbiguaGrupos.splice(gi,1);
   recalcularGruposAmbiguosRestantes();
@@ -20392,7 +20472,7 @@ function revisaoAmbiguaManterSo(gi, mi){
   var idxs = window._revisaoAmbiguaGrupos[gi];
   var manterIdx = idxs[mi];
   var remover = idxs.filter(function(i){ return i!==manterIdx; });
-  remover.sort(function(a,b){ return b-a; }).forEach(function(i){ DB.splice(i,1); });
+  remover.sort(function(a,b){ return b-a; }).forEach(function(i){ if(window.FB_SYNC&&FB_SYNC.marcarExclusao) FB_SYNC.marcarExclusao([DB[i]]); DB.splice(i,1); });
   window._revisaoAmbiguaGrupos.splice(gi,1);
   // Reindexar os grupos restantes (índices do DB mudaram após o splice)
   recalcularGruposAmbiguosRestantes();
@@ -20428,7 +20508,7 @@ function revisaoAmbiguaMesclarSelecionados(gi){
   mesclado._id = membros.map(function(m){ return m._id; }).sort()[0];
   // Remove só os marcados, mantém o resto do grupo intacto, e adiciona o
   // registro mesclado de volta.
-  idxsMesclar.slice().sort(function(a,b){ return b-a; }).forEach(function(i){ DB.splice(i,1); });
+  idxsMesclar.slice().sort(function(a,b){ return b-a; }).forEach(function(i){ if(window.FB_SYNC&&FB_SYNC.marcarExclusao) FB_SYNC.marcarExclusao([DB[i]]); DB.splice(i,1); });
   DB.push(mesclado);
   window._revisaoAmbiguaGrupos.splice(gi,1); // este grupo específico muda de composição — recalcula do zero
   recalcularGruposAmbiguosRestantes();
@@ -20496,7 +20576,7 @@ function abrirDuplicatasExatas(){
     var idxs = grupos[ck].slice().sort(function(a,b){ return DB[a]._id < DB[b]._id ? -1 : 1; }); // mantém o de _id mais antigo
     idxs.slice(1).forEach(function(i){ indicesRemover.push(i); });
   });
-  if(window.FB_SYNC) FB_SYNC._permitirExclusaoEmMassa=Date.now(); indicesRemover.sort(function(a,b){ return b-a; }).forEach(function(i){ DB.splice(i,1); });
+  if(window.FB_SYNC) FB_SYNC._permitirExclusaoEmMassa=Date.now(); indicesRemover.sort(function(a,b){ return b-a; }).forEach(function(i){ if(window.FB_SYNC&&FB_SYNC.marcarExclusao) FB_SYNC.marcarExclusao([DB[i]]); DB.splice(i,1); });
   save();
   if(typeof FB_SYNC!=='undefined' && FB_SYNC.registrarLog) FB_SYNC.registrarLog('Removeu duplicatas exatas de viagens', indicesRemover.length+' registro(s) removido(s), base inteira revisada');
   toast(indicesRemover.length+' duplicata(s) exata(s) removida(s) ✅','success');
@@ -20935,7 +21015,7 @@ function vdupAplicarGrupo(chave){
   var indicesRemover = [];
   vdupMesclarGrupo(grupo, manterIdx, indicesRemover);
   var _idsLapideGrupo = indicesRemover.map(function(i){ return DB[i] && DB[i]._id; }).filter(Boolean);
-  if(window.FB_SYNC) FB_SYNC._permitirExclusaoEmMassa=Date.now(); indicesRemover.sort(function(a,b){return b-a;}).forEach(function(i){ DB.splice(i,1); });
+  if(window.FB_SYNC) FB_SYNC._permitirExclusaoEmMassa=Date.now(); indicesRemover.sort(function(a,b){return b-a;}).forEach(function(i){ if(window.FB_SYNC&&FB_SYNC.marcarExclusao) FB_SYNC.marcarExclusao([DB[i]]); DB.splice(i,1); });
   if(_idsLapideGrupo.length && typeof FB_SYNC!=='undefined' && FB_SYNC.tombstone) FB_SYNC.tombstone('raguife_v3', _idsLapideGrupo);
 
   save();
@@ -20975,7 +21055,7 @@ function vdupRestaurarStatusSeguros(){
     sg.indices.forEach(function(i){ if(i!==manterIdx) indicesRemover.push(i); });
   });
   var _idsLapideRest = indicesRemover.map(function(i){ return DB[i] && DB[i]._id; }).filter(Boolean);
-  if(window.FB_SYNC) FB_SYNC._permitirExclusaoEmMassa=Date.now(); indicesRemover.sort(function(a,b){return b-a;}).forEach(function(i){ DB.splice(i,1); });
+  if(window.FB_SYNC) FB_SYNC._permitirExclusaoEmMassa=Date.now(); indicesRemover.sort(function(a,b){return b-a;}).forEach(function(i){ if(window.FB_SYNC&&FB_SYNC.marcarExclusao) FB_SYNC.marcarExclusao([DB[i]]); DB.splice(i,1); });
   if(_idsLapideRest.length && typeof FB_SYNC!=='undefined' && FB_SYNC.tombstone) FB_SYNC.tombstone('raguife_v3', _idsLapideRest);
 
   save();
@@ -21007,7 +21087,7 @@ function vdupResolverDuplicataPura(){
     sg.indices.forEach(function(i){ if(i!==manterIdx) indicesRemover.push(i); });
   });
   var _idsLapideDupPura = indicesRemover.map(function(i){ return DB[i] && DB[i]._id; }).filter(Boolean);
-  if(window.FB_SYNC) FB_SYNC._permitirExclusaoEmMassa=Date.now(); indicesRemover.sort(function(a,b){return b-a;}).forEach(function(i){ DB.splice(i,1); });
+  if(window.FB_SYNC) FB_SYNC._permitirExclusaoEmMassa=Date.now(); indicesRemover.sort(function(a,b){return b-a;}).forEach(function(i){ if(window.FB_SYNC&&FB_SYNC.marcarExclusao) FB_SYNC.marcarExclusao([DB[i]]); DB.splice(i,1); });
   if(_idsLapideDupPura.length && typeof FB_SYNC!=='undefined' && FB_SYNC.tombstone) FB_SYNC.tombstone('raguife_v3', _idsLapideDupPura);
 
   save();
@@ -21046,7 +21126,7 @@ function vdupResolverTudoRestante(){
   });
   indicesRemover = Array.from(new Set(indicesRemover)).sort(function(a,b){return b-a;});
   var _idsLapideTudo = indicesRemover.map(function(i){ return DB[i] && DB[i]._id; }).filter(Boolean);
-  if(window.FB_SYNC) FB_SYNC._permitirExclusaoEmMassa=Date.now(); indicesRemover.forEach(function(i){ DB.splice(i,1); });
+  if(window.FB_SYNC) FB_SYNC._permitirExclusaoEmMassa=Date.now(); indicesRemover.forEach(function(i){ if(window.FB_SYNC&&FB_SYNC.marcarExclusao) FB_SYNC.marcarExclusao([DB[i]]); DB.splice(i,1); });
   if(_idsLapideTudo.length && typeof FB_SYNC!=='undefined' && FB_SYNC.tombstone) FB_SYNC.tombstone('raguife_v3', _idsLapideTudo);
 
   save();
@@ -21146,7 +21226,7 @@ function arqAplicar(){
   arqHistoricoSalvar(historico);
 
   var _idsLapideArq = indices.map(function(i){ return DB[i] && DB[i]._id; }).filter(Boolean);
-  if(window.FB_SYNC) FB_SYNC._permitirExclusaoEmMassa=Date.now(); indices.slice().sort(function(a,b){return b-a;}).forEach(function(i){ DB.splice(i,1); });
+  if(window.FB_SYNC) FB_SYNC._permitirExclusaoEmMassa=Date.now(); indices.slice().sort(function(a,b){return b-a;}).forEach(function(i){ if(window.FB_SYNC&&FB_SYNC.marcarExclusao) FB_SYNC.marcarExclusao([DB[i]]); DB.splice(i,1); });
   if(_idsLapideArq.length && typeof FB_SYNC!=='undefined' && FB_SYNC.tombstone) FB_SYNC.tombstone('raguife_v3', _idsLapideArq);
 
   save();
@@ -21287,7 +21367,7 @@ function forcarSincronizacaoLimpeza(btn){
     });
     var lapides = {};
     idsRemotos.forEach(function(id){
-      if(!idsLocais[id]){ updates['sync/raguife_v3_records/'+id] = null; lapides[id] = ts; }
+      if(!idsLocais[id] && window.FB_SYNC && FB_SYNC._exclusoesExplicitas[id]){ updates['sync/raguife_v3_records/'+id] = null; lapides[id] = ts; }
     });
 
     var enviar = function(){
