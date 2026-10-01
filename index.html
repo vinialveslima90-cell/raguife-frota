@@ -10004,8 +10004,37 @@ function saidImpLerArquivo(input){
   if(typeof XLSX==='undefined'){ toast('Biblioteca XLSX não carregada','error'); return; }
   var arqEl = document.getElementById('said-imp-arquivo');
   if(arqEl) arqEl.textContent = '📄 '+file.name;
+  // CORREÇÃO (01/10): antes, a checagem de duplicidade (mais abaixo) comparava
+  // contra o array DB que já estivesse em memória NESTE navegador — se esta
+  // aba não tivesse recebido ainda uma conclusão de Etapa 2 feita por outra
+  // pessoa/computador (por qualquer um dos motivos de sincronização já vistos
+  // nesta conversa: cota de armazenamento, leitura em bloco incompleta etc.),
+  // a trava "já tem concluída no dia" não tinha como saber disso — e permitia
+  // recriar uma segunda linha pendente pro mesmo dia, fazendo a viagem
+  // "voltar" pra Em Andamento no Kanban (era exatamente o sintoma relatado:
+  // FZR4J59 e FWB2B34, 01/10/2026, duas linhas criadas no mesmo segundo).
+  // Agora busca uma cópia fresca da nuvem ANTES de qualquer checagem — nunca
+  // confia só no que já estava carregado nesta aba.
+  toast('Conferindo viagens já existentes na nuvem antes de importar…','success');
+  var dbFrescoPromise = (typeof firebase!=='undefined' && firebase.database)
+    ? firebase.database().ref('sync/raguife_v3_records').once('value').then(function(snap){
+        var val = snap.val() || {};
+        var fresco = [];
+        Object.keys(val).forEach(function(id){
+          if(val[id] && val[id].data){ var r = val[id].data; if(!r._id) r._id = id; fresco.push(r); }
+        });
+        // Atualiza o próprio DB em memória (não só uma cópia paralela), pra que
+        // os índices usados mais abaixo (DB[d.idxExistente]) continuem válidos.
+        if(typeof DB!=='undefined' && Array.isArray(DB)){ DB.length=0; fresco.forEach(function(r){DB.push(r);}); }
+        return true;
+      }).catch(function(e){
+        console.warn('[Importar Saída] Não consegui buscar cópia fresca da nuvem, seguindo só com o que já está na tela:', e.message);
+        return false;
+      })
+    : Promise.resolve(false);
   var reader = new FileReader();
   reader.onload = function(e){
+    dbFrescoPromise.then(function(){
     try{
       var wb = XLSX.read(e.target.result, {type:'array', cellDates:true});
       var sheetName = wb.SheetNames.indexOf('DADOS')>=0 ? 'DADOS' : wb.SheetNames[0];
@@ -10113,6 +10142,7 @@ function saidImpLerArquivo(input){
     }catch(err){
       toast('Erro ao ler planilha: '+err.message, 'error');
     }
+    });
   };
   reader.readAsArrayBuffer(file);
 }
@@ -10281,6 +10311,30 @@ function saveEtapa1(){
   window._saveEtapa1EmAndamento = true;
   setTimeout(function(){ window._saveEtapa1EmAndamento = false; }, 2000);
   if(!validateEtapa1())return;
+
+  // CORREÇÃO (01/10): nenhuma checagem existia aqui contra criar um NOVO
+  // lançamento pra uma placa+data que já tem viagem registrada — era
+  // exatamente esse tipo de duplicidade (confirmado com dados reais: FZR4J59
+  // e FWB2B34) que fazia uma viagem já concluída "voltar" a aparecer como
+  // pendente no Kanban, porque a duplicata ficava escondida atrás da
+  // original. Não bloqueia (existem casos reais de duas entregas no mesmo
+  // dia) — só avisa e pede confirmação antes de criar mais uma.
+  var placaForm = g('fi-placa') ? g('fi-placa').value.trim().toUpperCase() : '';
+  var dtCargForm = g('fi-dtc') ? g('fi-dtc').value : '';
+  if(placaForm && dtCargForm){
+    var jaExisteManual = (typeof DB!=='undefined'?DB:[]).filter(function(r){
+      return !r._excluida && r.placa===placaForm && r.dt_carg===dtCargForm;
+    });
+    if(jaExisteManual.length){
+      var listaExistente = jaExisteManual.map(function(r){
+        return '→ '+(r.destino_cidade||'?')+'/'+(r.destino_uf||'')+' · '+(r.dt_base?'já concluída':'em andamento');
+      }).join('\n');
+      if(!confirm('Já existe '+jaExisteManual.length+' lançamento(s) pra '+placaForm+' em '+dtCargForm+':\n\n'+listaExistente+'\n\nSe for uma SEGUNDA entrega de verdade no mesmo dia, clique OK. Se for engano (a viagem já está lançada), clique Cancelar.')){
+        window._saveEtapa1EmAndamento = false;
+        return;
+      }
+    }
+  }
 
   // ── COLETA DE MP: registro simplificado, já gravado como concluído ──
   // Diferente do fluxo normal (Etapa 1 aberta, Etapa 2 pendente), essa
@@ -20191,7 +20245,14 @@ function abrirLogAlteracoes(){
    precisar cruzar lista com o Kanban manualmente.
    ══════════════════════════════════════════════════════════════════════ */
 function abrirRevisaoDuplicatasAmbiguas(){
-  function chave(r){ return (r.placa||'')+'|'+(r.dt_carg||'')+'|'+(r.destino_cidade||''); }
+  // CORREÇÃO (01/10): antes agrupava por placa+data+destino — não pegava casos
+  // como FZR4J59 (duas linhas no mesmo dia, destinos DIFERENTES, uma delas com
+  // km/peso/valor zerados — sobra de uma reimportação que não reconheceu a
+  // viagem já existente). Agora agrupa só por placa+data, igual à varredura
+  // que confirmou 184 grupos assim na base. Continua sem decidir sozinho: cada
+  // grupo aparece pra revisão, com "são viagens diferentes — manter todas"
+  // sempre disponível pra quem souber que são entregas distintas de verdade.
+  function chave(r){ return (r.placa||'')+'|'+(r.dt_carg||''); }
   var grupos = {};
   DB.forEach(function(r, idx){
     var ck = chave(r);
@@ -20248,13 +20309,13 @@ function renderRevisaoAmbigua(){
       return '<div style="border:1px solid '+(recomendado?'#16a34a':'#e5e7eb')+';border-radius:6px;padding:8px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px'+(recomendado?';background:#f0fdf4':'')+'">'
         +'<label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1">'
           +'<input type="checkbox" class="ram-check" data-gi="'+gi+'" data-mi="'+mi+'">'
-          +'<span style="font-size:11.5px">'+(recomendado?'⭐ ':'')+'Peso: <b>'+(r.peso_ent||0)+'kg</b> · Valor: <b>R$ '+(r.vl_ent||0)+'</b> · Km: '+(r.km||'?')+' · KM Saída: <b>'+(r.km_saida||'—')+'</b> · KM Final: <b>'+(r.km_final||'—')+'</b> · '+(r.dt_base?'✅ Concluída':'🚚 Em andamento')+(r.motorista?' · '+r.motorista:'')+'</span>'
+          +'<span style="font-size:11.5px">'+(recomendado?'⭐ ':'')+'→ <b>'+(r.destino_cidade||'?')+'/'+(r.destino_uf||'')+'</b> · Peso: <b>'+(r.peso_ent||0)+'kg</b> · Valor: <b>R$ '+(r.vl_ent||0)+'</b> · Km: '+(r.km||'?')+' · KM Saída: <b>'+(r.km_saida||'—')+'</b> · KM Final: <b>'+(r.km_final||'—')+'</b> · '+(r.dt_base?'✅ Concluída':'🚚 Em andamento')+(r.motorista?' · '+r.motorista:'')+'</span>'
         +'</label>'
         +'<button onclick="revisaoAmbiguaManterSo('+gi+','+mi+')" style="padding:4px 10px;border-radius:6px;border:1px solid #16a34a;background:#f0fdf4;color:#166534;cursor:pointer;font-size:10.5px;font-weight:700;white-space:nowrap">Manter só este</button>'
         +'</div>';
     }).join('');
     return '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px;margin-bottom:12px">'
-      +'<div style="font-weight:800;font-size:12.5px;margin-bottom:4px">'+(r0.placa||'?')+' — '+(r0.dt_carg||'?')+' → '+(r0.destino_cidade||'?')+'/'+(r0.destino_uf||'')+' · '+(r0.categoria||'')+'</div>'
+      +'<div style="font-weight:800;font-size:12.5px;margin-bottom:4px">'+(r0.placa||'?')+' — '+(r0.dt_carg||'?')+' · '+(r0.categoria||'')+'</div>'
       + dicaPeso
       + itens
       +'<div style="display:flex;gap:8px;margin-top:2px;flex-wrap:wrap">'
