@@ -123,7 +123,7 @@ if(location.protocol!=='file:'){
   // verificável (evita a ambiguidade que já causou confusão: build parada há
   // semanas enquanto o código mudava por baixo, sem nenhum jeito de confirmar
   // qual versão estava rodando de fato).
-  var RAGUIFE_BUILD_LOCAL = '2026-09-11-F';
+  var RAGUIFE_BUILD_LOCAL = '2026-10-01-G';
   window.RAGUIFE_BUILD_LOCAL = RAGUIFE_BUILD_LOCAL;
 
   var FB = {
@@ -768,6 +768,21 @@ if(location.protocol!=='file:'){
         }
         removidos = removidosOk;
       }
+      // TRAVA CRÍTICA (01/10): salvamento comum nunca apaga mais de 10 viagens de
+      // uma vez. Ferramentas de limpeza em lote (duplicatas etc.) marcam
+      // FB._permitirExclusaoEmMassa logo antes de remover; sem essa marca
+      // (recente, até 2 min), uma redução grande é tratada como tela
+      // incompleta/desatualizada, não como exclusão — e nada é apagado.
+      var _liberadoLote = FB._permitirExclusaoEmMassa && (Date.now()-FB._permitirExclusaoEmMassa < 120000);
+      if(removidos.length > 10 && !_liberadoLote){
+        console.error('[FB Sync] BLOQUEADO: salvamento tentou apagar '+removidos.length+' viagens da nuvem de uma vez. Nada foi apagado. Recarregando da nuvem.');
+        try{ if(FB.registrarLog) FB.registrarLog('Exclusão em massa BLOQUEADA automaticamente', removidos.length+' viagens que sumiram da tela não foram apagadas da nuvem'); }catch(e){}
+        FB._notifyBlockedPush(VIAGENS_KEY, Object.keys(FB._ultimoEstadoViagens).length-removidos.length, Object.keys(FB._ultimoEstadoViagens).length);
+        removidos.forEach(function(id){ delete FB._ultimoEstadoViagens[id]; });
+        removidos = [];
+        FB._pullViagensPorRegistro();
+      }
+      if(_liberadoLote) FB._permitirExclusaoEmMassa = 0;
       if(removidos.length){
         // Rede de segurança: se uma limpeza remover muitas viagens de uma vez,
         // salva um snapshot completo do que estava conhecido ANTES dessa remoção —
@@ -10025,7 +10040,18 @@ function saidImpLerArquivo(input){
         });
         // Atualiza o próprio DB em memória (não só uma cópia paralela), pra que
         // os índices usados mais abaixo (DB[d.idxExistente]) continuem válidos.
-        if(typeof DB!=='undefined' && Array.isArray(DB)){ DB.length=0; fresco.forEach(function(r){DB.push(r);}); }
+        // CORREÇÃO CRÍTICA (01/10, incidente 14:53): a versão anterior SUBSTITUÍA o DB
+        // inteiro pelo resultado de UMA leitura — e leituras grandes dessa coleção
+        // podem voltar incompletas sem erro (já documentado no pull, 25/09). Com o
+        // DB encolhido, o salvamento seguinte tratou as viagens ausentes como
+        // exclusão e as apagou da nuvem. Agora é UNIÃO: atualiza o que já existe
+        // (mesmo _id, no mesmo índice) e acrescenta o que faltava. Nunca remove.
+        if(typeof DB!=='undefined' && Array.isArray(DB)){
+          var posPorId = {}; DB.forEach(function(r,i){ if(r && r._id) posPorId[r._id] = i; });
+          fresco.forEach(function(r){
+            if(posPorId[r._id]!=null) DB[posPorId[r._id]] = r; else DB.push(r);
+          });
+        }
         return true;
       }).catch(function(e){
         console.warn('[Importar Saída] Não consegui buscar cópia fresca da nuvem, seguindo só com o que já está na tela:', e.message);
@@ -20048,7 +20074,7 @@ function vdupCorrigirSiloConhecidos(){
     +'\nConfirma?')) return;
 
   var _idsLapideBS = indicesParaRemover.map(function(i){ return DB[i] && DB[i]._id; }).filter(Boolean);
-  indicesParaRemover.sort(function(a,b){return b-a;}).forEach(function(i){ DB.splice(i,1); });
+  if(window.FB_SYNC) FB_SYNC._permitirExclusaoEmMassa=Date.now(); indicesParaRemover.sort(function(a,b){return b-a;}).forEach(function(i){ DB.splice(i,1); });
   if(_idsLapideBS.length && typeof FB_SYNC!=='undefined' && FB_SYNC.tombstone) FB_SYNC.tombstone('raguife_v3', _idsLapideBS);
   linhasParaInserir.forEach(function(l){ if(!l._id) l._id='v_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,9); DB.push(l); });
 
@@ -20470,7 +20496,7 @@ function abrirDuplicatasExatas(){
     var idxs = grupos[ck].slice().sort(function(a,b){ return DB[a]._id < DB[b]._id ? -1 : 1; }); // mantém o de _id mais antigo
     idxs.slice(1).forEach(function(i){ indicesRemover.push(i); });
   });
-  indicesRemover.sort(function(a,b){ return b-a; }).forEach(function(i){ DB.splice(i,1); });
+  if(window.FB_SYNC) FB_SYNC._permitirExclusaoEmMassa=Date.now(); indicesRemover.sort(function(a,b){ return b-a; }).forEach(function(i){ DB.splice(i,1); });
   save();
   if(typeof FB_SYNC!=='undefined' && FB_SYNC.registrarLog) FB_SYNC.registrarLog('Removeu duplicatas exatas de viagens', indicesRemover.length+' registro(s) removido(s), base inteira revisada');
   toast(indicesRemover.length+' duplicata(s) exata(s) removida(s) ✅','success');
@@ -20909,7 +20935,7 @@ function vdupAplicarGrupo(chave){
   var indicesRemover = [];
   vdupMesclarGrupo(grupo, manterIdx, indicesRemover);
   var _idsLapideGrupo = indicesRemover.map(function(i){ return DB[i] && DB[i]._id; }).filter(Boolean);
-  indicesRemover.sort(function(a,b){return b-a;}).forEach(function(i){ DB.splice(i,1); });
+  if(window.FB_SYNC) FB_SYNC._permitirExclusaoEmMassa=Date.now(); indicesRemover.sort(function(a,b){return b-a;}).forEach(function(i){ DB.splice(i,1); });
   if(_idsLapideGrupo.length && typeof FB_SYNC!=='undefined' && FB_SYNC.tombstone) FB_SYNC.tombstone('raguife_v3', _idsLapideGrupo);
 
   save();
@@ -20949,7 +20975,7 @@ function vdupRestaurarStatusSeguros(){
     sg.indices.forEach(function(i){ if(i!==manterIdx) indicesRemover.push(i); });
   });
   var _idsLapideRest = indicesRemover.map(function(i){ return DB[i] && DB[i]._id; }).filter(Boolean);
-  indicesRemover.sort(function(a,b){return b-a;}).forEach(function(i){ DB.splice(i,1); });
+  if(window.FB_SYNC) FB_SYNC._permitirExclusaoEmMassa=Date.now(); indicesRemover.sort(function(a,b){return b-a;}).forEach(function(i){ DB.splice(i,1); });
   if(_idsLapideRest.length && typeof FB_SYNC!=='undefined' && FB_SYNC.tombstone) FB_SYNC.tombstone('raguife_v3', _idsLapideRest);
 
   save();
@@ -20981,7 +21007,7 @@ function vdupResolverDuplicataPura(){
     sg.indices.forEach(function(i){ if(i!==manterIdx) indicesRemover.push(i); });
   });
   var _idsLapideDupPura = indicesRemover.map(function(i){ return DB[i] && DB[i]._id; }).filter(Boolean);
-  indicesRemover.sort(function(a,b){return b-a;}).forEach(function(i){ DB.splice(i,1); });
+  if(window.FB_SYNC) FB_SYNC._permitirExclusaoEmMassa=Date.now(); indicesRemover.sort(function(a,b){return b-a;}).forEach(function(i){ DB.splice(i,1); });
   if(_idsLapideDupPura.length && typeof FB_SYNC!=='undefined' && FB_SYNC.tombstone) FB_SYNC.tombstone('raguife_v3', _idsLapideDupPura);
 
   save();
@@ -21020,7 +21046,7 @@ function vdupResolverTudoRestante(){
   });
   indicesRemover = Array.from(new Set(indicesRemover)).sort(function(a,b){return b-a;});
   var _idsLapideTudo = indicesRemover.map(function(i){ return DB[i] && DB[i]._id; }).filter(Boolean);
-  indicesRemover.forEach(function(i){ DB.splice(i,1); });
+  if(window.FB_SYNC) FB_SYNC._permitirExclusaoEmMassa=Date.now(); indicesRemover.forEach(function(i){ DB.splice(i,1); });
   if(_idsLapideTudo.length && typeof FB_SYNC!=='undefined' && FB_SYNC.tombstone) FB_SYNC.tombstone('raguife_v3', _idsLapideTudo);
 
   save();
@@ -21120,7 +21146,7 @@ function arqAplicar(){
   arqHistoricoSalvar(historico);
 
   var _idsLapideArq = indices.map(function(i){ return DB[i] && DB[i]._id; }).filter(Boolean);
-  indices.slice().sort(function(a,b){return b-a;}).forEach(function(i){ DB.splice(i,1); });
+  if(window.FB_SYNC) FB_SYNC._permitirExclusaoEmMassa=Date.now(); indices.slice().sort(function(a,b){return b-a;}).forEach(function(i){ DB.splice(i,1); });
   if(_idsLapideArq.length && typeof FB_SYNC!=='undefined' && FB_SYNC.tombstone) FB_SYNC.tombstone('raguife_v3', _idsLapideArq);
 
   save();
