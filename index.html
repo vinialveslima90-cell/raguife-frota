@@ -155,7 +155,7 @@ if(location.protocol!=='file:'){
   // verificável (evita a ambiguidade que já causou confusão: build parada há
   // semanas enquanto o código mudava por baixo, sem nenhum jeito de confirmar
   // qual versão estava rodando de fato).
-  var RAGUIFE_BUILD_LOCAL = '2026-10-02-P';
+  var RAGUIFE_BUILD_LOCAL = '2026-10-02-R';
   window.RAGUIFE_BUILD_LOCAL = RAGUIFE_BUILD_LOCAL;
 
   var FB = {
@@ -9403,12 +9403,22 @@ function mPernaCampoMudou(idx, campo){
     window._pernasRetorno[idx].pagamento = '';
     window._pernasRetorno[idx].conta = '';
   }
-  if(campo==='vton' || campo==='peso'){
-    var p = window._pernasRetorno[idx];
-    var vt = parseFloat(p.vton)||0, peso = parseFloat(p.peso)||0;
-    if(vt && peso){ p.vl_total = (vt*peso/1000).toFixed(2); }
+  // (02/10) Novo preenchimento: quando o TOTAL é digitado, o R$/t desta perna
+  // passa a ser calculado (Total ÷ Peso). Pernas já gravadas, sem total
+  // redigitado, mantêm exatamente os valores que tinham.
+  var p = window._pernasRetorno[idx];
+  if(campo==='vl_total'){ p._vtonDerivado = parseFloat(p.vl_total)>0; }
+  if((campo==='vl_total' || campo==='peso') && p._vtonDerivado){
+    var _v = freteVtonDe(p.vl_total, p.peso); p.vton = _v!=null ? _v : '';
   }
   mRenderPernas();
+}
+function mPernaVtonAoVivo(i){
+  var to=g('m-perna-'+i+'-vl_total'), pe=g('m-perna-'+i+'-peso'), vt=g('m-perna-'+i+'-vton'), hi=g('m-perna-'+i+'-vton-hint');
+  if(!to||!vt) return; var t=parseFloat(to.value), v=freteVtonDe(t, pe?pe.value:0);
+  if(!(t>0)){ vt.value=''; if(hi) hi.textContent=''; return; }
+  if(v==null){ vt.value=''; if(hi){ hi.textContent='Informe um peso válido para calcular o R$/t'; hi.style.color='#b45309'; } return; }
+  vt.value=v.toFixed(2); if(hi){ hi.textContent=freteFmtTon(v); hi.style.color='var(--gd)'; }
 }
 function mRenderPernas(){
   var cont = g('m-pernas-container'); if(!cont) return;
@@ -9436,8 +9446,8 @@ function mRenderPernas(){
         +'<div class="form-grp"><label class="form-lbl">Km Inicial desta perna (automático)</label><input type="text" class="form-ctrl" readonly style="background:var(--gg);font-weight:700" value="'+(kmInicial||'—')+(i===0?' (Km Saída da viagem)':' (Km Final da perna '+i+')')+'"></div>'
       +'</div>'
       +'<div class="fg g3" style="margin-top:8px">'
-        +'<div class="form-grp"><label class="form-lbl">Valor por Ton (R$/t) <span class="req">*</span></label><input type="number" class="form-ctrl" id="m-perna-'+i+'-vton" step="0.01" value="'+(p.vton||'')+'" onblur="mPernaCampoMudou('+i+',\'vton\')"></div>'
-        +'<div class="form-grp"><label class="form-lbl">Valor Total (R$)</label><input type="number" class="form-ctrl" id="m-perna-'+i+'-vl_total" step="0.01" value="'+(p.vl_total||'')+'" onblur="mPernaCampoMudou('+i+',\'vl_total\')"></div>'
+        +'<div class="form-grp"><label class="form-lbl">Valor Total do Frete (R$) <span class="req">*</span></label><input type="number" class="form-ctrl" id="m-perna-'+i+'-vl_total" step="0.01" min="0" style="font-weight:800" value="'+(p.vl_total||'')+'" oninput="mPernaVtonAoVivo('+i+')" onblur="mPernaCampoMudou('+i+',\'vl_total\')"></div>'
+        +'<div class="form-grp"><label class="form-lbl">R$/t <span style="font-weight:600;text-transform:none;color:var(--txl)">(calculado)</span></label><input type="number" class="form-ctrl" id="m-perna-'+i+'-vton" readonly tabindex="-1" placeholder="—" style="background:var(--gg);font-weight:800" value="'+(p.vton||'')+'"><div id="m-perna-'+i+'-vton-hint" style="font-size:10.5px;font-weight:700;margin-top:3px;min-height:13px;color:var(--gd)">'+(p._vtonDerivado&&parseFloat(p.vton)>0?freteFmtTon(p.vton):'')+'</div></div>'
         +(p.tipo==='MP' ? '' : '<div class="form-grp"><label class="form-lbl">Status Pagamento</label><select class="form-ctrl" id="m-perna-'+i+'-pagamento" onchange="mPernaCampoMudou('+i+',\'pagamento\')"><option value="">Pendente</option><option value="Pago"'+(p.pagamento==='Pago'?' selected':'')+'>Pago</option></select></div>')
       +'</div>'
       +'<div class="fg g4" style="margin-top:8px">'
@@ -9565,7 +9575,7 @@ function saveEtapa2(){
     if(!pernas.length){ toast('Adicione pelo menos um Frete Retorno','error'); return; }
     for(var i=0;i<pernas.length;i++){
       var p = pernas[i];
-      if(!p.cidade || !p.uf || !p.tipo || !parseFloat(p.peso) || !parseFloat(p.vton)){
+      if(!p.cidade || !p.uf || !p.tipo || !parseFloat(p.peso) || !(parseFloat(p.vton) || parseFloat(p.vl_total))){
         toast('Preencha todos os campos obrigatórios do Frete Retorno '+(i+1),'error'); return;
       }
       if(!p.produto || !String(p.produto).trim()){
@@ -9587,6 +9597,8 @@ function saveEtapa2(){
       p.peso = parseFloat(p.peso)||0;
       p.vton = parseFloat(p.vton)||0;
       p.vl_total = parseFloat(p.vl_total) || (p.vton*p.peso/1000) || 0;
+      if(p._vtonDerivado){ var _vp = freteVtonDe(p.vl_total, p.peso); if(_vp!=null) p.vton = _vp; }
+      delete p._vtonDerivado;
       p.pedagio_real = p.pedagio_real!=='' && p.pedagio_real!=null ? parseFloat(p.pedagio_real) : null;
       p.consumo_real = p.consumo_real!=='' && p.consumo_real!=null ? parseFloat(p.consumo_real) : null;
     });
@@ -10190,6 +10202,61 @@ function fiCalcFreteTerceiro(){
   if(el) el.value = val > 0 ? val.toFixed(2) : '';
 }
 
+
+// ══ PREENCHIMENTO DE FRETE — LANÇAMENTOS NOVOS (02/10) ══════════════════════
+// Daqui pra frente: digita-se o Valor Total do Frete e o R$/t é calculado
+// (Total ÷ Peso em t). Vale só para o preenchimento de lançamentos novos —
+// valores já gravados não são recalculados nem alterados.
+function freteVtonDe(total, pesoKg){
+  total = parseFloat(String(total).replace(',','.')); pesoKg = parseFloat(pesoKg);
+  if(!isFinite(total) || total <= 0) return null;
+  if(!isFinite(pesoKg) || pesoKg <= 0) return null;
+  return Math.round(total / (pesoKg/1000) * 100) / 100;
+}
+function freteFmtTon(v){ return 'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'/t'; }
+function freteDerivar(pesoId, totalId, vtonId){
+  var pe = document.getElementById(pesoId), to = document.getElementById(totalId), vt = document.getElementById(vtonId);
+  if(!to || !vt) return;
+  var hint = document.getElementById(vtonId+'-hint');
+  var total = parseFloat(String(to.value).replace(',','.'));
+  if(!(total > 0)){ vt.value=''; if(hint) hint.textContent=''; return; }
+  var v = freteVtonDe(total, pe ? pe.value : 0);
+  if(v == null){ vt.value=''; if(hint){ hint.textContent='Informe um peso válido para calcular o R$/t'; hint.style.color='#b45309'; } return; }
+  vt.value = v.toFixed(2);
+  if(hint){ hint.textContent = freteFmtTon(v); hint.style.color='var(--gd)'; }
+}
+function freteConfigurarPar(pesoId, totalId, vtonId, rotuloTotal){
+  var to = document.getElementById(totalId), vt = document.getElementById(vtonId), pe = document.getElementById(pesoId);
+  if(!to || !vt || vt.getAttribute('data-frete-padrao')) return;
+  vt.setAttribute('data-frete-padrao','1');
+  vt.removeAttribute('oninput'); vt.readOnly = true; vt.tabIndex = -1; vt.placeholder = '—';
+  vt.style.background = 'var(--gg)'; vt.style.fontWeight = '800';
+  to.removeAttribute('readonly'); to.readOnly = false; to.style.background = '#fff'; to.style.fontWeight = '800';
+  if(to.type === 'number'){ to.step = '0.01'; to.min = '0'; }
+  to.placeholder = '0,00';
+  var go = function(){ to.setAttribute('data-editado','1'); freteDerivar(pesoId, totalId, vtonId); };
+  to.addEventListener('input', go);
+  if(pe){ var goP=function(){ if(to.getAttribute('data-editado')) freteDerivar(pesoId, totalId, vtonId); }; pe.addEventListener('input', goP); pe.addEventListener('change', goP); pe.addEventListener('blur', function(){ setTimeout(goP,0); }); }
+  var gT = to.closest('.form-grp'), gV = vt.closest('.form-grp');
+  if(gT){ var lT = gT.querySelector('label'); if(lT) lT.innerHTML = rotuloTotal; }
+  if(gV){
+    var lV = gV.querySelector('label'); if(lV) lV.innerHTML = 'R$/t <span style="font-weight:600;text-transform:none;color:var(--txl)">(calculado)</span>';
+    if(!document.getElementById(vtonId+'-hint')){ var hd=document.createElement('div'); hd.id=vtonId+'-hint'; hd.style.cssText='font-size:10.5px;font-weight:700;margin-top:3px;min-height:13px'; gV.appendChild(hd); }
+  }
+  if(gT && gV && gT.parentNode === gV.parentNode){ gT.parentNode.insertBefore(gT, gV); }
+}
+function freteConfigurarTodos(){
+  [['fi-pe','fi-vl-entrega','fi-vton-entrega','Valor Total do Frete (R$)'],
+   ['fi-mp-peso','fi-mp-valor','fi-mp-vton','Valor Total da Coleta MP (R$)'],
+   ['fi-ft-peso','fi-ft-valor','fi-ft-vton','Valor Total do Frete Terceirizado (R$) <span class="req">*</span>'],
+   ['ft-peso','ft-vfr','ft-vton','Valor Total do Frete (R$) <span class="req">*</span>']
+  ].forEach(function(p){ try{ freteConfigurarPar(p[0],p[1],p[2],p[3]); }catch(e){ console.warn('[Frete] '+p[1]+':', e.message); } });
+}
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', freteConfigurarTodos); else freteConfigurarTodos();
+fiCalcFreteEntrega = function(){ freteDerivar('fi-pe','fi-vl-entrega','fi-vton-entrega'); };
+fiCalcColetaMP     = function(){ freteDerivar('fi-mp-peso','fi-mp-valor','fi-mp-vton'); };
+fiCalcFreteTerceiro= function(){ freteDerivar('fi-ft-peso','fi-ft-valor','fi-ft-vton'); };
+
 function fiUpdatePgtoTerceiro(){
   var pgto    = document.getElementById('fi-ft-pgto').value;
   var dtGrp   = document.getElementById('fi-ft-dt-pgto-grp');
@@ -10619,8 +10686,8 @@ function saveEtapa1(){
     var mpLocal = g('fi-mp-local').value.trim().toUpperCase();
     var mpUf = g('fi-mp-uf').value;
     var mpPeso = parseFloat(g('fi-mp-peso').value)||0;
-    var mpVton = parseFloat(g('fi-mp-vton').value)||0;
-    var mpValor = mpPeso>0 && mpVton>0 ? +(mpPeso/1000*mpVton).toFixed(2) : 0;
+    var mpValor = parseFloat(String(g('fi-mp-valor').value).replace(',','.'))||0;
+    var mpVton = freteVtonDe(mpValor, mpPeso) || 0;
     var mpDataColeta = g('fi-mp-data-coleta').value;
     var mpDataBase = g('fi-mp-data-base').value;
     var mpTipo = g('fi-mp-tipo') ? g('fi-mp-tipo').value : '';
@@ -10688,14 +10755,14 @@ function saveEtapa1(){
     tipo_ret:'',peso_ret:0,vl_ton:0,vl_total:0,pagamento:'',conta:'',obs:'',
     cliente:g('fi-cliente')?g('fi-cliente').value.trim():'',
     vl_ent:parseFloat(g('fi-vl-entrega')?g('fi-vl-entrega').value:0)||0,
-    vton_ent:parseFloat(g('fi-vton-entrega')?g('fi-vton-entrega').value:0)||0,
+    vton_ent:freteVtonDe(g('fi-vl-entrega')?g('fi-vl-entrega').value:0, g('fi-pe')?g('fi-pe').value:0)||0,
     is_terceiro:!!(g('fi-terceirizado')&&g('fi-terceirizado').checked),
     ft_origem:g('fi-ft-origem')?g('fi-ft-origem').value.trim():'',
     ft_origem_uf:g('fi-ft-origem-uf')?g('fi-ft-origem-uf').value:'',
     ft_destino:g('fi-ft-destino')?g('fi-ft-destino').value.trim():'',
     ft_destino_uf:g('fi-ft-destino-uf')?g('fi-ft-destino-uf').value:'',
     ft_peso:parseFloat(g('fi-ft-peso')?g('fi-ft-peso').value:0)||0,
-    ft_vton:parseFloat(g('fi-ft-vton')?g('fi-ft-vton').value:0)||0,
+    ft_vton:freteVtonDe(g('fi-ft-valor')?g('fi-ft-valor').value:0, g('fi-ft-peso')?g('fi-ft-peso').value:0)||0,
     ft_valor:parseFloat(g('fi-ft-valor')?g('fi-ft-valor').value:0)||0,
     ft_pgto:g('fi-ft-pgto')?g('fi-ft-pgto').value:'',
     ft_conta:g('fi-ft-conta')?g('fi-ft-conta').value:'',
@@ -16606,7 +16673,11 @@ function ftSaveEtapa1(){
   var cid=exterior?'EXTERIOR':document.getElementById('ft-cid-input').value.trim();
   var uf=exterior?'':(document.getElementById('ft-uf-input')?document.getElementById('ft-uf-input').value:'');
   var peso=parseFloat(document.getElementById('ft-peso').value)||0;
-  var vton=parseFloat(document.getElementById('ft-vton').value)||0;
+  var _ftTotalEl=document.getElementById('ft-vfr');
+  // Lançamento existente sem o total redigitado: mantém o R$/t gravado (histórico intacto)
+  var vton=(_ftTotalEl&&_ftTotalEl.getAttribute('data-editado'))
+    ? (freteVtonDe(_ftTotalEl.value, peso)||0)
+    : (parseFloat(document.getElementById('ft-vton').value)||0);
   // Cidade/UF Destino só são obrigatórios quando o frete NÃO é Exterior — regra
   // pedida: Frete Exterior dispensa esses dois campos, mas mantém tudo o mais igual.
   if(!dt||!cli||!peso||!vton||(!exterior&&(!cid||!uf))){toast('Preencha os campos obrigatórios (*)','error');return;}
@@ -16632,6 +16703,7 @@ function ftEditRecord(idx){
     ftToggleExterior();
     if(!r.exterior){ set('ft-cid-input',r.cid); set('ft-uf-input',r.uf); }
     set('ft-car',r.car);set('ft-peso',r.peso);set('ft-vton',r.vton);set('ft-vfr',r.vfr);
+    (function(){ var e=document.getElementById('ft-vfr'); if(e) e.removeAttribute('data-editado'); var hi=document.getElementById('ft-vton-hint'); if(hi) hi.textContent=''; })();
     set('ft-nf',r.nf);set('ft-obs',r.obs);
     set('ft-dt-adt',r.dt_adt);set('ft-vl-adt',r.vl_adt);set('ft-fmt-adt',r.fmt_adt);
     set('ft-dt-pgto',r.dt_pgto);set('ft-vl-pgto',r.vl_pgto);set('ft-fmt-pgto',r.fmt_pgto);
@@ -16644,6 +16716,7 @@ function ftEditRecord(idx){
 }
 
 function ftCalcFrete(){var peso=parseFloat(document.getElementById('ft-peso').value)||0;var vton=parseFloat(document.getElementById('ft-vton').value)||0;if(peso>0&&vton>0)document.getElementById('ft-vfr').value=(peso/1000*vton).toFixed(2);}
+ftCalcFrete = function(){ freteDerivar('ft-peso','ft-vfr','ft-vton'); };
 
 function ftCalcPagamento(){
   var adt=parseFloat(document.getElementById('ft-vl-adt').value)||0;
