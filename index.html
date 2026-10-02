@@ -109,8 +109,40 @@ if(location.protocol!=='file:'){
 
   // ── Guarda as funções originais do localStorage ANTES de qualquer outro script rodar ──
   var origSetItem = localStorage.setItem.bind(localStorage);
-  var origGetItem = localStorage.getItem.bind(localStorage);
+  var _rawGetItem = localStorage.getItem.bind(localStorage);
   var origRemoveItem = localStorage.removeItem.bind(localStorage);
+  // ── MEMÓRIA DE RESERVA PARA NAVEGADOR SEM ESPAÇO (02/10) ──────────────
+  // Quando o navegador não tem espaço para guardar um módulo (ex: Frete de
+  // Terceiros, 'raguife_ft_v1'), o dado certo fica aqui em memória e TODAS as
+  // leituras passam a recebê-lo — em vez de a tela continuar lendo a cópia
+  // velha que ficou no navegador. Antes, a falha ainda interrompia o
+  // carregamento do módulo e as alterações nele ficavam presas, sem ir pra nuvem.
+  var _memoriaReserva = {};
+  function origGetItem(k){ return Object.prototype.hasOwnProperty.call(_memoriaReserva, k) ? _memoriaReserva[k] : _rawGetItem(k); }
+  // Atribuir direto em localStorage.getItem não funciona no Chrome (vira um
+  // item salvo chamado "getItem"); por isso o desvio é feito no protótipo,
+  // e só para o localStorage (sessionStorage segue intacto).
+  try{
+    var _protoGet = Storage.prototype.getItem;
+    Storage.prototype.getItem = function(k){
+      if(this===window.localStorage && Object.prototype.hasOwnProperty.call(_memoriaReserva, k)) return _memoriaReserva[k];
+      return _protoGet.call(this, k);
+    };
+  }catch(e){}
+  function gravarLocal(key, value){
+    try{ origSetItem(key, value); delete _memoriaReserva[key]; return true; }
+    catch(e){
+      // 1ª tentativa de liberar espaço: a cópia local das viagens é só cache
+      // (viagens ficam em memória e a fonte oficial é a nuvem).
+      if(key!=='raguife_v3'){
+        try{ origRemoveItem('raguife_v3'); origSetItem(key, value); delete _memoriaReserva[key]; console.warn('[FB Sync] Espaço liberado (cache de viagens) para gravar "'+key+'".'); return true; }catch(e2){}
+      }
+      try{ origRemoveItem(key); }catch(e3){} // nunca deixa a cópia VELHA no lugar
+      _memoriaReserva[key] = value;
+      console.warn('[FB Sync] "'+key+'" não coube no navegador — usando cópia em memória (dado correto, vindo da nuvem/da tela).');
+      return false;
+    }
+  }
 
   // Timestamp da última versão conhecida de cada chave — PERSISTIDO no localStorage
   // (não pode ficar só em memória, senão todo F5 acha que "chegou dado novo")
@@ -123,7 +155,7 @@ if(location.protocol!=='file:'){
   // verificável (evita a ambiguidade que já causou confusão: build parada há
   // semanas enquanto o código mudava por baixo, sem nenhum jeito de confirmar
   // qual versão estava rodando de fato).
-  var RAGUIFE_BUILD_LOCAL = '2026-10-01-I';
+  var RAGUIFE_BUILD_LOCAL = '2026-10-02-L';
   window.RAGUIFE_BUILD_LOCAL = RAGUIFE_BUILD_LOCAL;
 
   var FB = {
@@ -163,6 +195,53 @@ if(location.protocol!=='file:'){
       });
     },
     _versaoDesatualizada:false,
+    // ── TELA "CARREGANDO DA NUVEM" (02/10) ──────────────────────────────
+    // Enquanto a base oficial (nuvem) não chega, a tela mostra o que havia no
+    // navegador — que pode ser antigo. Agora isso fica coberto por um aviso e
+    // bloqueado para cliques, para ninguém ler nem trabalhar em número provisório.
+    _viagensCarregadas:false,
+    _telaCarregando:function(estado){
+      if(FB._viagensCarregadas && estado!=='ok') return;
+      var ov = document.getElementById('raguife-carregando');
+      if(estado==='ok'){ if(ov) ov.remove(); return; }
+      if(!document.body) return;
+      if(!ov){
+        ov = document.createElement('div'); ov.id='raguife-carregando';
+        ov.style.cssText='position:fixed;inset:0;background:rgba(255,255,255,.82);z-index:99999;display:flex;align-items:center;justify-content:center;font-family:inherit';
+        document.body.appendChild(ov);
+      }
+      var txt = estado==='falhou'
+        ? '<b style="color:#b91c1c">Não foi possível carregar a base da nuvem.</b><br>Os números na tela podem estar desatualizados. Confira a internet e recarregue.'
+        : (estado==='lento'
+          ? '<b>A nuvem está demorando a responder…</b><br>Os números na tela ainda NÃO são os oficiais.'
+          : '<b>Carregando a base de viagens da nuvem…</b><br>Aguarde: os números só são exibidos depois de confirmados.');
+      ov.innerHTML = '<div style="background:#fff;border:2px solid #166534;border-radius:14px;padding:24px 30px;max-width:460px;text-align:center;font-size:14px;line-height:1.5;box-shadow:0 10px 30px rgba(0,0,0,.15)">⏳<br>'+txt
+        + (estado==='carregando' ? '' : '<div style="margin-top:14px;display:flex;gap:8px;justify-content:center"><button onclick="location.reload()" style="padding:8px 14px;border-radius:8px;border:0;background:#166534;color:#fff;font-weight:700;cursor:pointer">Recarregar</button><button onclick="this.closest(\'#raguife-carregando\').remove()" style="padding:8px 14px;border-radius:8px;border:1px solid #d1d5db;background:#fff;cursor:pointer">Ver assim mesmo</button></div>')
+        + '</div>';
+    },
+    _infoBase:null,
+    _marcarBaseCarregada:function(arr, tsMap){
+      FB._viagensCarregadas = true;
+      FB._telaCarregando('ok');
+      var ton = 0, ultTs = 0;
+      arr.forEach(function(r){ if(r && !r._excluida) ton += (Number(r.peso_ent)||0) + (Number(r.peso_ret)||0); });
+      Object.keys(tsMap||{}).forEach(function(id){ if(tsMap[id] > ultTs) ultTs = tsMap[id]; });
+      FB._infoBase = { viagens: arr.filter(function(r){ return r && !r._excluida; }).length, registros: arr.length,
+        toneladas: Math.round(ton/100)/10, ultimaAlteracao: ultTs, carregadaEm: Date.now() };
+      var ib = FB._infoBase, chip = document.getElementById('raguife-base-chip');
+      var badge = document.getElementById('raguife-build-badge');
+      if(!chip && badge && badge.parentNode){
+        chip = document.createElement('span'); chip.id='raguife-base-chip';
+        chip.style.cssText='margin-left:6px;padding:2px 8px;font-size:9px;font-weight:800;color:#166534;background:#dcfce7;border-radius:8px;cursor:help';
+        badge.parentNode.insertBefore(chip, badge.nextSibling);
+      }
+      if(chip){
+        var f = function(t){ return t ? new Date(t).toLocaleString('pt-BR') : '—'; };
+        chip.textContent = 'Base: '+ib.viagens.toLocaleString('pt-BR')+' viagens';
+        chip.title = 'BASE DE VIAGENS (nuvem — fonte oficial)\nViagens ativas: '+ib.viagens+' (registros: '+ib.registros+')\nToneladas (entrega+retorno, todos os meses): '+ib.toneladas.toLocaleString('pt-BR')+' t\nÚltima alteração na nuvem: '+f(ib.ultimaAlteracao)+'\nCarregada nesta tela: '+f(ib.carregadaEm)+'\nVersão do sistema: '+(window.RAGUIFE_BUILD_LOCAL||'?');
+      }
+      console.log('[Base] Carregada da nuvem:', FB._infoBase);
+    },
     // ── CÓPIA DIÁRIA + ALARME DE QUEDA (01/10) ───────────────────────────
     // Uma cópia completa da base por dia (30 dias), independente de haver
     // exclusão. Se a base vier mais de 5% menor que a cópia do dia anterior,
@@ -525,7 +604,7 @@ if(location.protocol!=='file:'){
           // isso, um registro removido de propósito conseguia voltar assim que a
           // página recarregasse e puxasse a nuvem do zero.
           FB._filtrarLapides(key, remote.data).then(function(dadoFiltrado){
-            origSetItem(key, dadoFiltrado);
+            gravarLocal(key, dadoFiltrado);
             setKnownTs(key, remoteTs);
             if(document.readyState==='complete' && localRaw) FB._notifyUpdate(key);
             FB._pulledKeys[key] = true;
@@ -552,7 +631,7 @@ if(location.protocol!=='file:'){
       var remoteHasData = remoteAtPullTime && remoteAtPullTime.data && remoteAtPullTime.data!=='[]' && remoteAtPullTime.data!=='{}';
       if(isEmpty && remoteHasData){
         console.warn('[FB Sync] Gravação vazia de '+key+' bloqueada — já havia dado real na nuvem. Recarregando para pegar o dado correto.');
-        origSetItem(key, remoteAtPullTime.data);
+        gravarLocal(key, remoteAtPullTime.data);
         setKnownTs(key, remoteAtPullTime._ts||Date.now());
         return; // NÃO empurra o vazio
       }
@@ -619,7 +698,7 @@ if(location.protocol!=='file:'){
               FB._salvarHistorico(key, remote.data);
               var tsM = Date.now();
               setKnownTs(key, tsM);
-              origSetItem(key, merged);
+              gravarLocal(key, merged);
               firebase.database().ref('sync/'+fbSafeKey(key)).set({ data:merged, _ts:tsM, _by:FB.uid||'anon' }).catch(function(e){
                 console.warn('[FB Sync] Push (merge) falhou', key, e.message);
               });
@@ -718,6 +797,19 @@ if(location.protocol!=='file:'){
       var updates = {};
       var idsAtuais = {};
       var candidatos = []; // registros que realmente mudaram nesta sessão — precisam de checagem de conflito antes de gravar
+      // TRAVA (02/10): em 01/10 14:52:38, 698 viagens de abr–jun SEM código
+      // (_id) — vindas de uma cópia antiga do navegador — ganharam código novo
+      // aqui e foram enviadas como viagens NOVAS, duplicando maio e junho.
+      // Viagem nova legítima já nasce com código; muitas sem código de uma vez
+      // só acontece com cópia antiga/importação errada. Essas não são enviadas.
+      var semCodigo = arr.filter(function(r){ return r && !r._id; });
+      if(semCodigo.length > 10){
+        console.error('[FB Sync] BLOQUEADO: '+semCodigo.length+' viagens sem código interno tentaram entrar como NOVAS (provável cópia antiga). Não foram enviadas.');
+        try{ FB.registrarLog('Envio BLOQUEADO: viagens sem código', semCodigo.length+' viagens sem código interno não foram criadas na nuvem (proteção contra duplicação)'); }catch(e){}
+        try{ FB._notifyBlockedPush(VIAGENS_KEY, arr.length, arr.length-semCodigo.length); }catch(e){}
+        arr = arr.filter(function(r){ return r && r._id; });
+        FB._pullViagensPorRegistro();
+      }
       arr.forEach(function(r){
         if(!r) return;
         if(!r._id) r._id = 'v_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,9);
@@ -984,7 +1076,13 @@ if(location.protocol!=='file:'){
         // local falhar, a tela e a memória são atualizadas mesmo assim — a
         // cópia local é só uma conveniência, nunca pode ser um bloqueio.
         try{ origSetItem(VIAGENS_KEY, JSON.stringify(arr)); }
-        catch(e){ console.warn('[FB Sync] Não coube cópia local das viagens (espaço do navegador esgotado) — seguindo só com a versão em memória, que é a que a tela usa.'); }
+        catch(e){
+          console.warn('[FB Sync] Não coube cópia local das viagens (espaço do navegador esgotado) — seguindo só com a versão em memória, que é a que a tela usa.');
+          // (02/10) Sem isso, a cópia ANTIGA ficava no navegador indefinidamente
+          // e era ela que aparecia na próxima abertura, antes da nuvem responder
+          // (ex: 257 viagens / 5.421 t às 07:17, contra 295 / 6.433 t reais).
+          try{ origRemoveItem(VIAGENS_KEY); }catch(e2){}
+        }
         // CORREÇÃO CRÍTICA (12/08): a variável DB em memória é montada uma única
         // vez, na carga do script, a partir do que já estava salvo no navegador
         // naquele instante. Essa busca na nuvem roda em paralelo (assíncrona) e,
@@ -1021,9 +1119,11 @@ if(location.protocol!=='file:'){
         FB._pulledKeys[VIAGENS_KEY] = true;
         FB._resolveEarlyWrite(VIAGENS_KEY, null);
         FB._attachViagensListener();
+        try{ FB._marcarBaseCarregada(arr, tsMap); }catch(e){}
         });
       }).catch(function(e){
         console.warn('[FB Sync] Pull de viagens por registro falhou:', e.message);
+        try{ FB._telaCarregando('falhou'); }catch(e2){}
         FB._pulledKeys[VIAGENS_KEY] = true;
         FB._resolveEarlyWrite(VIAGENS_KEY, null);
       });
@@ -1398,7 +1498,7 @@ if(location.protocol!=='file:'){
                 if(merged!=null && mergedCount!=null && mergedCount>=localCount){
                   console.warn('[FB Sync] AUTO-MESCLADO (recebendo da nuvem): '+key+' — local tinha '+localCount+', nuvem tinha '+remoteCount+', combinados em '+mergedCount+'.');
                   FB._salvarHistorico(key, atual);
-                  origSetItem(key, merged);
+                  gravarLocal(key, merged);
                   setKnownTs(key, Date.now());
                   FB._pushOne(key, merged);
                   FB._notifyAutoMerge(key, localCount, remoteCount, mergedCount);
@@ -1411,7 +1511,7 @@ if(location.protocol!=='file:'){
               });
               return;
             }
-            origSetItem(key, remoteData);
+            gravarLocal(key, remoteData);
             setKnownTs(key, ts);
             FB._notifyUpdate(key);
           });
@@ -1775,12 +1875,9 @@ if(location.protocol!=='file:'){
     // acontecendo de qualquer forma, porque o Firebase não tem esse limite de
     // espaço; a nuvem é o que realmente protege o dado quando o navegador
     // local não tem mais lugar pra guardar.
-    var localOk = true;
-    try{
-      origSetItem(key, value);
-    }catch(e){
-      localOk = false;
-      console.warn('[FB Sync] gravação local de "'+key+'" falhou ('+e.message+') — espaço do navegador provavelmente esgotado. Enviando direto pra nuvem mesmo assim, sem guardar cópia local por enquanto.');
+    var localOk = gravarLocal(key, value);
+    if(!localOk){
+      console.warn('[FB Sync] gravação local de "'+key+'" falhou — espaço do navegador provavelmente esgotado. Enviando direto pra nuvem mesmo assim, sem guardar cópia local por enquanto.');
     }
     if(isSyncKey(key)){
       if(!FB._pulledKeys[key]){
@@ -1812,6 +1909,13 @@ if(location.protocol!=='file:'){
 
   window.ALL_SYNC_KEYS = ALL_SYNC_KEYS;
   window.FB_SYNC = FB;
+  (function(){
+    function iniciar(){
+      if(!FB._viagensCarregadas) FB._telaCarregando('carregando');
+      setTimeout(function(){ if(!FB._viagensCarregadas) FB._telaCarregando('lento'); }, 25000);
+    }
+    if(document.body) iniciar(); else document.addEventListener('DOMContentLoaded', iniciar);
+  })();
   FB.init();
 })();
 </script>
