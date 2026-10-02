@@ -155,7 +155,7 @@ if(location.protocol!=='file:'){
   // verificável (evita a ambiguidade que já causou confusão: build parada há
   // semanas enquanto o código mudava por baixo, sem nenhum jeito de confirmar
   // qual versão estava rodando de fato).
-  var RAGUIFE_BUILD_LOCAL = '2026-10-02-L';
+  var RAGUIFE_BUILD_LOCAL = '2026-10-02-M';
   window.RAGUIFE_BUILD_LOCAL = RAGUIFE_BUILD_LOCAL;
 
   var FB = {
@@ -625,6 +625,9 @@ if(location.protocol!=='file:'){
     // Proteção principal: nunca deixa um valor vazio subir por cima de dado remoto real.
     _resolveEarlyWrite:function(key, remoteAtPullTime){
       if(!(key in FB._earlyWrite)) return;
+      // (02/10) Viagens: o que existia na tela ANTES da nuvem responder não é
+      // fonte confiável (era a SEED ou cópia velha). O pull já sincroniza o DB.
+      if(key===VIAGENS_KEY){ delete FB._earlyWrite[key]; console.warn('[FB Sync] Gravação de viagens feita antes da nuvem responder foi descartada (proteção).'); return; }
       var value = FB._earlyWrite[key];
       delete FB._earlyWrite[key];
       var isEmpty = (value==null) || value==='[]' || value==='{}' || value==='';
@@ -810,6 +813,21 @@ if(location.protocol!=='file:'){
         arr = arr.filter(function(r){ return r && r._id; });
         FB._pullViagensPorRegistro();
       }
+      // TRAVA (02/10): viagem que é NOVA nesta gravação e tem a mesma placa,
+      // data e peso de uma viagem da base de fábrica (SEED) é cópia da SEED —
+      // nunca é enviada, qualquer que seja a quantidade.
+      try{
+        if(typeof SEED!=='undefined' && Array.isArray(SEED)){
+          if(!FB._seedSig){ FB._seedSig = {}; SEED.forEach(function(s){ FB._seedSig[[s.placa,s.dt_carg,s.peso_ent].join('|')] = 1; }); }
+          var copiasSeed = arr.filter(function(r){ return r && !(r._id && FB._ultimoEstadoViagens[r._id]) && FB._seedSig[[r.placa,r.dt_carg,r.peso_ent].join('|')]; });
+          if(copiasSeed.length){
+            console.error('[FB Sync] BLOQUEADO: '+copiasSeed.length+' viagens novas idênticas à base de fábrica (SEED) não foram enviadas.');
+            if(copiasSeed.length > 1){ try{ FB.registrarLog('Envio BLOQUEADO: cópias da base de fábrica', copiasSeed.length+' viagens'); }catch(e){} }
+            var _bloq = new Set(copiasSeed);
+            arr = arr.filter(function(r){ return !_bloq.has(r); });
+          }
+        }
+      }catch(e){ console.warn('[FB Sync] trava SEED falhou:', e.message); }
       arr.forEach(function(r){
         if(!r) return;
         if(!r._id) r._id = 'v_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,9);
@@ -1796,7 +1814,7 @@ if(location.protocol!=='file:'){
           if(typeof initFilters==='function'){
             var _selMes = g('f-mes') ? g('f-mes').value : '';
             initFilters();
-            if(_selMes && g('f-mes') && Array.prototype.some.call(g('f-mes').options, function(o){ return o.value===_selMes; })){
+            if(window._mesEscolhidoManual && _selMes && g('f-mes') && Array.prototype.some.call(g('f-mes').options, function(o){ return o.value===_selMes; })){
               g('f-mes').value = _selMes;
             }
           }
@@ -2908,7 +2926,7 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
   <div id="modpanel-frete-frota" style="display:none;flex-direction:column;gap:16px">
 
   <div class="filterbar">
-    <div class="f-group"><span class="f-label">Mês</span><select class="f-select" id="f-mes" onchange="renderAll()"><option value="">Todos</option></select></div>
+    <div class="f-group"><span class="f-label">Mês</span><select class="f-select" id="f-mes" onchange="window._mesEscolhidoManual=true;renderAll()"><option value="">Todos</option></select></div>
     <div class="f-group"><span class="f-label">UF Destino</span><select class="f-select" id="f-uf-dest" onchange="renderAll()"><option value="">Todos</option></select></div>
     <div class="f-group"><span class="f-label">Categoria</span><input type="text" class="f-select" id="f-cat" list="f-cat-list" placeholder="Todas" autocomplete="off" onchange="onCatChange()" onblur="validarFiltroCategoria()"><datalist id="f-cat-list"></datalist></div>
     <div class="f-group"><span class="f-label">Placa</span><input type="text" class="f-select" id="f-placa-dash" list="f-placa-dash-list" placeholder="Todas" autocomplete="off" onchange="renderAll()" onblur="validarFiltroPlaca()"><datalist id="f-placa-dash-list"></datalist></div>
@@ -7933,7 +7951,11 @@ const SEED_VERSION='00d0f14e';
 })();
 const _rawLocalV3 = localStorage.getItem('raguife_v3');
 let _dbIsSeedFallback = !_rawLocalV3; // true quando o navegador não tinha (ou não conseguiu ler) dado real salvo
-let DB=JSON.parse(_rawLocalV3||'null')||JSON.parse(JSON.stringify(SEED));
+// CORREÇÃO RAIZ (02/10): antes, sem cópia local, o DB começava com a SEED —
+// 705 viagens de exemplo (abr–jul) embutidas no arquivo. Essas viagens ganhavam
+// código e subiam pra nuvem como NOVAS (01/10 14:52:38: +698; 02/10: +705).
+// Agora começa VAZIO; a tela fica coberta por "Carregando…" até a nuvem responder.
+let DB=JSON.parse(_rawLocalV3||'null')||[];
 
 // ════════════════════════════════════════════════════════════════
 // PADRONIZAÇÃO DE CATEGORIAS DE VEÍCULO (Lançamentos / Frete Frota)
@@ -7988,6 +8010,7 @@ const save=()=>{
     // normal), mostra um banner visível na tela — a pessoa sabe na hora que o
     // lançamento dela não foi salvo, em vez de descobrir só depois, quando os
     // dados "sumiram".
+    if(typeof FB_SYNC!=='undefined' && !FB_SYNC._viagensCarregadas) return; // carregando: gravação automática, ninguém digitou nada
     if(!document.getElementById('save-bloqueado-banner')){
       var b = document.createElement('div');
       b.id = 'save-bloqueado-banner';
@@ -9621,7 +9644,7 @@ function renderRecs(){
   g('rec-count').textContent=`${rows.length} registros`;g('rec-foot').textContent=`${rows.length} de ${DB.length} registros`;
 }
 const delRec=i=>{if(!confirm('Remover?'))return;var _idRem=DB[i]&&DB[i]._id;if(window.FB_SYNC&&FB_SYNC.marcarExclusao)FB_SYNC.marcarExclusao([_idRem]);DB.splice(i,1);if(_idRem&&typeof FB_SYNC!=='undefined'&&FB_SYNC.tombstone)FB_SYNC.tombstone('raguife_v3',[_idRem]);save();renderRecs();renderAll();renderKanban();toast('Removido','success');};
-const restoreAll=()=>{DB=JSON.parse(JSON.stringify(SEED));_dbIsSeedFallback=false;save();renderRecs();renderAll();renderKanban();initFilters();toast('Dados restaurados','success');};
+const restoreAll=()=>{ alert('Função desativada: restaurar os dados de fábrica criaria 705 viagens duplicadas na base real. Para recuperar dados, use as cópias de segurança.'); };
 
 function initFilters(){
   // CORREÇÃO: .sort() puro em strings "MM/YYYY" ordena por texto, não por data —
@@ -9639,7 +9662,11 @@ function initFilters(){
   const kgs=[...new Set(DB.map(r=>r.km_grupo).filter(Boolean))].sort((a,b)=>a-b);
   const mopt='<option value="">Todos</option>'+ms.map(m=>`<option value="${m}">${m}</option>`).join('');
   ['f-mes','kb-mes'].forEach(id=>g(id).innerHTML=mopt);
-  var _mesVigente = ms.length ? ms[ms.length-1] : '';
+  // (02/10) Mês vigente = mês ATUAL do calendário. Antes pegava o último mês
+  // existente na base — e durante o carregamento isso era julho (da SEED).
+  var _hojeMV = new Date(), _mesHoje = String(_hojeMV.getMonth()+1).padStart(2,'0')+'/'+_hojeMV.getFullYear();
+  var _ateHoje = ms.filter(function(m){ var p=m.split('/'); return (+p[1]*100 + +p[0]) <= (_hojeMV.getFullYear()*100 + _hojeMV.getMonth()+1); });
+  var _mesVigente = ms.indexOf(_mesHoje)>=0 ? _mesHoje : (_ateHoje.length ? _ateHoje[_ateHoje.length-1] : (ms.length ? ms[ms.length-1] : ''));
   if(_mesVigente){ ['f-mes','kb-mes'].forEach(id=>{ if(g(id)) g(id).value=_mesVigente; }); }
   // f-cat virou input pesquisável — popula o <datalist>, não o próprio campo
   // (senão sobrescreveria o que a pessoa já tinha digitado/selecionado).
