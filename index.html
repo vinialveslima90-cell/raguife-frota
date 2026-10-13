@@ -155,7 +155,7 @@ if(location.protocol!=='file:'){
   // verificável (evita a ambiguidade que já causou confusão: build parada há
   // semanas enquanto o código mudava por baixo, sem nenhum jeito de confirmar
   // qual versão estava rodando de fato).
-  var RAGUIFE_BUILD_LOCAL = '2026-10-02-R';
+  var RAGUIFE_BUILD_LOCAL = '2026-10-12-W';
   window.RAGUIFE_BUILD_LOCAL = RAGUIFE_BUILD_LOCAL;
 
   var FB = {
@@ -3112,6 +3112,8 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
         <select id="ft-ano" onchange="ftPopulateFilters();ftRender()" style="font-size:12px;padding:6px 10px;font-weight:700;color:var(--gd);background:#fff;border:1px solid var(--gb);border-radius:6px;cursor:pointer"><option value="2026">2026</option><option value="2025">2025</option><option value="2024">2024</option><option value="">Todos</option></select></div>
       <div style="display:flex;align-items:center;gap:6px"><span style="font-size:11px;font-weight:700;color:var(--txl)">MÊS</span>
         <select id="ft-mes" onchange="ftRender()" style="font-size:12px;padding:6px 10px;font-weight:700;color:var(--gd);background:#fff;border:1px solid var(--gb);border-radius:6px;cursor:pointer"><option value="">Acumulado</option></select></div>
+      <div style="display:flex;align-items:center;gap:6px"><span style="font-size:11px;font-weight:700;color:var(--txl)">CARGA</span>
+        <select id="ft-tipo" onchange="ftRender()" style="font-size:12px;padding:6px 10px;font-weight:700;color:var(--gd);background:#fff;border:1px solid var(--gb);border-radius:6px;cursor:pointer"><option value="">Total</option><option value="Produto Acabado">Produto Acabado</option><option value="Matéria Prima">Matéria-Prima</option></select></div>
       <button onclick="ftResetFilters()" style="padding:6px 14px;background:#fff;border:1px solid var(--gb);border-radius:6px;color:var(--brand-dark);cursor:pointer;font-size:11px;font-weight:700">↺ Limpar</button>
       <button onclick="ftExportCSV()" style="padding:6px 14px;background:#fff;border:1px solid var(--gb);border-radius:6px;color:var(--brand-dark);cursor:pointer;font-size:11px;font-weight:700">⬇ CSV</button>
     </div>
@@ -3152,7 +3154,12 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
       <div class="chart-wrap"><canvas id="ft-chart-hist" style="max-height:160px"></canvas></div>
     </div>
     <div class="chart-panel" style="flex:.9;min-width:220px">
-      <div class="chart-hdr"><div><div class="chart-title">Formato de Pagamento</div><div class="chart-sub">Extratta · NF · Outro</div></div></div>
+      <div class="chart-hdr"><div><div class="chart-title">Formato de Pagamento</div><div class="chart-sub" id="ft-fmt-sub">Extratta · NF · Outro</div></div>
+        <div style="display:flex;gap:5px">
+          <button class="chart-toggle-btn" data-ft-tipo="" onclick="ftSetTipo('')">Total</button>
+          <button class="chart-toggle-btn" data-ft-tipo="Produto Acabado" onclick="ftSetTipo('Produto Acabado')">P.A.</button>
+          <button class="chart-toggle-btn" data-ft-tipo="Matéria Prima" onclick="ftSetTipo('Matéria Prima')">MP</button>
+        </div></div>
       <div style="display:grid;grid-template-columns:130px 1fr;gap:12px;align-items:center;padding:8px 16px 16px">
         <canvas id="ft-chart-fmt" style="max-height:130px"></canvas>
         <div id="ft-fmt-table" style="display:flex;flex-direction:column;gap:5px"></div>
@@ -4884,6 +4891,25 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
 
   <!-- ═══ SUB: DASHBOARD ═══ -->
   <div id="cx-view-dash" style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 18px;background:var(--bg-chip);border-radius:10px;flex-wrap:wrap;gap:10px">
+      <div><div style="font-size:13px;font-weight:800;color:var(--brand-dark);text-transform:uppercase;letter-spacing:.5px">Dashboard — Caixa Logística</div>
+        <div style="font-size:11px;color:var(--txl);margin-top:2px" id="cx-filtro-sub"></div></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:6px"><span style="font-size:11px;font-weight:700;color:var(--txl)">ANO</span>
+          <select id="cx-ev-ano" onchange="caixaLogRenderDash()" style="font-size:12px;padding:6px 10px;font-weight:700;color:var(--gd);background:#fff;border:1px solid var(--gb);border-radius:6px;cursor:pointer"><option value="">Todos</option></select></div>
+        <div style="display:flex;align-items:center;gap:6px"><span style="font-size:11px;font-weight:700;color:var(--txl)">MÊS</span>
+          <select id="cx-ev-mes" onchange="caixaLogRenderDash()" style="font-size:12px;padding:6px 10px;font-weight:700;color:var(--gd);background:#fff;border:1px solid var(--gb);border-radius:6px;cursor:pointer">
+            <option value="">Acumulado</option>
+            <option value="01">Janeiro</option><option value="02">Fevereiro</option><option value="03">Março</option>
+            <option value="04">Abril</option><option value="05">Maio</option><option value="06">Junho</option>
+            <option value="07">Julho</option><option value="08">Agosto</option><option value="09">Setembro</option>
+            <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
+          </select></div>
+        <div style="display:flex;align-items:center;gap:6px"><span style="font-size:11px;font-weight:700;color:var(--txl)">SERVIÇO</span>
+          <select id="cx-ev-servico" onchange="caixaLogRenderDash()" style="font-size:12px;padding:6px 10px;font-weight:700;color:var(--gd);background:#fff;border:1px solid var(--gb);border-radius:6px;cursor:pointer"><option value="">Todos</option></select></div>
+        <button onclick="caixaLogLimparFiltros()" style="padding:6px 14px;background:#fff;border:1px solid var(--gb);border-radius:6px;color:var(--brand-dark);cursor:pointer;font-size:11px;font-weight:700">↺ Limpar</button>
+      </div>
+    </div>
     <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px" id="cx-kpis"></div>
     <div style="background:#fff;border:1px solid var(--gb);border-radius:10px;padding:12px 16px;display:flex;gap:24px;flex-wrap:wrap">
       <div><span style="font-size:10px;color:var(--txl)">🟢 Reforço de Caixa</span> <b id="cx-kpi-reforco" style="color:#166534"></b></div>
@@ -4895,23 +4921,9 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
       <div style="padding:11px 16px;border-bottom:1px solid var(--gb);background:var(--gbg);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
         <div>
           <div style="font-size:12px;font-weight:800;color:var(--gd)">📈 Evolução Mensal de Despesa</div>
-          <div style="font-size:10px;color:var(--txl)">Caixa Logística · despesas ao longo do tempo</div>
+          <div style="font-size:10px;color:var(--txl)" id="cx-ev-sub">Caixa Logística · despesas mês a mês no ano selecionado</div>
         </div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <select id="cx-ev-mes" onchange="caixaLogRenderDash()" style="font-size:10px;padding:5px 8px;border:1px solid var(--gb);border-radius:6px;font-weight:700">
-            <option value="">Todos os meses</option>
-            <option value="01">Janeiro</option><option value="02">Fevereiro</option><option value="03">Março</option>
-            <option value="04">Abril</option><option value="05">Maio</option><option value="06">Junho</option>
-            <option value="07">Julho</option><option value="08">Agosto</option><option value="09">Setembro</option>
-            <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
-          </select>
-          <select id="cx-ev-ano" onchange="caixaLogRenderDash()" style="font-size:10px;padding:5px 8px;border:1px solid var(--gb);border-radius:6px;font-weight:700">
-            <option value="">Todos os anos</option>
-          </select>
-          <select id="cx-ev-servico" onchange="caixaLogRenderDash()" style="font-size:10px;padding:5px 8px;border:1px solid var(--gb);border-radius:6px">
-            <option value="">Todos serviços</option>
-          </select>
-        </div>
+
       </div>
       <div style="padding:14px"><canvas id="cx-ch-evolucao" style="max-height:230px"></canvas></div>
     </div>
@@ -4974,6 +4986,9 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
       <datalist id="cx-placas-list"></datalist>
       <datalist id="cx-clientes-list"></datalist>
       <button onclick="caixaLogLancSalvar()" style="padding:8px 18px;background:#c2410c;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">+ Adicionar Lançamento</button>
+      <button onclick="document.getElementById('cx-imp-file').click()" style="padding:8px 18px;background:#fff;color:#c2410c;border:1px solid #c2410c;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;margin-left:6px">📥 Importar Planilha</button>
+      <input type="file" id="cx-imp-file" accept=".xlsx,.xls,.csv" style="display:none" onchange="caixaLogImpLer(this)">
+      <div id="cx-imp-preview" style="display:none;margin-top:12px;border:1px solid #fed7aa;background:#fff7ed;border-radius:8px;padding:12px 14px;font-size:11px"></div>
       <input type="hidden" id="cx-lanc-edit-id" value="">
     </div>
     <div style="background:#fff;border:1px solid var(--gb);border-radius:10px;overflow:hidden">
@@ -7613,7 +7628,7 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
     <div style="background:#fff;border:1px solid var(--gb);border-radius:10px;overflow:hidden">
       <div class="rec-hdr" style="flex-wrap:wrap;gap:10px">
         <div><div class="rec-title">🗓️ Mapa de Calor — Jornada × Horas Extras × Rodagem</div><span style="font-size:11px;color:var(--txl)">clique numa célula pra ver o detalhe do dia</span></div>
-        <select id="jorn-mc-semana" class="f-select" style="margin-left:auto;width:auto" onchange="jornRenderMapaCalorSemanal()"></select>
+        <select id="jorn-mc-semana" class="f-select" style="margin-left:auto;width:auto" onchange="_jornMapaPeriodo=null;jornRenderMapaCalorSemanal()"></select>
       </div>
       <div class="tbl-scroll" style="max-height:600px"><table id="jorn-mc-table" style="width:100%;border-collapse:collapse"></table></div>
       <div id="jorn-mc-legenda" style="padding:7px 14px;border-top:1px solid var(--gb)"></div>
@@ -7777,7 +7792,8 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
       <div class="fg g2">
         <div class="form-grp">
           <label class="form-lbl">Valor do Frete (R$)</label>
-          <input type="number" class="form-ctrl" id="me1-vl-entrega" readonly style="background:var(--gg);font-weight:800">
+          <input type="number" class="form-ctrl" id="me1-vl-entrega" step="0.01" min="0" placeholder="0,00" style="font-weight:800" oninput="this.setAttribute('data-editado','1');me1FreteHint()">
+          <div id="me1-vl-entrega-hint" style="font-size:10.5px;font-weight:700;margin-top:3px;min-height:13px;color:var(--gd)"></div>
         </div>
       </div>
 
@@ -9177,7 +9193,20 @@ function viagemExecutarExclusao(r, motivo, eraConcluida){
 }
 
 
-function me1CalcFreteEntrega(){
+// (12/10) Edição da Etapa 1: o Valor do Frete voltou a ser editável (estava
+// travado desde que o R$/t saiu desta tela). Ao digitar o total, o R$/t é
+// calculado e mostrado; viagem aberta e salva SEM mexer no valor mantém
+// exatamente o que já tinha (total e R$/t).
+function me1FreteHint(){
+  var to=document.getElementById('me1-vl-entrega'), pe=document.getElementById('me1-pe'), hi=document.getElementById('me1-vl-entrega-hint');
+  if(!to||!hi) return;
+  if(!to.getAttribute('data-editado')){ hi.textContent=''; return; }
+  var t=parseFloat(to.value); if(!(t>0)){ hi.textContent=''; return; }
+  var v=(typeof freteVtonDe==='function') ? freteVtonDe(t, pe?pe.value:0) : null;
+  if(v==null){ hi.textContent='Informe um peso válido para calcular o R$/t'; hi.style.color='#b45309'; }
+  else { hi.textContent='R$/t calculado: '+freteFmtTon(v); hi.style.color='var(--gd)'; }
+}
+function me1CalcFreteEntrega(){ me1FreteHint(); return;
   var peso = parseFloat(document.getElementById('me1-pe').value) || 0;
   if(!document.getElementById('me1-vton-entrega')) return; // (02/10) campo R$/Ton retirado da edição: valor do frete gravado é mantido
   var vton = parseFloat(document.getElementById('me1-vton-entrega').value) || 0;
@@ -9199,6 +9228,7 @@ function openModal(idx){
   g('me1-orig-uf').value      = r.is_terceiro ? (r.ft_origem_uf||'') : (r.origem_uf||'');
   g('me1-pe').value           = r.is_terceiro ? (r.ft_peso||'') : (r.peso_ent||'');
   g('me1-vl-entrega').value   = r.vl_ent || '';
+  g('me1-vl-entrega').removeAttribute('data-editado'); me1FreteHint();
   g('me1-dest-cidade').value  = r.is_terceiro ? (r.ft_destino||'') : (r.destino_cidade||'');
   g('me1-dest-uf').value      = r.is_terceiro ? (r.ft_destino_uf||'') : (r.destino_uf||'');
   g('me1-kmg').value          = r.km_grupo ? String(r.km_grupo) : '';
@@ -9524,8 +9554,13 @@ function saveEtapa1Modal(){
   r.km_grupo_label = 'GRUPO ' + kmg + ' (' + kmLow + ' a ' + (kmLow+99) + ')';
   r.km             = parseFloat(g('me1-km').value) || kmLow;
   r.peso_ent       = parseFloat(g('me1-pe').value) || 0;
-  // (02/10) R$/Ton não é mais editado aqui — mantém o valor já gravado na viagem
-  r.vl_ent         = parseFloat(g('me1-vl-entrega').value) || 0;
+  // (12/10) Só recalcula se o Valor do Frete foi digitado nesta edição;
+  // senão mantém total e R$/t exatamente como estavam gravados.
+  if(g('me1-vl-entrega').getAttribute('data-editado')){
+    r.vl_ent = parseFloat(g('me1-vl-entrega').value) || 0;
+    var _v1 = (typeof freteVtonDe==='function') ? freteVtonDe(r.vl_ent, parseFloat(g('me1-pe').value)||0) : null;
+    if(_v1!=null) r.vton_ent = _v1;
+  }
 
   save();
   if(typeof finRefreshSeVisivel==='function') finRefreshSeVisivel();
@@ -16315,15 +16350,45 @@ function ftFiltered(){
   return DB_FT.filter(function(r){return !mes||r.mes===mes;});
 }
 
-// ── FT: filtro de ano ─────────────────────────────────────────────
+// ── FT: filtros do dashboard ─────────────────────────────────────
+// (07/10) FILTRO GLOBAL DE CARGA: Total / Produto Acabado / Matéria-Prima.
+// Um único estado (o select #ft-tipo) — o atalho P.A./MP do card Formato de
+// Pagamento só muda esse mesmo select, então não há filtro paralelo. Todos os
+// componentes passam por ftPassaTipo()/ftFiltered(), que usam a mesma
+// classificação normCarTipo() já usada no gráfico de categorias.
+function ftTipoSel(){ var e=document.getElementById('ft-tipo'); return e ? e.value : ''; }
+function ftPassaTipo(r){ var t=ftTipoSel(); return !t || normCarTipo(r.car)===t; }
+function ftSetTipo(t){ var e=document.getElementById('ft-tipo'); if(e){ e.value=t; } ftRender(); }
 function ftFiltered(){
   var ano = document.getElementById('ft-ano') ? document.getElementById('ft-ano').value : '2026';
   var mes = document.getElementById('ft-mes') ? document.getElementById('ft-mes').value : '';
   return DB_FT.filter(function(r){
     if(ano && r.ano && String(r.ano) !== String(ano)) return false;
     if(mes && r.mes !== mes) return false;
+    if(!ftPassaTipo(r)) return false;
     return true;
   });
+}
+// Viagens da frota própria: mês/ano vêm da data de carregamento. (Antes os
+// gráficos usavam o campo r.mes, que não existe nas viagens lançadas a partir
+// de julho — 561 viagens — e por isso a frota própria aparecia zerada.)
+function ftMesViagem(r){ if(r.mes) return r.mes; var d=String(r.dt_carg||''); return d.length>=7 ? d.slice(5,7)+'/'+d.slice(0,4) : ''; }
+function ftTonPropria(r, tipo){
+  if(!r || r._excluida) return 0;
+  var pa = (parseFloat(r.peso_ent)||0)/1000, mp = 0;
+  if(Array.isArray(r.fretes_retorno) && r.fretes_retorno.length){
+    r.fretes_retorno.forEach(function(p){ if(p && p.tipo==='MP') mp += (parseFloat(p.peso)||0)/1000; });
+  } else if(r.tipo_ret==='MP' || r.is_coleta_mp){ mp = (parseFloat(r.peso_ret)||0)/1000; }
+  return tipo==='Produto Acabado' ? pa : (tipo==='Matéria Prima' ? mp : pa+mp);
+}
+function ftRecPropria(r, tipo){
+  if(!r || r._excluida) return 0;
+  var pa = (typeof receitaEntregaViagem==='function') ? receitaEntregaViagem(r) : (parseFloat(r.vl_ent)||0);
+  var mp = 0, ret = parseFloat(r.vl_total)||0;
+  if(Array.isArray(r.fretes_retorno) && r.fretes_retorno.length){
+    r.fretes_retorno.forEach(function(p){ if(p && p.tipo==='MP') mp += parseFloat(p.vl_total)||0; });
+  } else if(r.tipo_ret==='MP' || r.is_coleta_mp){ mp = ret; }
+  return tipo==='Produto Acabado' ? pa : (tipo==='Matéria Prima' ? mp : pa+ret);
 }
 
 // ── FT: Ranking de Transportadores ───────────────────────────────
@@ -16434,12 +16499,16 @@ function ftRenderKPIs(data){
     '</div>'+
     ftBuildCatCard(userR);
   var sub=document.getElementById('ft-header-sub');
-  if(sub){var mesEl=document.getElementById('ft-mes');var mv=mesEl?mesEl.value:'';sub.textContent=mv?mv+' · '+data.length+' viagens · '+R(total):'2026 · Acumulado · '+data.length+' viagens · '+R(total);}
+  if(sub){var mesEl=document.getElementById('ft-mes');var mv=mesEl?mesEl.value:'';var _t=ftTipoSel()||'Total';var _a=document.getElementById('ft-ano')?document.getElementById('ft-ano').value:'';sub.textContent=(mv?mv:_a+' · Acumulado')+' · '+_t+' · '+data.length+' viagens · '+R(total);}
 }
 
 function ftRenderCharts(data){
   if(typeof Chart==='undefined'){setTimeout(function(){ftRenderCharts(data);},200);return;}
-  if(!data||!data.length) return;
+  if(!data||!data.length){
+    ['ft-chart-evolucao','ft-chart-top5','ft-chart-uf','ft-chart-hist','ft-chart-fmt'].forEach(function(id){ var c=document.getElementById(id); if(c&&c._c){ c._c.destroy(); c._c=null; } });
+    var ft0=document.getElementById('ft-fmt-table'); if(ft0) ft0.innerHTML='<div style="color:var(--txl);font-style:italic;font-size:11px">Sem fretes no filtro selecionado.</div>';
+    return;
+  }
   var meses=[...new Set(data.map(function(r){return r.mes;}))].sort();
   var mLabels=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 
@@ -16452,7 +16521,7 @@ function ftRenderCharts(data){
     var allMeses=['01','02','03','04','05','06','07','08','09','10','11','12'].map(function(m){return m+'/'+anoAtual;});
     function getVals(mesArr){
       return mesArr.map(function(m){
-        var md=DB_FT.filter(function(r){return r.mes===m;});
+        var md=DB_FT.filter(function(r){return r.mes===m && ftPassaTipo(r);});
         if(_ftEvMode==='val') return md.reduce(function(s,r){return s+r.vfr;},0);
         if(_ftEvMode==='ton') return md.reduce(function(s,r){return s+r.peso/1000;},0);
         return md.length;
@@ -16533,7 +16602,8 @@ function ftRenderCharts(data){
   var ctx5=document.getElementById('ft-chart-hist');
   if(ctx5){
     if(ctx5._c){ctx5._c.destroy();ctx5._c=null;}
-    var hVals=['01','02','03','04','05','06','07','08','09','10','11','12'].map(function(m){return DB_FT.filter(function(r){return r.mes===m+'/2026';}).reduce(function(s,r){return s+r.vfr;},0);});
+    var _hAno = document.getElementById('ft-ano') ? (document.getElementById('ft-ano').value||'2026') : '2026';
+    var hVals=['01','02','03','04','05','06','07','08','09','10','11','12'].map(function(m){return DB_FT.filter(function(r){return r.mes===m+'/'+_hAno && ftPassaTipo(r);}).reduce(function(s,r){return s+r.vfr;},0);});
     var hAcc=[];var acc=0; hVals.forEach(function(v){acc+=v;hAcc.push(acc);});
     ctx5._c=new Chart(ctx5,{type:'bar',data:{labels:mLabels,datasets:[
       {label:'Mensal',data:hVals,backgroundColor:'rgba(2,79,43,.6)',borderRadius:4,yAxisID:'y',datalabels:{display:false}},
@@ -16550,7 +16620,8 @@ function ftRenderCharts(data){
   if(ctx6){
     if(ctx6._c){ctx6._c.destroy();ctx6._c=null;}
     var fmtMap={'Extratta':0,'NF':0,'Outro':0};var fmtCnt={'Extratta':0,'NF':0,'Outro':0};
-    DB_FT.filter(function(r){return r._user;}).forEach(function(r){
+    // (07/10) Antes somava o ano inteiro de DB_FT, ignorando ano/mês/carga.
+    data.filter(function(r){return r._user;}).forEach(function(r){
       if(r.fmt_adt&&fmtMap[r.fmt_adt]!==undefined){fmtMap[r.fmt_adt]+=r.vl_adt||0;fmtCnt[r.fmt_adt]++;}
       if(r.fmt_pgto&&fmtMap[r.fmt_pgto]!==undefined){fmtMap[r.fmt_pgto]+=r.vl_pgto||0;fmtCnt[r.fmt_pgto]++;}
     });
@@ -16561,6 +16632,12 @@ function ftRenderCharts(data){
       datalabels:{display:true,anchor:'end',align:'right',offset:4,
         backgroundColor:'rgba(255,255,255,.9)',borderRadius:3,padding:{top:1,bottom:1,left:4,right:4},
         color:'#374151',font:{size:9,weight:'bold'},formatter:function(v){return R(v);}}}]},options:{indexAxis:'y',responsive:true,layout:{padding:{right:80}},plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){return R(ctx.raw);}}}},scales:{x:{beginAtZero:true,ticks:{callback:function(v){return R(v);}}},y:{grid:{display:false}}}},plugins:[ChartDataLabels]});
+    (function(){
+      var mesV=document.getElementById('ft-mes')?document.getElementById('ft-mes').value:'', anoV=document.getElementById('ft-ano')?document.getElementById('ft-ano').value:'';
+      var t=ftTipoSel(); var s=document.getElementById('ft-fmt-sub');
+      if(s) s.textContent='Extratta · NF · Outro — '+(mesV?mesV:('Acumulado '+anoV))+' · '+(t||'Total');
+      document.querySelectorAll('[data-ft-tipo]').forEach(function(b){ b.className='chart-toggle-btn'+(b.getAttribute('data-ft-tipo')===t?' active':''); });
+    })();
     var ftbl=document.getElementById('ft-fmt-table');
     if(ftbl){
       if(fmtTotal===0){ftbl.innerHTML='<div style="color:var(--txl);font-style:italic;font-size:11px">Registre pagamentos em Lançamentos → Frete Terceiros para ver este indicador.</div>';}
@@ -16797,13 +16874,16 @@ function ftRenderParticipacao(ftData) {
   var tonTer = ftDataFilt.reduce(function(a,r){ return a+(parseFloat(r.peso)||0)/1000; }, 0);
   var tonPro = 0;
   if(typeof DB !== 'undefined') {
+    var _tipoP = ftTipoSel();
     DB.filter(function(r){
-      if(anoFil && String(r.ano||'') !== String(anoFil)) return false;
-      if(mesFil && (r.mes||'') !== mesFil) return false;
+      if(!r || r._excluida) return false;
+      var mr = ftMesViagem(r);
+      if(anoFil && mr.split('/')[1] !== String(anoFil)) return false;
+      if(mesFil && mr !== mesFil) return false;
       // Excluir Jan-Abr no acumulado
-      if(!mesFil){ var m=parseInt((r.mes||'').split('/')[0]||0); if(MESES_EXCL_PART.indexOf(m)>=0) return false; }
+      if(!mesFil){ var m=parseInt((mr||'').split('/')[0]||0); if(MESES_EXCL_PART.indexOf(m)>=0) return false; }
       return true;
-    }).forEach(function(r){ tonPro += (r.peso_ent||0)/1000; });
+    }).forEach(function(r){ tonPro += ftTonPropria(r, _tipoP); });
   }
   var tot = tonTer + tonPro;
   var pct = tot > 0 ? tonTer/tot*100 : 0;
@@ -16902,19 +16982,20 @@ function ftRenderFatCusto(ftData) {
   var fat = allM.map(function(m){
     var mi = parseInt(m);
     // Prioridade: dados reais de referência; fallback: calcular do DB
-    if(fatRef[mi]) return fatRef[mi];
+    var _tipoF = ftTipoSel();
+    if(fatRef[mi] && !_tipoF) return fatRef[mi]; // referência histórica é do faturamento TOTAL
     var recFrota = 0;
     if(typeof DB !== 'undefined'){
-      recFrota = DB.filter(function(r){return (r.mes||'').startsWith(m+'/'+anoFil);})
-                   .reduce(function(a,r){return a+receitaEntregaViagem(r)+(r.vl_total||0);},0);
+      recFrota = DB.filter(function(r){return r && !r._excluida && ftMesViagem(r)===m+'/'+anoFil;})
+                   .reduce(function(a,r){return a+ftRecPropria(r, _tipoF);},0);
     }
-    var recFT = DB_FT.filter(function(r){return (r.mes||'').startsWith(m+'/'+anoFil);})
+    var recFT = DB_FT.filter(function(r){return (r.mes||'').startsWith(m+'/'+anoFil) && ftPassaTipo(r);})
                      .reduce(function(a,r){return a+(r.vfr||0);},0);
     return recFrota + recFT;
   });
   // Custo Frete Terceiro por mês (do SEED_FT)
   var custo = allM.map(function(m){
-    return DB_FT.filter(function(r){return (r.mes||'').startsWith(m+'/'+anoFil);})
+    return DB_FT.filter(function(r){return (r.mes||'').startsWith(m+'/'+anoFil) && ftPassaTipo(r);})
                 .reduce(function(a,r){return a+(r.vfr||0);},0);
   });
   // % impacto = Custo FT ÷ Receita Total
@@ -16966,7 +17047,7 @@ function ftClearForm(){
   if(typeof ftToggleExterior==='function') ftToggleExterior();
 }
 
-function ftResetFilters(){var now=new Date();var cur=String(now.getMonth()+1).padStart(2,'0')+'/'+now.getFullYear();var el=document.getElementById('ft-mes');if(el)el.value=cur;ftRender();}
+function ftResetFilters(){var now=new Date();var cur=String(now.getMonth()+1).padStart(2,'0')+'/'+now.getFullYear();var el=document.getElementById('ft-mes');if(el)el.value=cur;var tp=document.getElementById('ft-tipo');if(tp)tp.value='';ftRender();}
 
 function ftToggleEv(mode,btn){_ftEvMode=mode;document.querySelectorAll('#ft-ev-val,#ft-ev-ton,#ft-ev-viag').forEach(function(b){b.classList.remove('active');});if(btn)btn.classList.add('active');ftRenderCharts(ftFiltered());}
 function ftToggleTop5(mode,btn){_ftTop5Mode=mode;document.querySelectorAll('#ft-t5-val,#ft-t5-ton').forEach(function(b){b.classList.remove('active');});if(btn)btn.classList.add('active');ftRenderCharts(ftFiltered());}
@@ -19462,7 +19543,7 @@ function ftBuildCatCard(userR){
   var CATS=['TRUCK','BITRUCK','LS','4° EIXO','BITREM','RODOTREM'];
   var ftData={};
   CATS.forEach(function(cat){ftData[cat]={fretes:0,ton:0,rec:0};});
-  var src=(typeof DB_FT!=='undefined'?DB_FT:[]).filter(function(r){return r._user;});
+  var src=(userR||[]).filter(function(r){return r._user;}); // (07/10) base filtrada do dashboard
   src.forEach(function(r){
     var cat=(r.cat||'').toUpperCase().trim();
     if(!cat)return;
@@ -25296,6 +25377,7 @@ function jornSemanasDisponiveis(){
   return Object.keys(semanas).sort().reverse().map(function(seg){ return {seg:seg, dias:semanas[seg].sort()}; });
 }
 var _jornForcarSemanaDoFiltro = false;
+var _jornMapaPeriodo = null; // (06/10) dias do filtro de período curto, quando ativo
 function jornPopularSelectSemana(){
   var sel = document.getElementById('jorn-mc-semana'); if(!sel) return null;
   var semanas = jornSemanasDisponiveis();
@@ -25318,6 +25400,21 @@ function jornPopularSelectSemana(){
   if(_jornForcarSemanaDoFiltro && JORN_FILTROS.dataFim){
     padrao = jornGetWeekKey(JORN_FILTROS.dataFim);
     _jornForcarSemanaDoFiltro = false;
+    // (06/10) Período de até 7 dias (Hoje, Ontem, Últimos 7 dias ou
+    // Personalizado curto): o Mapa mostra EXATAMENTE os dias do período, mesmo
+    // que atravessem duas semanas. Antes mostrava só a semana do último dia —
+    // em "Últimos 7 dias" de 30/09 a 06/10, aparecia só 05 e 06/10.
+    _jornMapaPeriodo = null;
+    if(JORN_FILTROS.dataInicio){
+      var _ini = new Date(JORN_FILTROS.dataInicio+'T00:00:00'), _fim = new Date(JORN_FILTROS.dataFim+'T00:00:00');
+      var _n = Math.round((_fim-_ini)/86400000)+1;
+      if(_n>=1 && _n<=7){ _jornMapaPeriodo = []; for(var _k=0;_k<_n;_k++){ var _d=new Date(_ini); _d.setDate(_ini.getDate()+_k); _jornMapaPeriodo.push(jornFmtISO(_d)); } }
+    }
+  }
+  if(_jornMapaPeriodo){
+    sel.insertAdjacentHTML('afterbegin','<option value="__periodo">Período do filtro: '+jornFmtDataCurta(_jornMapaPeriodo[0])+' a '+jornFmtDataCurta(_jornMapaPeriodo[_jornMapaPeriodo.length-1])+'</option>');
+    sel.value='__periodo';
+    return '__periodo';
   }
   // Se o campo ainda não tem valor escolhido (ex: primeira renderização após
   // trocar pro último dia disponível), abre já na semana do último dia.
@@ -25336,8 +25433,11 @@ function jornRenderMapaCalorSemanal(){
   if(!semKey){ tbl.innerHTML = '<tr><td style="padding:20px;text-align:center;color:var(--txl)">Nenhum dado carregado ainda.</td></tr>'; return; }
 
   var diasSemana = [];
-  var seg = new Date(semKey+'T00:00:00');
-  for(var i=0;i<7;i++){ var d=new Date(seg); d.setDate(seg.getDate()+i); diasSemana.push(jornFmtISO(d)); }
+  if(semKey==='__periodo' && _jornMapaPeriodo){ diasSemana = _jornMapaPeriodo.slice(); }
+  else {
+    var seg = new Date(semKey+'T00:00:00');
+    for(var i=0;i<7;i++){ var d=new Date(seg); d.setDate(seg.getDate()+i); diasSemana.push(jornFmtISO(d)); }
+  }
 
   // Motoristas a mostrar: os que passam nos filtros ativos (célula/categoria/
   // tipoHE/busca), considerando TODA a base agregada — depois cruza dia a dia.
@@ -30766,7 +30866,7 @@ function caixaLogLoad(){
   try{
     var raw = localStorage.getItem('raguife_cx_lanc_v1');
     CX_DB_LANC = raw ? JSON.parse(raw) : [];
-    if(!CX_DB_LANC.length){ CX_DB_LANC = JSON.parse(JSON.stringify(CX_SEED_LANC)); caixaLogSave(); }
+    if(!CX_DB_LANC.length && !window.FB_SYNC){ CX_DB_LANC = JSON.parse(JSON.stringify(CX_SEED_LANC)); caixaLogSave(); } // (07/10) online: dados vêm da nuvem
   }catch(e){ CX_DB_LANC = []; }
 }
 function caixaLogSave(){ try{ localStorage.setItem('raguife_cx_lanc_v1', JSON.stringify(CX_DB_LANC)); }catch(e){} }
@@ -30851,6 +30951,11 @@ function caixaLogRenderDash(){
         +'</div>';
     }).join('');
   }
+  (function(){
+    var nm=['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    var s=document.getElementById('cx-filtro-sub');
+    if(s) s.textContent=(mesF?nm[parseInt(mesF)]:'Acumulado')+(anoF?' '+anoF:' · todos os anos')+(servF?' · '+servF:'')+' · '+despesas.length+' despesas';
+  })();
   var elR = document.getElementById('cx-kpi-reforco');
   if(elR) elR.textContent = 'R$ '+totalReforco.toLocaleString('pt-BR',{minimumFractionDigits:2})+' ('+reforcos.length+' lançamentos)';
   var elF = document.getElementById('cx-kpi-fechamento');
@@ -30914,24 +31019,163 @@ function caixaLogPopulateEvolucaoFiltros(){
   if(selA){
     var prevA = selA.value;
     var anos = Array.from(new Set(despesas.map(function(l){return l.data?l.data.slice(0,4):null;}).filter(Boolean))).sort();
-    selA.innerHTML = '<option value="">Todos os anos</option>' + anos.map(function(a){return '<option value="'+a+'">'+a+'</option>';}).join('');
+    selA.innerHTML = '<option value="">Todos</option>' + anos.map(function(a){return '<option value="'+a+'">'+a+'</option>';}).join('');
     selA.value = prevA;
     if(!_cxMesAnoInited){
+      // (07/10) Mês atual se tiver lançamentos; senão o último mês que tem.
       var _hj=new Date();
-      var _anoV=String(_hj.getFullYear());
-      var _mesV=String(_hj.getMonth()+1).padStart(2,'0');
-      if(anos.indexOf(_anoV)>=0){ selA.value=_anoV; if(selM) selM.value=_mesV; }
+      var _chave=String(_hj.getFullYear())+'-'+String(_hj.getMonth()+1).padStart(2,'0');
+      var _meses=Array.from(new Set(despesas.map(function(l){return l.data?l.data.slice(0,7):null;}).filter(Boolean))).sort();
+      if(_meses.indexOf(_chave)<0) _chave=_meses.filter(function(m){return m<=_chave;}).pop()||_meses[_meses.length-1]||'';
+      if(_chave){ selA.value=_chave.slice(0,4); if(selM) selM.value=_chave.slice(5,7); }
       _cxMesAnoInited=true;
     }
   }
   if(selS){
     var prevS = selS.value;
     var servs = Array.from(new Set(despesas.map(function(l){return l.servico;}).filter(Boolean))).sort();
-    selS.innerHTML = '<option value="">Todos serviços</option>' + servs.map(function(s){return '<option value="'+s+'">'+s+'</option>';}).join('');
+    selS.innerHTML = '<option value="">Todos</option>' + servs.map(function(s){return '<option value="'+s+'">'+s+'</option>';}).join('');
     selS.value = prevS;
   }
 }
 
+// ══ IMPORTAÇÃO DE PLANILHA — CAIXA LOGÍSTICA (07/10) ════════════════════════
+// Colunas (cabeçalho na 1ª linha): DATA, HORA, MOTORISTA, PLACA, CLIENTE,
+// QTD. SACOS RACAO, QTD. SACOS SAL, Serviço, VALOR, OBS.
+// Só ACRESCENTA: nada existente é alterado; linhas já lançadas (mesma data,
+// motorista, cliente e valor) são puladas. Mostra prévia antes de gravar.
+var _cxImpPend = null;
+function cxImpNorm(s){ return String(s==null?'':s).toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim(); }
+function cxImpData(v){
+  if(v instanceof Date && !isNaN(v)) return v.getFullYear()+'-'+String(v.getMonth()+1).padStart(2,'0')+'-'+String(v.getDate()).padStart(2,'0');
+  if(typeof v==='number' && v>20000){ var d=new Date(Math.round((v-25569)*86400000)); return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0'); }
+  var s=String(v||'').trim(), m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+  if(m){ var a=m[3].length===2?'20'+m[3]:m[3]; return a+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0'); }
+  m=s.match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? m[0] : '';
+}
+function cxImpValor(v){ if(typeof v==='number') return v; var s=String(v||'').replace(/R\$|\s/g,''); if(s.indexOf(',')>=0) s=s.replace(/\./g,'').replace(',','.'); return parseFloat(s)||0; }
+function cxImpServico(serv, cliente, obs){
+  var s=cxImpNorm(serv), t=cxImpNorm(cliente+' '+obs);
+  if(s==='CHAPA') return 'Chapa';
+  if(s.indexOf('BALSA')>=0 || s.indexOf('TRAVESSIA')>=0) return 'Balsa/Travessia';
+  if(s.indexOf('LAVAGEM')>=0) return 'Lavagem';
+  if(s==='VIAGEM' || s.indexOf('DESPESAS DE VIAGEM')>=0 || s.indexOf('DESPESA DE VIAGEM')>=0) return 'Despesas de Viagem';
+  if(s.indexOf('PEDAGIO')>=0) return 'Pedágio';
+  if(s.indexOf('HOSPED')>=0) return 'Hospedagem';
+  if(s.indexOf('REFEIC')>=0) return 'Refeição';
+  if(s.indexOf('COMBUST')>=0) return 'Combustível';
+  if(s.indexOf('AJUDA DE CUSTO')>=0) return 'Ajuda de Custo';
+  if(s.indexOf('DIARIA')>=0) return 'Diária';
+  if(s.indexOf('MANUTEN')>=0) return 'Manutenção';
+  if(s.indexOf('BORRACH')>=0) return 'Borracharia';
+  if(s.indexOf('REEMBOLSO')>=0 || !s){
+    // Mesmo critério dos lançamentos já existentes: reembolso é classificado pela natureza
+    if(t.indexOf('PEDAGIO')>=0) return 'Pedágio';
+    if(t.indexOf('BALSA')>=0 || t.indexOf('TRAVESSIA')>=0) return 'Balsa/Travessia';
+    if(t.indexOf('BORRACH')>=0 || t.indexOf('PNEU')>=0) return 'Borracharia';
+    if(t.indexOf('LONA')>=0) return 'Conserto de Lonas';
+    if(t.indexOf('MANUTEN')>=0 || t.indexOf('MECANIC')>=0 || t.indexOf('SOLDA')>=0) return 'Manutenção';
+    if(t.indexOf('IMPRESS')>=0 || t.indexOf('NOTA')>=0) return 'Impressão/Troca Nota';
+    if(t.indexOf('LAVAGEM')>=0 || t.indexOf('LAVA JATO')>=0) return 'Lavagem';
+    if(t.indexOf('HOTEL')>=0 || t.indexOf('HOSPED')>=0) return 'Hospedagem';
+    if(t.indexOf('MARMITA')>=0 || t.indexOf('REFEIC')>=0 || t.indexOf('ALIMENT')>=0) return 'Refeição';
+    if(t.indexOf('SEDEX')>=0 || t.indexOf('MULTA')>=0 || t.indexOf('CORREIO')>=0) return 'Sedex/Multas';
+    if(t.indexOf('DIESEL')>=0 || t.indexOf('COMBUST')>=0 || t.indexOf('POSTO')>=0) return 'Combustível';
+    return s ? 'Reembolso' : '';
+  }
+  return String(serv||'').trim();
+}
+function caixaLogImpLer(inp){
+  var f = inp.files && inp.files[0]; inp.value=''; if(!f) return;
+  if(typeof XLSX==='undefined'){ toast('Biblioteca de planilhas não carregou — recarregue a página','error'); return; }
+  var rd = new FileReader();
+  rd.onload = function(e){
+    try{
+      // datas lidas como número de série do Excel (conversão em UTC) — evita o
+      // deslocamento de fuso que joga a data para o dia anterior no Brasil
+      var wb = XLSX.read(new Uint8Array(e.target.result), {type:'array', cellDates:false});
+      var ws = wb.Sheets[wb.SheetNames[0]];
+      caixaLogImpPreparar(XLSX.utils.sheet_to_json(ws, {defval:'', raw:true}), f.name);
+    }catch(err){ toast('Não foi possível ler a planilha: '+err.message,'error'); }
+  };
+  rd.readAsArrayBuffer(f);
+}
+function caixaLogImpMontar(linhas, nomeArq, base){
+  var col = function(r, nomes){ for(var k in r){ var nk=cxImpNorm(k); for(var i=0;i<nomes.length;i++){ if(nk===nomes[i]) return r[k]; } } return ''; };
+  var chaveDe = function(l){ return [l.data, cxImpNorm(l.motorista), cxImpNorm(l.cliente), Math.round((+l.valor||0)*100)].join('|'); };
+  var existentes = {}; base.forEach(function(l){ var k=chaveDe(l); existentes[k]=(existentes[k]||0)+1; });
+  var novos=[], repetidos=0, invalidos=[], somas=[], ts=Date.now(), vistos={};
+  linhas.forEach(function(r, i){
+    var data = cxImpData(col(r,['DATA'])), valor = cxImpValor(col(r,['VALOR']));
+    var cliente = String(col(r,['CLIENTE','CLIENTE/BENEFICIARIO'])||'').trim();
+    var motorista = String(col(r,['MOTORISTA'])||'').trim();
+    if(!data && !valor && !cliente && !motorista) return;
+    if(!data || !(valor>0)){ invalidos.push(i+2); return; }
+    var placa = String(col(r,['PLACA'])||'').trim().toUpperCase(); if(placa==='-') placa='';
+    var obs = String(col(r,['OBS','OBSERVACAO'])||'').trim();
+    var rac = col(r,['QTD. SACOS RACAO','QTD SACOS RACAO']), sal = col(r,['QTD. SACOS SAL','QTD SACOS SAL']);
+    var extra = []; if(rac!=='' && rac!=='-') extra.push('Sacos ração: '+rac); if(sal!=='' && sal!=='-') extra.push('Sacos sal: '+sal);
+    var hora = col(r,['HORA']);
+    if(hora instanceof Date) hora = String(hora.getHours()).padStart(2,'0')+':'+String(hora.getMinutes()).padStart(2,'0');
+    else if(typeof hora==='number' && hora>=0 && hora<1){ var _mn=Math.round(hora*1440); hora=String(Math.floor(_mn/60)).padStart(2,'0')+':'+String(_mn%60).padStart(2,'0'); }
+    var cn = cxImpNorm(cliente);
+    // Linha que é SOMA de outras ("DINHEIRO EM CAIXA C/ ESTORNO" = reforço + estorno
+    // lançados separadamente) não entra — senão o valor contaria duas vezes.
+    if(cn.indexOf('DINHEIRO EM CAIXA C/ ESTORNO')>=0){ somas.push(i+2); return; }
+    // Movimentos de caixa NÃO são despesa: fechamento/ajuste saem do caixa para o
+    // financeiro; dinheiro em caixa, entrada e estorno são dinheiro que volta.
+    var tipo = (cn.indexOf('FECHAMENTO')>=0 || cn.indexOf('AJUSTE CAIXA')>=0 || cn.indexOf('AJUSTE DE CAIXA')>=0) ? 'FECHAMENTO'
+      : ((cn.indexOf('DINHEIRO EM CAIXA')>=0 || cn.indexOf('REFORCO')>=0 || cn.indexOf('ENTRADA CAIXA')>=0 || cn.indexOf('ENTRADA DE CAIXA')>=0 || cn.indexOf('ESTORNO')===0) ? 'REFORCO' : 'DESPESA');
+    var rec = { id:'cx_imp_'+ts+'_'+i, data:data, tipo:tipo, motorista:motorista, placa:placa, cliente:cliente,
+      servico: tipo==='DESPESA' ? cxImpServico(col(r,['SERVICO']), cliente, obs) : '',
+      valor: Math.round(valor*100)/100, obs:[obs].concat(extra).filter(Boolean).join(' · '),
+      hora: hora ? String(hora) : '', _importado: nomeArq };
+    var k = chaveDe(rec); vistos[k]=(vistos[k]||0)+1;
+    if(vistos[k] <= (existentes[k]||0)){ repetidos++; return; }
+    novos.push(rec);
+  });
+  return {novos:novos, repetidos:repetidos, invalidos:invalidos, somas:somas};
+}
+function caixaLogImpPreparar(linhas, nomeArq){
+  caixaLogLoad();
+  var res = caixaLogImpMontar(linhas, nomeArq, CX_DB_LANC), novos=res.novos;
+  _cxImpPend = novos;
+  var soma=function(t){ return novos.filter(function(x){return x.tipo===t;}).reduce(function(a,x){return a+x.valor;},0); };
+  var cnt=function(t){ return novos.filter(function(x){return x.tipo===t;}).length; };
+  var porServ={}; novos.filter(function(x){return x.tipo==='DESPESA';}).forEach(function(x){ var s=x.servico||'Não classificado'; porServ[s]=(porServ[s]||0)+x.valor; });
+  var datas=novos.map(function(x){return x.data;}).sort();
+  var fR=function(v){ return 'R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:2}); };
+  var fD=function(d){ return d?d.split('-').reverse().join('/'):'—'; };
+  var pv=document.getElementById('cx-imp-preview'); if(!pv) return;
+  pv.style.display='block';
+  pv.innerHTML='<div style="font-weight:800;color:#9a3412;margin-bottom:6px">📥 Prévia da importação — '+nomeArq+'</div>'
+    +'<div>Período: <b>'+fD(datas[0])+'</b> a <b>'+fD(datas[datas.length-1])+'</b> · <b>'+novos.length+'</b> lançamentos novos</div>'
+    +'<div style="margin-top:4px">Despesas: <b>'+cnt('DESPESA')+'</b> ('+fR(soma('DESPESA'))+') · Reforço de Caixa: <b>'+cnt('REFORCO')+'</b> ('+fR(soma('REFORCO'))+') · Fechamentos: <b>'+cnt('FECHAMENTO')+'</b> ('+fR(soma('FECHAMENTO'))+')</div>'
+    +'<div style="margin-top:4px;color:var(--txl)">Por serviço: '+Object.keys(porServ).sort(function(a,b){return porServ[b]-porServ[a];}).map(function(s){return s+' '+fR(porServ[s]);}).join(' · ')+'</div>'
+    +(res.repetidos?'<div style="margin-top:4px;color:#92400e">⚠️ '+res.repetidos+' linha(s) já existiam no sistema (mesma data, motorista, cliente e valor) e serão puladas.</div>':'')
+    +(res.somas&&res.somas.length?'<div style="margin-top:4px;color:#92400e">ℹ️ Linha(s) '+res.somas.join(', ')+' ("Dinheiro em caixa c/ estorno") ignorada(s): é a soma de linhas já lançadas separadamente.</div>':'')
+    +(res.invalidos.length?'<div style="margin-top:4px;color:#991b1b">⚠️ Linha(s) sem data ou valor, ignoradas: '+res.invalidos.join(', ')+'</div>':'')
+    +'<div style="margin-top:10px;display:flex;gap:8px">'
+    +(novos.length?'<button onclick="caixaLogImpConfirmar()" style="padding:7px 16px;background:#c2410c;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">✅ Confirmar importação ('+novos.length+')</button>':'<b>Nada novo para importar.</b>')
+    +'<button onclick="caixaLogImpCancelar()" style="padding:7px 16px;background:#fff;border:1px solid var(--gb);border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">Cancelar</button></div>';
+}
+function caixaLogImpCancelar(){ _cxImpPend=null; var pv=document.getElementById('cx-imp-preview'); if(pv){ pv.style.display='none'; pv.innerHTML=''; } }
+function caixaLogImpConfirmar(){
+  if(!_cxImpPend || !_cxImpPend.length) return;
+  caixaLogLoad();
+  var n=_cxImpPend.length; _cxImpPend.forEach(function(r){ CX_DB_LANC.push(r); });
+  caixaLogSave();
+  try{ if(window.FB_SYNC && FB_SYNC.registrarLog) FB_SYNC.registrarLog('Importou planilha no Caixa Logística', n+' lançamentos'); }catch(e){}
+  caixaLogImpCancelar();
+  toast(n+' lançamentos importados ✅','success');
+  var sub=document.getElementById('cx-sub'); if(sub) sub.textContent=CX_DB_LANC.length+' lançamentos registrados';
+  _cxMesAnoInited=false; caixaLogPopulateAutocomplete(); caixaLogRenderLanc();
+}
+
+function caixaLogLimparFiltros(){
+  _cxMesAnoInited=false; var s=document.getElementById('cx-ev-servico'); if(s) s.value='';
+  caixaLogPopulateEvolucaoFiltros(); caixaLogRenderDash();
+}
 function caixaLogRenderEvolucao(){
   var mesF = (document.getElementById('cx-ev-mes')||{}).value||'';
   var anoF = (document.getElementById('cx-ev-ano')||{}).value||'';
@@ -30940,7 +31184,6 @@ function caixaLogRenderEvolucao(){
 
   var lista = CX_DB_LANC.filter(function(l){
     if(l.tipo!=='DESPESA' || !l.data) return false;
-    if(mesF && l.data.slice(5,7)!==mesF) return false;
     if(anoF && l.data.slice(0,4)!==anoF) return false;
     if(servF && l.servico!==servF) return false;
     return true;
@@ -30961,7 +31204,7 @@ function caixaLogRenderEvolucao(){
   var c = document.getElementById('cx-ch-evolucao');
   if(c && typeof Chart!=='undefined'){
     _mntCh['cx-evolucao'] = new Chart(c, {type:'bar',
-      data:{labels:labels, datasets:[{data:chaves.map(function(k){return grupos[k];}), backgroundColor:'#9ca3af', borderRadius:5}]},
+      data:{labels:labels, datasets:[{data:chaves.map(function(k){return grupos[k];}), backgroundColor:chaves.map(function(k){return mesF && k.slice(5,7)===mesF ? '#c2410c' : '#9ca3af';}), borderRadius:5}]},
       options:{plugins:{legend:{display:false}, datalabels:{anchor:'end',align:'top',font:{size:10,weight:'bold'},color:'#4b5563',
         formatter:function(v){return 'R$'+v.toLocaleString('pt-BR',{maximumFractionDigits:0});}}},
         scales:{y:{ticks:{callback:function(v){return 'R$'+Math.round(v/1000)+'k';}}}}},
