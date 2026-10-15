@@ -155,7 +155,7 @@ if(location.protocol!=='file:'){
   // verificável (evita a ambiguidade que já causou confusão: build parada há
   // semanas enquanto o código mudava por baixo, sem nenhum jeito de confirmar
   // qual versão estava rodando de fato).
-  var RAGUIFE_BUILD_LOCAL = '2026-10-12-W';
+  var RAGUIFE_BUILD_LOCAL = '2026-10-16-AD';
   window.RAGUIFE_BUILD_LOCAL = RAGUIFE_BUILD_LOCAL;
 
   var FB = {
@@ -3770,7 +3770,7 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
             <!-- Botão 1: Veloe (abastecimento) -->
             <label style="display:inline-flex;align-items:center;gap:7px;padding:9px 16px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.4);border-radius:8px;color:#fff;cursor:pointer;font-size:11px;font-weight:700" title="Planilha Veloe GO — abastecimento, litros, custo, postos" onmouseover="this.style.background='rgba(255,255,255,.25)'" onmouseout="this.style.background='rgba(255,255,255,.15)'">
               <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 2v8M5 7l3 3 3-3"/><path d="M2 13h12"/></svg>⛽ Veloe (Abastecimento)
-              <input type="file" accept=".xlsx,.xltx,.csv" style="display:none" onchange="abastImportar(this)">
+              <input type="file" accept=".xlsx,.xls,.xltx,.csv" style="display:none" onchange="abastImportar(this)">
             </label>
             <!-- Mês/Ano de referência (opcional) — força o mês de todos os registros
                  importados, ignorando a coluna de data da planilha. Necessário quando
@@ -5874,6 +5874,7 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
 <option value="TO">TO</option></select></div>
         <div class="form-grp"><label class="form-lbl">Grupo KM <span class="req">*</span></label><select class="form-ctrl" id="fi-kmg"><option value="">Selecione a faixa…</option><option value="1">GRUPO 1 (0 a 99 km)</option><option value="2">GRUPO 2 (100 a 199 km)</option><option value="3">GRUPO 3 (200 a 299 km)</option><option value="4">GRUPO 4 (300 a 399 km)</option><option value="5">GRUPO 5 (400 a 499 km)</option><option value="6">GRUPO 6 (500 a 599 km)</option><option value="7">GRUPO 7 (600 a 699 km)</option><option value="8">GRUPO 8 (700 a 799 km)</option><option value="9">GRUPO 9 (800 a 899 km)</option><option value="10">GRUPO 10 (900 a 999 km)</option><option value="11">GRUPO 11 (1000 a 1099 km)</option><option value="12">GRUPO 12 (1100 a 1199 km)</option><option value="13">GRUPO 13 (1200 a 1299 km)</option><option value="14">GRUPO 14 (1300 a 1399 km)</option><option value="15">GRUPO 15 (1400 a 1499 km)</option><option value="16">GRUPO 16 (1500 a 1599 km)</option><option value="17">GRUPO 17 (1600 a 1699 km)</option><option value="18">GRUPO 18 (1700 a 1799 km)</option><option value="19">GRUPO 19 (1800 a 1899 km)</option><option value="20">GRUPO 20 (1900 a 1999 km)</option><option value="21">GRUPO 21 (2000 a 2099 km)</option><option value="22">GRUPO 22 (2100 a 2199 km)</option><option value="23">GRUPO 23 (2200 a 2299 km)</option><option value="24">GRUPO 24 (2300 a 2399 km)</option><option value="25">GRUPO 25 (2400 a 2499 km)</option><option value="26">GRUPO 26 (2500 a 2599 km)</option><option value="27">GRUPO 27 (2600 a 2699 km)</option><option value="28">GRUPO 28 (2700 a 2799 km)</option><option value="29">GRUPO 29 (2800 a 2899 km)</option><option value="30">GRUPO 30 (2900 a 2999 km)</option><option value="31">GRUPO 31 (3000 a 3099 km)</option><option value="32">GRUPO 32 (3100 a 3199 km)</option><option value="33">GRUPO 33 (3200 a 3299 km)</option><option value="34">GRUPO 34 (3300 a 3399 km)</option><option value="35">GRUPO 35 (3400 a 3499 km)</option><option value="36">GRUPO 36 (3500 a 3599 km)</option><option value="37">GRUPO 37 (3600 a 3699 km)</option><option value="38">GRUPO 38 (3700 a 3799 km)</option><option value="39">GRUPO 39 (3800 a 3899 km)</option><option value="40">GRUPO 40 (3900 a 3999 km)</option></select></div>
         <div class="form-grp"><label class="form-lbl">KM Exato <span class="req">*</span></label><input type="number" class="form-ctrl" id="fi-km" placeholder="Ex: 1269" min="0"></div>
+        <div class="form-grp"><label class="form-lbl">Nº Nota Fiscal (NF) <span style="font-weight:600;text-transform:none;color:var(--txl)">(opcional)</span></label><input type="text" class="form-ctrl" id="fi-nf" placeholder="Ex: 128663" autocomplete="off" oninput="this.value=this.value.toUpperCase()"></div>
       </div>
       </div>
 
@@ -5889,6 +5890,7 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
 <div class="filterbar">
     <div class="f-group"><span class="f-label">Mês</span><select class="f-select" id="kb-mes" onchange="renderKanban()"><option value="">Todos</option></select></div>
     <div class="f-group"><span class="f-label">Categoria</span><input type="text" class="f-select" id="kb-cat" list="kb-cat-list" placeholder="Todas" autocomplete="off" onchange="renderKanban()" onblur="validarFiltroKbCat()"><datalist id="kb-cat-list"></datalist></div>
+    <div class="f-group"><span class="f-label">Nº NF</span><input type="text" class="f-select" id="kb-nf" placeholder="🔎 Buscar NF…" autocomplete="off" oninput="kbBuscarNF()" style="width:130px"></div>
     <div class="f-group"><span class="f-label">Placa</span><input type="text" class="f-select" id="kb-placa" list="kb-placa-list" placeholder="Todas" autocomplete="off" onchange="renderKanban()" onblur="validarFiltroKbPlaca()"><datalist id="kb-placa-list"></datalist></div>
     <div class="f-sep"></div>
     <button class="btn-reset" onclick="resetKbFilters()"><svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 2A5 5 0 102 10"/><polyline points="10,2 10,5 7,5"/></svg>Limpar</button>
@@ -5917,6 +5919,7 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
   <span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:3px;background:#f59e0b;flex-shrink:0"></span><div><strong style="color:#713f12">Em Andamento</strong> — Etapa 1 ok, aguardando data de descarga e retorno</div></span>
   <span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:3px;background:#ef4444;flex-shrink:0"></span><div><strong style="color:#7f1d1d">Incompletas</strong> — Etapa 1 incompleta (dados de saída faltando)</div></span>
 </div>
+<div id="kb-nf-res" style="display:none"></div>
 <div id="kanban-summary" style="display:flex;gap:10px;padding:2px 0 4px;font-size:12px;color:#666;flex-wrap:wrap"></div>
   <div class="kanban-grid">
     <div class="kanban-col kc-verde"><div class="kanban-col-hdr"><span>✅ Concluídas <small style="font-weight:400;font-size:9px;opacity:.7">(Etapa 1 + 2 ok)</small></span><span class="col-count" id="kb-count-verde">0</span></div><div class="kanban-cards" id="kb-verde"></div></div>
@@ -7880,6 +7883,10 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
           <label class="form-lbl">KM Exato <span class="req">*</span></label>
           <input type="number" class="form-ctrl" id="me1-km" min="0">
         </div>
+        <div class="form-grp">
+          <label class="form-lbl">Nº Nota Fiscal (NF) <span style="font-weight:600;text-transform:none;color:var(--txl)">(opcional)</span></label>
+          <input type="text" class="form-ctrl" id="me1-nf" placeholder="Ex: 128663" autocomplete="off" oninput="this.value=this.value.toUpperCase()">
+        </div>
       </div>
 
       <div class="form-actions">
@@ -8975,6 +8982,31 @@ function renderHist(data){
   g('tb-hist').innerHTML=ms.map((m,i)=>{const d=bm[m];const semBase=d.baseTot-d.baseCom;const pct=d.baseTot?(d.baseCom/d.baseTot*100).toFixed(1):'0.0';const clr=pct>=70?'var(--gd)':pct>=40?'var(--go)':'var(--rd)';const bg=i%2===0?'':' style="background:#fafaf8"';return`<tr${bg}><td style="font-weight:700">${m}</td><td style="text-align:right">${d.t}</td><td style="text-align:right;color:var(--gd);font-weight:600">${d.baseCom}</td><td style="text-align:right;color:var(--go)">${semBase}</td><td style="color:${clr};font-weight:700">${pct}%</td><td style="text-align:right">${N(d.pe,1)}</td><td style="text-align:right">${N(d.pr,1)}</td><td style="color:var(--gd)">${R(d.re||0)}</td><td style="color:var(--gd)">${R(d.rr)}</td><td style="color:var(--go)">${R(d.rm)}</td><td style="color:var(--gd);font-weight:700">${R((d.re||0)+d.rr+d.rm)}</td></tr>`;}).join('');
 }
 
+
+// ══ BUSCA POR NOTA FISCAL (16/10) ═══════════════════════════════════════════
+// Procura em TODAS as viagens (qualquer mês e status), não só nas visíveis no
+// Kanban. Clique no resultado abre a viagem para edição.
+function kbBuscarNF(){
+  var inp=g('kb-nf'), box=g('kb-nf-res'); if(!inp||!box) return;
+  var q=String(inp.value||'').trim().toUpperCase().replace(/\s+/g,'');
+  if(q.length<2){ box.style.display='none'; box.innerHTML=''; return; }
+  var achados=[];
+  DB.forEach(function(r,idx){ if(!r||r._excluida) return; var nf=String(r.nf||'').toUpperCase().replace(/\s+/g,''); if(nf && nf.indexOf(q)>=0) achados.push({r:r,idx:idx}); });
+  achados.sort(function(a,b){ return String(b.r.dt_carg||'').localeCompare(String(a.r.dt_carg||'')); });
+  var st={verde:'✅ Concluída',amarelo:'🚚 Em andamento',vermelho:'⚠️ Incompleta'};
+  box.style.display='block';
+  box.innerHTML='<div style="background:#fff;border:1px solid var(--gb);border-radius:8px;padding:10px 14px">'
+    +'<div style="font-size:11px;font-weight:800;color:var(--brand-dark);margin-bottom:6px">Resultado da busca por NF "'+inp.value+'": '+achados.length+' viagem(ns)'
+    +(achados.length>30?' — mostrando as 30 mais recentes':'')+'</div>'
+    +(achados.length? '<table style="width:100%;border-collapse:collapse;font-size:11.5px"><thead><tr style="text-align:left;color:var(--txl)"><th style="padding:4px 8px">NF</th><th style="padding:4px 8px">Placa</th><th style="padding:4px 8px">Carregamento</th><th style="padding:4px 8px">Destino</th><th style="padding:4px 8px">Motorista</th><th style="padding:4px 8px">Status</th><th></th></tr></thead><tbody>'
+      + achados.slice(0,30).map(function(a){ var r=a.r; return '<tr style="border-top:1px solid #f0f0f0;cursor:pointer" onclick="openModal('+a.idx+')">'
+        +'<td style="padding:5px 8px;font-weight:800;color:var(--gd)">'+r.nf+'</td><td style="padding:5px 8px;font-weight:700">'+(r.placa||'')+'</td>'
+        +'<td style="padding:5px 8px">'+FD(r.dt_carg)+'</td><td style="padding:5px 8px">'+(r.destino_cidade||'—')+(r.destino_uf?'/'+r.destino_uf:'')+'</td>'
+        +'<td style="padding:5px 8px">'+(r.motorista||'—')+'</td><td style="padding:5px 8px">'+(st[tripStatus(r)]||'')+'</td>'
+        +'<td style="padding:5px 8px;text-align:right"><span style="font-size:10.5px;font-weight:700;color:var(--gd)">Abrir ›</span></td></tr>'; }).join('')
+      +'</tbody></table>' : '<div style="font-size:11.5px;color:var(--txl)">Nenhuma viagem com essa NF.</div>')
+    +'</div>';
+}
 function renderKanban(){
   if(typeof Chart === 'undefined') return;
   // Lazy: só renderiza se o painel kanban estiver visível
@@ -9228,6 +9260,7 @@ function openModal(idx){
   g('me1-orig-uf').value      = r.is_terceiro ? (r.ft_origem_uf||'') : (r.origem_uf||'');
   g('me1-pe').value           = r.is_terceiro ? (r.ft_peso||'') : (r.peso_ent||'');
   g('me1-vl-entrega').value   = r.vl_ent || '';
+  if(g('me1-nf')) g('me1-nf').value = r.nf || '';
   g('me1-vl-entrega').removeAttribute('data-editado'); me1FreteHint();
   g('me1-dest-cidade').value  = r.is_terceiro ? (r.ft_destino||'') : (r.destino_cidade||'');
   g('me1-dest-uf').value      = r.is_terceiro ? (r.ft_destino_uf||'') : (r.destino_uf||'');
@@ -9553,6 +9586,7 @@ function saveEtapa1Modal(){
   r.km_grupo       = kmg;
   r.km_grupo_label = 'GRUPO ' + kmg + ' (' + kmLow + ' a ' + (kmLow+99) + ')';
   r.km             = parseFloat(g('me1-km').value) || kmLow;
+  if(g('me1-nf')) r.nf = String(g('me1-nf').value||'').trim();
   r.peso_ent       = parseFloat(g('me1-pe').value) || 0;
   // (12/10) Só recalcula se o Valor do Frete foi digitado nesta edição;
   // senão mantém total e R$/t exatamente como estavam gravados.
@@ -9701,7 +9735,7 @@ function renderRecs(){
   var recPanel = document.getElementById('subpanel-saida');
   if(recPanel && recPanel.style.display === 'none') return;
   const q=g('srch-rec').value.toLowerCase();
-  const rows=DB.filter(r=>!q||(r.placa+r.destino_cidade+r.destino_uf+r.categoria).toLowerCase().includes(q));
+  const rows=DB.filter(r=>!q||(r.placa+r.destino_cidade+r.destino_uf+r.categoria+' '+(r.nf||'')).toLowerCase().includes(q));
   const stLabel={verde:'<span class="badge b-green">✓ OK</span>',amarelo:'<span class="badge b-yellow">⏳ Parcial</span>',vermelho:'<span class="badge b-red">✗ Incompleto</span>'};
   g('tb-recs').innerHTML=rows.map((r,i)=>{
     const dv=DD(r.dt_carg,r.dt_base),pago=r.pagamento==='Pago',s=tripStatus(r);
@@ -10784,6 +10818,7 @@ function saveEtapa1(){
     destino_cidade:destCidade,destino_uf:destUf,
     destino:destCidade+(destUf?'-'+destUf:''),
     km_grupo:kmg,km_grupo_label:kmg?`GRUPO ${kmg} (${kmLow} a ${kmLow+99})`:'',
+    nf:(g('fi-nf')?String(g('fi-nf').value||'').trim():''),
     km:parseFloat(g('fi-km').value)||kmLow||0,peso_ent:parseFloat(g('fi-pe').value)||0,
     km_saida:parseFloat(g('fi-km-saida').value)||null,
     retorno:'Não',dt_desc:'',dt_base:'',dest_ret:'',dest_ret_cidade:'',dest_ret_uf:'',
@@ -23531,6 +23566,21 @@ var PERF_CATS = {"GAA5I61": "RODOTREM", "FSK8E26": "TRUCK", "GAA5I53": "RODOTREM
 
 var DB_ABAST     = [];   // registros importados
 var DB_ABAST_LOG = [];   // histórico de uploads
+var DB_ABAST_OCULTOS = []; // (15/10) diesel da Veloe substituído pelo relatório oficial — guardado, fora dos cálculos
+var DB_ABAST_DISCREP = []; // (15/10) lançamentos com valor discrepante — guardados, FORA de todos os cálculos
+// Faixas de R$/litro consideradas normais. Fora delas (ou sem custo, ou sem
+// litros) o lançamento inteiro é desconsiderado: não dá pra saber se o erro
+// está no valor ou nos litros (ex: 66 L por R$ 4.580 — eram 660 L).
+var ABAST_FAIXA_RL = { diesel:[4, 9], arla:[0.8, 6] };
+function abastMotivoDiscrepancia(r){
+  var q=+r.qtd||0, v=+r.vTot||0, m=String(r.mercadoria||'').toUpperCase();
+  var fx = m.indexOf('ARLA')>=0 ? ABAST_FAIXA_RL.arla : (m.indexOf('DIESEL')>=0 ? ABAST_FAIXA_RL.diesel : null);
+  if(!fx) return '';
+  if(!(q>0)) return 'sem litros';
+  if(!(v>0)) return 'sem custo';
+  var rl=v/q; if(rl<fx[0] || rl>fx[1]) return 'R$/l fora do normal (R$ '+rl.toFixed(2).replace('.',',')+')';
+  return '';
+}
 
 // ── Limites globais de outlier ──────────────────────────────
 var ABAST_KML_MIN = 0.5;
@@ -23783,13 +23833,18 @@ function abastAplicarCorrecaoPreco(){
 
 // ── Storage ─────────────────────────────────────────────────
 function abastSave(){
-  try{ localStorage.setItem('raguife_abast_v2', JSON.stringify({r:DB_ABAST, log:DB_ABAST_LOG})); }catch(e){}
+  try{ localStorage.setItem('raguife_abast_v2', JSON.stringify({r:DB_ABAST.concat(DB_ABAST_OCULTOS, DB_ABAST_DISCREP), log:DB_ABAST_LOG})); }catch(e){}
 }
 function abastLoadDb(){
   var sR=(typeof _ABAST_SEED_DATA!=='undefined'&&_ABAST_SEED_DATA.r)?_ABAST_SEED_DATA.r:[];
   var loaded=[];DB_ABAST_LOG=[];
   try{var raw=localStorage.getItem('raguife_abast_v2');if(raw){var d=JSON.parse(raw);loaded=d.r||[];DB_ABAST_LOG=d.log||[];}}catch(e){}
-  if(!loaded.length) loaded=sR;
+  if(!loaded.length && !window.FB_SYNC) loaded=sR; // (15/10) online: dados vêm da nuvem, nunca da base de fábrica
+  // (15/10) Registros substituídos ficam guardados à parte — fora de todos os cálculos
+  DB_ABAST_OCULTOS = loaded.filter(function(r){ return r && r._substituido; });
+  loaded = loaded.filter(function(r){ return r && !r._substituido; });
+  DB_ABAST_DISCREP = loaded.filter(function(r){ return r._discrepante; });
+  loaded = loaded.filter(function(r){ return !r._discrepante; });
   loaded.forEach(function(r){if((r.op==='SEM_CENTRO'||r.op===''||!r.op)&&r.mes===5&&r.ano===2026)r.op='AQUA';});
   // CORREÇÃO (21/09): abastKey() já existia especificamente pra detectar
   // duplicatas, mas só era usada DENTRO de uma importação (contra o que já
@@ -25691,6 +25746,163 @@ function abastParseCSVText(text){
   if(field.length || row.length){ row.push(field); rows.push(row); }
   return rows.filter(function(r){ return r.length>1 || (r.length===1 && r[0]!==''); });
 }
+// ══ IMPORTAÇÃO "ABASTECIMENTOS COM CUSTO" (sistema de gestão de combustível) — 15/10 ══
+// (15/10, revisado) A partir de SET/2026 este relatório é a fonte OFICIAL só do
+// DIESEL INTERNO (tanque Raguife). Os EXTERNOS deste arquivo são ignorados —
+// virão de uma planilha própria. Ao importar um mês, só o diesel INTERNO que
+// tinha vindo da Veloe naquele mês fica OCULTO (não apagado, reversível).
+// Externos e Arla da Veloe continuam como estão.
+// Etanol e gasolina (veículos leves) continuam fora, como sempre.
+var ABAST_GESTAO_DESDE = 202609;
+// (15/10) Substituição por período só vale de SET/2026 em diante. Datas anteriores
+// presentes num arquivo (ex: 25 a 31/08 no CSV da Veloe) COMPLEMENTAM: entra só
+// o que ainda não existe, nada é substituído.
+var ABAST_SUBST_DESDE = '2026-09-01';
+// (15/10) SUBSTITUIÇÃO POR PERÍODO: ao importar um arquivo, o que já existia no
+// período que ele cobre (e do tipo que ele traz) é SUBSTITUÍDO pelo conteúdo do
+// arquivo. Nada é apagado: registros de outras importações ficam OCULTOS
+// (_substituido) e voltam se esta importação for removida. Só a versão anterior
+// do MESMO arquivo é descartada (reimportação), para não acumular cópias.
+function abastDataISO(v){
+  if(v instanceof Date && !isNaN(v)) return v.getFullYear()+'-'+String(v.getMonth()+1).padStart(2,'0')+'-'+String(v.getDate()).padStart(2,'0');
+  var m=String(v||'').trim().match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  return m ? m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0') : '';
+}
+function abastSubstituirPeriodo(ini, fim, pertence, arquivo){
+  var ts=new Date().toISOString(), ocultados=0, descartados=0, ficam=[];
+  DB_ABAST.forEach(function(x){
+    var d=String(x.dt||'').slice(0,10);
+    if(d>=ini && d<=fim && pertence(x)){
+      if(x._src===arquivo){ descartados++; return; }
+      x._substituido={por:arquivo, em:ts}; DB_ABAST_OCULTOS.push(x); ocultados++; return;
+    }
+    ficam.push(x);
+  });
+  DB_ABAST=ficam;
+  DB_ABAST_DISCREP = DB_ABAST_DISCREP.filter(function(x){
+    var d=String(x.dt||'').slice(0,10);
+    if(d>=ini && d<=fim && pertence(x)){
+      if(x._src===arquivo){ descartados++; return false; }
+      x._substituido={por:arquivo, em:ts}; DB_ABAST_OCULTOS.push(x); ocultados++; return false;
+    }
+    return true;
+  });
+  return {ocultados:ocultados, descartados:descartados};
+}
+function abastContarPeriodo(ini, fim, pertence){
+  return DB_ABAST.filter(function(x){ var d=String(x.dt||'').slice(0,10); return d>=ini && d<=fim && pertence(x); }).length;
+}
+
+var ABAST_PLACA_CORRIGIR = { 'FZR4959':'FZR4J59', 'FWB2134':'FWB2B34', 'CYN2370':'CYN2D70' };
+function abastEhFormatoGestao(h){
+  var tem = function(t){ return h.some(function(c){ return c.indexOf(t)>=0; }); };
+  return tem('volume (l)') && tem('custo total') && tem('combust');
+}
+function abastImportarGestao(rows, hIdx, file, input){
+  var h = rows[hIdx].map(function(c){ return String(c||'').trim().toLowerCase(); });
+  var ix = function(fn){ return h.findIndex(fn); };
+  var iDt=ix(function(c){return c.indexOf('data/hora in')>=0;}); if(iDt<0) iDt=ix(function(c){return c.indexOf('data')>=0;});
+  var iPlaca=ix(function(c){return c==='placa';}), iVol=ix(function(c){return c.indexOf('volume')>=0;}), iCusto=ix(function(c){return c.indexOf('custo total')>=0;});
+  var iComb=ix(function(c){return c.indexOf('combust')>=0;}), iPosto=ix(function(c){return c==='posto';}), iTanque=ix(function(c){return c==='tanque';});
+  var iDist=ix(function(c){return c.indexOf('dist')>=0;}), iMedia=ix(function(c){return c.indexOf('média (km/l)')>=0||c.indexOf('media (km/l)')>=0;});
+  var iMot=ix(function(c){return c==='motorista';}), iSob=ix(function(c){return c==='sobrenome';}), iOdo=ix(function(c){return c.indexOf('odometro')>=0||c.indexOf('odômetro')>=0;});
+  if(iPlaca<0||iVol<0||iCusto<0||iComb<0||iDt<0){ toast('Relatório de abastecimento sem as colunas esperadas (Placa, Volume, Custo Total, Combustível, Data)','error'); input.value=''; return; }
+  var pS=function(v){ return v===null||v===undefined?'':String(v).trim(); };
+  // aceita número nativo, "1.234,56" e erros de digitação como "343,,74"
+  var pN=function(v){ if(v===null||v===undefined||v==='') return 0; if(typeof v==='number') return v; return parseFloat(String(v).trim().replace(/,+/g,',').replace(/\.(?=\d{3})/g,'').replace(',','.'))||0; };
+  if(!DB_FROTA || !DB_FROTA.length){ try{ frotaLoad(); }catch(e){} }
+  var cad = {}; (DB_FROTA||[]).forEach(function(f){ var p=String(f.id||f.placa||'').toUpperCase().replace(/[^A-Z0-9]/g,''); if(p) cad[p]=1; });
+  var novos=[], ignLeves=0, ignExternos=0, dupArq=0, corrigidas={}, revisar=[], foraCad={};
+  var vistos = {};
+  rows.slice(hIdx+1).forEach(function(r){
+    if(!r) return;
+    var placaOrig = pS(r[iPlaca]).toUpperCase().replace(/[^A-Z0-9]/g,''); if(!placaOrig) return;
+    var placa = ABAST_PLACA_CORRIGIR[placaOrig] || placaOrig;
+    var comb = pS(r[iComb]).toUpperCase();
+    var isDiesel = comb.indexOf('S10')>=0 || comb.indexOf('S500')>=0 || comb.indexOf('DIESEL')>=0, isArla = comb.indexOf('ARLA')>=0;
+    if(!isDiesel && !isArla){ ignLeves++; return; }
+    var dtRaw=r[iDt], dtObj=null;
+    if(dtRaw instanceof Date && !isNaN(dtRaw)) dtObj=dtRaw;
+    else { var m=String(dtRaw||'').trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+      if(m) dtObj=new Date(+m[3],+m[2]-1,+m[1],+(m[4]||0),+(m[5]||0),+(m[6]||0)); }
+    if(!dtObj||isNaN(dtObj)) return;
+    var qtd=pN(r[iVol]); if(!(qtd>0)) return;
+    var vTot=Math.round(pN(r[iCusto])*100)/100, vUnit=vTot>0?Math.round(vTot/qtd*1000)/1000:0;
+    var posto=pS(iPosto>=0?r[iPosto]:''), tanque=pS(iTanque>=0?r[iTanque]:'');
+    var interno = posto.toUpperCase().indexOf('RAGUIFE')>=0 || !!tanque;
+    if(!interno){ ignExternos++; return; } // externos virão da planilha própria
+    var kmPerc=pN(iDist>=0?r[iDist]:0); if(!(kmPerc>0 && kmPerc<=ABAST_KM_MAX)) kmPerc=0;
+    var kmlLido=pN(iMedia>=0?r[iMedia]:0), kmlBruto=(kmPerc>0)?kmPerc/qtd:0, kmlVal=kmlBruto>0?kmlBruto:(kmlLido>0?kmlLido:null);
+    var categ=abastCategoria(placa), op=abastGetOpFrota(placa)||'';
+    var alerta=kmlVal?abastTipoAlerta(kmlVal,qtd,categ):null;
+    var dtStr=dtObj.getFullYear()+'-'+String(dtObj.getMonth()+1).padStart(2,'0')+'-'+String(dtObj.getDate()).padStart(2,'0');
+    var motivo=[];
+    if(!cad[placa]){ motivo.push('placa fora do cadastro'); foraCad[placa]=1; }
+    if(placa!==placaOrig) corrigidas[placaOrig+'→'+placa]=(corrigidas[placaOrig+'→'+placa]||0)+1;
+    var rec={ placa:placa, dt:dtStr, dtFull:dtObj.toISOString(), mes:dtObj.getMonth()+1, ano:dtObj.getFullYear(),
+      posto: interno ? (posto||'Abastecimento Interno (tanque próprio)') : posto, tipo: interno?'Interno':'Externo',
+      mercadoria: isArla ? 'Arla 32' : 'Diesel S10', qtd:qtd, vUnit:vUnit, vTot:vTot,
+      kml:kmlVal, kmlLido:kmlLido>0?kmlLido:null, kmlBruto:kmlBruto>0?kmlBruto:null, kmlFonte:kmlBruto>0?'bruto':'relatorio',
+      kmlOutlier:kmlVal?abastIsOutlier(kmlVal,categ):false, kmPercorrido:kmPerc,
+      alerta:alerta?alerta.tipo:null, alertaMsg:alerta?alerta.msg:null, alertaCor:alerta?alerta.cor:null,
+      criticidade: alerta ? (kmlVal>100?'CRITICO':kmlVal>15&&qtd<20?'ALTO':kmlVal>15?'MEDIO':'BAIXO') : null,
+      centro:'', op:op, categoria:categ, uf:'', cidade:'',
+      motorista:(pS(iMot>=0?r[iMot]:'')+' '+pS(iSob>=0?r[iSob]:'')).trim(),
+      odometro:pN(iOdo>=0?r[iOdo]:0)||null, _src:file.name, _fonte:'gestao' };
+    if(placa!==placaOrig) rec.placaOriginal=placaOrig;
+    if(motivo.length) rec.revisar=motivo.join('; ');
+    var _disc=abastMotivoDiscrepancia(rec); if(_disc){ rec._discrepante=_disc; }
+    var k=abastKey(rec);
+    if(vistos[k]){ dupArq++; return; }   // mesmo veículo/dia/posto/litros repetido no relatório
+    vistos[k]=1;
+    if(motivo.length || rec._discrepante) revisar.push(rec);
+    novos.push(rec);
+  });
+  // Período do arquivo → TODO o diesel INTERNO já existente nele é substituído
+  var _datas=novos.map(function(x){return x.dt;}).sort(), pIni=_datas[0]||'', pFim=_datas[_datas.length-1]||'';
+  if(pIni && pIni<ABAST_SUBST_DESDE) pIni=ABAST_SUBST_DESDE;
+  if(pIni && pFim && pIni>pFim){ pIni=''; pFim=''; }
+  var ehDieselInterno=function(x){ return x.tipo==='Interno' && String(x.mercadoria||'').toUpperCase().indexOf('DIESEL')>=0; };
+  var aSubst=pIni ? DB_ABAST.filter(function(x){ var d=String(x.dt||'').slice(0,10); return d>=pIni && d<=pFim && ehDieselInterno(x); }) : [];
+  // antes do período de substituição: complementa (só entra o que não existe)
+  var _exAnt=new Set(DB_ABAST.concat(DB_ABAST_DISCREP).filter(function(x){ return String(x.dt||'').slice(0,10)<ABAST_SUBST_DESDE; }).map(abastKey));
+  var entram=novos.filter(function(x){ return x.dt>=ABAST_SUBST_DESDE || !_exAnt.has(abastKey(x)); }), jaExist=novos.length-entram.length;
+  var soma=function(a,t){ return a.filter(function(x){return x.tipo===t && !x._discrepante;}).reduce(function(s,x){return s+x.vTot;},0); };
+  var lit=function(a,t){ return a.filter(function(x){return x.tipo===t && !x._discrepante;}).reduce(function(s,x){return s+x.qtd;},0); };
+  var nDisc=entram.filter(function(x){return x._discrepante;}).length;
+  var cnt=function(a,t){ return a.filter(function(x){return x.tipo===t;}).length; };
+  var fR=function(v){ return 'R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+  var fL=function(v){ return Math.round(v).toLocaleString('pt-BR')+' L'; };
+  var msg='Relatório "Abastecimentos com custo" — '+file.name+'\n\n'
+    +'ENTRAM: '+entram.length+' abastecimentos INTERNOS de diesel\n'
+    +'  • Considerados nos cálculos: '+(entram.length-nDisc)+' · '+fL(lit(entram,'Interno'))+' · '+fR(soma(entram,'Interno'))+'\n'
+    +'  • Com valor discrepante (guardados, FORA dos cálculos): '+nDisc+'\n\n'
+    +'Externos deste arquivo (ignorados — virão da planilha de externos): '+ignExternos+'\n'
+    +'Repetidos no próprio relatório (ignorados): '+dupArq+'\n'
+    +'Etanol/gasolina (veículos leves, fora): '+ignLeves+'\n'
+    +(jaExist?'Já existentes na base: '+jaExist+'\n':'')
+    +'Placas corrigidas: '+(Object.keys(corrigidas).join(', ')||'nenhuma')+'\n'
+    +'Placas fora do cadastro (entram normalmente, para revisão): '+Object.keys(foraCad).length+'\n\n'
+    +'SUBSTITUI: '+aSubst.length+' lançamentos de diesel INTERNO já existentes de '+pIni.split('-').reverse().join('/')+' a '+pFim.split('-').reverse().join('/')
+    +' (de outras importações ficam ocultos, não apagados). Externos e Arla não são tocados.\n\nConfirmar a importação?';
+  input.value='';
+  if(!entram.length && !aSubst.length){ toast('Nada novo para importar neste arquivo.','info'); return; }
+  if(!confirm(msg)) { document.getElementById('abast-import-log').textContent='Importação cancelada.'; return; }
+  try{ if(window.FB_SYNC && FB_SYNC._salvarHistorico) FB_SYNC._salvarHistorico('raguife_abast_v2', localStorage.getItem('raguife_abast_v2')); }catch(e){}
+  var _sub = pIni ? abastSubstituirPeriodo(pIni, pFim, ehDieselInterno, file.name) : {ocultados:0,descartados:0};
+  entram.forEach(function(x){ (x._discrepante ? DB_ABAST_DISCREP : DB_ABAST).push(x); });
+  DB_ABAST_LOG.push({id:Date.now()+'_g', dt:new Date().toLocaleString('pt-BR'), arquivo:file.name, novos:entram.length, duplic:dupArq+jaExist, substituidos:aSubst.length, revisar:revisar.length});
+  abastSave();
+  try{ if(window.FB_SYNC && FB_SYNC.registrarLog) FB_SYNC.registrarLog('Importou abastecimentos INTERNOS (relatório oficial)', entram.length+' entraram; '+aSubst.length+' internos da Veloe ocultados; '+revisar.length+' para revisar'); }catch(e){}
+  var log=document.getElementById('abast-import-log');
+  if(log) log.innerHTML='✅ <b>'+entram.length+'</b> abastecimentos internos de diesel importados · '
+    +aSubst.length+' internos já existentes substituídos · '+ignExternos+' externos ignorados (virão da planilha de externos) · '+dupArq+' repetições ignoradas'
+    +(revisar.length?'<div style="margin-top:6px;color:#92400e">⚠️ <b>'+revisar.length+' para revisar:</b> '+revisar.map(function(x){return x.placa+' '+x.dt.split('-').reverse().join('/')+' ('+[x._discrepante?x._discrepante+' — fora dos cálculos':'', x.revisar||''].filter(Boolean).join('; ')+')';}).join(' · ')+'</div>':'');
+  toast(entram.length+' abastecimentos importados ✅','success');
+  try{ if(typeof abastRenderImport==='function') abastRenderImport(); }catch(e){}
+  try{ if(typeof abastRenderDash==='function') abastRenderDash(); }catch(e){}
+}
+
 function abastImportar(input){
   var file=input.files[0]; if(!file) return;
   document.getElementById('abast-import-log').textContent='⏳ Lendo arquivo…';
@@ -25747,6 +25959,7 @@ function abastImportar(input){
       if(hIdx<0){toast('Formato não reconhecido. Use ⛽ Veloe para planilhas de abastecimento ou 🛰️ Rastreador para planilhas de KM/L.','error');return;}
 
       var h=rows[hIdx].map(function(c){return String(c||'').trim().toLowerCase();});
+      if(abastEhFormatoGestao(h)){ abastImportarGestao(rows, hIdx, file, input); return; }
 
       // Mapeamento robusto por nome de coluna — funciona para Abril e Maio (planilha
       // .xlsx tradicional) E para o CSV "Análise de Consumo" da Veloe, cujos nomes de
@@ -25832,8 +26045,40 @@ function abastImportar(input){
       var mesOverride = mesOverrideEl && mesOverrideEl.value ? parseInt(mesOverrideEl.value) : null;
       var anoOverride = anoOverrideEl && anoOverrideEl.value ? parseInt(anoOverrideEl.value) : null;
 
-      var existKeys=new Set(DB_ABAST.map(abastKey));
-      var novos=0,duplic=0,ignorados=0;
+      // (15/10) Arquivo "Análise de Consumo" (tem "Tipo de transação"): substitui o
+      // período que cobre — externos (diesel e Arla), Arla interno e, antes de
+      // set/2026, diesel interno. O diesel interno de set/2026 em diante é do
+      // relatório oficial e NÃO é tocado. Com override de mês/ano, não substitui.
+      var _vSub = {ocultados:0, descartados:0};
+      if(iTipoTrans>=0 && !mesOverride){
+        var _vd = rows.slice(hIdx+1).map(function(r){ return r ? abastDataISO(r[iDt]) : ''; }).filter(Boolean).sort();
+        var vIni='', vFim='';
+        if(_vd.length){
+          var vIni=_vd[0], vFim=_vd[_vd.length-1];
+          if(vIni<ABAST_SUBST_DESDE) vIni=ABAST_SUBST_DESDE; // antes de set/2026: só complementa
+        }
+        if(_vd.length && vIni<=vFim){
+          var vPertence=function(x){
+            if(x._fonte==='gestao') return false;
+            var dies=String(x.mercadoria||'').toUpperCase().indexOf('DIESEL')>=0;
+            if(x.tipo!=='Interno') return true;
+            if(!dies) return true;
+            return (x.ano*100+x.mes) < ABAST_GESTAO_DESDE;
+          };
+          var vQtd = abastContarPeriodo(vIni, vFim, vPertence);
+          if(vQtd && !confirm('Substituição de '+vIni.split('-').reverse().join('/')+' a '+vFim.split('-').reverse().join('/')+'.\n\n'
+              +vQtd+' abastecimentos já existentes nesse período (externos e Arla) serão SUBSTITUÍDOS pelo conteúdo do arquivo.\n'
+              +'Datas anteriores a 01/09/2026 presentes no arquivo só COMPLEMENTAM (entra o que ainda não existe).\n'
+              +'Os de outras importações ficam ocultos (não apagados) e voltam se esta importação for removida.\n'
+              +'O diesel interno oficial (relatório "Abastecimentos com custo") não é tocado.\n\nContinuar?')){
+            input.value=''; document.getElementById('abast-import-log').textContent='Importação cancelada.'; return;
+          }
+          try{ if(window.FB_SYNC && FB_SYNC._salvarHistorico) FB_SYNC._salvarHistorico('raguife_abast_v2', localStorage.getItem('raguife_abast_v2')); }catch(e){}
+          _vSub = abastSubstituirPeriodo(vIni, vFim, vPertence, file.name);
+        }
+      }
+      var existKeys=new Set(DB_ABAST.concat(DB_ABAST_DISCREP).map(abastKey));
+      var novos=0,duplic=0,ignorados=0,internoOficial=0,discrepantes=0;
 
       rows.slice(hIdx+1).forEach(function(r){
         var placa=String(r[iPlaca]||'').trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
@@ -25925,6 +26170,10 @@ function abastImportar(input){
           tipoP = 'Interno';
           if(!posto) posto = 'Abastecimento Interno (tanque próprio)';
         }
+        // (15/10) A partir de SET/2026 o diesel INTERNO oficial vem do relatório
+        // "Abastecimentos com custo". Diesel interno da Veloe desses meses não
+        // entra (contaria duas vezes). Arla interno e tudo que é externo seguem.
+        if(isDiesel && tipoP==='Interno' && (dtObj.getFullYear()*100+dtObj.getMonth()+1) >= ABAST_GESTAO_DESDE){ internoOficial++; return; }
 
         // ── KM/L: calcula a partir dos dados brutos quando disponível ──
         // Método bruto: kmPercorrido / litros  (mais preciso)
@@ -25961,12 +26210,17 @@ function abastImportar(input){
         var key=abastKey(rec);
         if(existKeys.has(key)){duplic++;return;}
         existKeys.add(key);
-        DB_ABAST.push(rec);
+        var _dv=abastMotivoDiscrepancia(rec);
+        if(_dv && (rec.ano*100+rec.mes)>=ABAST_GESTAO_DESDE){ rec._discrepante=_dv; DB_ABAST_DISCREP.push(rec); discrepantes++; }
+        else DB_ABAST.push(rec);
         novos++;
       });
 
       var _importId = Date.now()+'_'+Math.random().toString(36).slice(2,7);
-      DB_ABAST_LOG.push({id:_importId,dt:new Date().toLocaleString('pt-BR'),arquivo:file.name,novos:novos,duplic:duplic});
+      DB_ABAST_LOG.push({id:_importId,dt:new Date().toLocaleString('pt-BR'),arquivo:file.name,novos:novos,duplic:duplic,internoOficial:internoOficial,substituidos:_vSub.ocultados});
+      if(_vSub.ocultados) setTimeout(function(){ toast(_vSub.ocultados+' abastecimentos anteriores do período foram substituídos por este arquivo.','info'); }, 2500);
+      if(discrepantes) setTimeout(function(){ toast(discrepantes+' abastecimento(s) com valor discrepante ficaram FORA dos cálculos — veja a lista em Importações.','warning'); }, 3500);
+      if(internoOficial) setTimeout(function(){ toast(internoOficial+' abastecimentos de diesel INTERNO da Veloe não entraram — o interno oficial vem do relatório "Abastecimentos com custo".','info'); }, 1500);
       abastSave();
       input.value='';
 
@@ -26918,6 +27172,19 @@ function abastReSincronizar(){
 
 function abastRenderImport(){
   abastLoadDb();
+  (function(){
+    var host=document.getElementById('abast-import-hist'); if(!host||!host.parentNode) return;
+    var box=document.getElementById('abast-discrep-box');
+    if(!box){ box=document.createElement('div'); box.id='abast-discrep-box'; box.style.cssText='margin-top:14px'; host.parentNode.insertBefore(box, host.nextSibling); }
+    if(!DB_ABAST_DISCREP.length){ box.innerHTML=''; return; }
+    var lst=DB_ABAST_DISCREP.slice().sort(function(a,b){return String(a.dt).localeCompare(String(b.dt));});
+    var fR=function(v){return 'R$ '+(+v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});};
+    box.innerHTML='<div style="border:1px solid #fcd34d;background:#fffbeb;border-radius:8px;padding:10px 12px">'
+      +'<div style="font-weight:800;color:#92400e;font-size:12px;margin-bottom:6px">⚠️ '+lst.length+' abastecimento(s) com valor discrepante — guardados, FORA de todos os cálculos (litros, valor, R$/l, km/L)</div>'
+      +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr style="color:#92400e;text-align:left"><th style="padding:4px 8px">Data</th><th style="padding:4px 8px">Placa</th><th style="padding:4px 8px">Tipo</th><th style="padding:4px 8px">Mercadoria</th><th style="padding:4px 8px">Posto</th><th style="padding:4px 8px;text-align:right">Litros</th><th style="padding:4px 8px;text-align:right">Valor</th><th style="padding:4px 8px">Motivo</th></tr></thead><tbody>'
+      +lst.map(function(r){ return '<tr style="border-top:1px solid #fde68a"><td style="padding:4px 8px">'+String(r.dt).split('-').reverse().join('/')+'</td><td style="padding:4px 8px;font-weight:700">'+r.placa+'</td><td style="padding:4px 8px">'+(r.tipo||'')+'</td><td style="padding:4px 8px">'+(r.mercadoria||'')+'</td><td style="padding:4px 8px">'+(r.posto||'')+'</td><td style="padding:4px 8px;text-align:right">'+(+r.qtd||0).toLocaleString('pt-BR')+'</td><td style="padding:4px 8px;text-align:right">'+fR(r.vTot)+'</td><td style="padding:4px 8px;color:#b45309">'+r._discrepante+'</td></tr>'; }).join('')
+      +'</tbody></table></div><div style="font-size:10.5px;color:#92400e;margin-top:6px">Para voltarem aos cálculos, corrija o valor/litros na origem e reimporte o arquivo — a reimportação substitui a versão anterior.</div></div>';
+  })();
   var hist=document.getElementById('abast-import-hist');
   if(hist){
     if(!DB_ABAST_LOG.length) hist.innerHTML='<span style="color:var(--txl)">Nenhuma importação realizada.</span>';
@@ -26966,6 +27233,15 @@ function abastRemoverImportacao(arquivo){
   var antes = DB_ABAST.length;
   DB_ABAST = DB_ABAST.filter(function(r){ return r._src !== arquivo; });
   DB_ABAST_LOG = DB_ABAST_LOG.filter(function(l){ return l.arquivo !== arquivo; });
+  // (15/10) Ocultos do próprio arquivo removido saem junto; e o diesel da Veloe
+  // que ESTE arquivo tinha substituído volta a valer.
+  DB_ABAST_OCULTOS = DB_ABAST_OCULTOS.filter(function(r){ return r._src !== arquivo; });
+  DB_ABAST_DISCREP = DB_ABAST_DISCREP.filter(function(r){ return r._src !== arquivo; });
+  var _volta = DB_ABAST_OCULTOS.filter(function(r){ return r._substituido && r._substituido.por === arquivo; });
+  if(_volta.length){
+    DB_ABAST_OCULTOS = DB_ABAST_OCULTOS.filter(function(r){ return !(r._substituido && r._substituido.por === arquivo); });
+    _volta.forEach(function(r){ delete r._substituido; DB_ABAST.push(r); });
+  }
   var removidos = antes - DB_ABAST.length;
   abastSave();
   abastRenderImport();
