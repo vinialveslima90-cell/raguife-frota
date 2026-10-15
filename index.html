@@ -155,7 +155,7 @@ if(location.protocol!=='file:'){
   // verificável (evita a ambiguidade que já causou confusão: build parada há
   // semanas enquanto o código mudava por baixo, sem nenhum jeito de confirmar
   // qual versão estava rodando de fato).
-  var RAGUIFE_BUILD_LOCAL = '2026-10-16-AG';
+  var RAGUIFE_BUILD_LOCAL = '2026-10-16-AH';
   window.RAGUIFE_BUILD_LOCAL = RAGUIFE_BUILD_LOCAL;
 
   var FB = {
@@ -26051,6 +26051,14 @@ function abastImportar(input){
       var anoOverrideEl = document.getElementById('abast-import-ano-override');
       var mesOverride = mesOverrideEl && mesOverrideEl.value ? parseInt(mesOverrideEl.value) : null;
       var anoOverride = anoOverrideEl && anoOverrideEl.value ? parseInt(anoOverrideEl.value) : null;
+      // (16/10) "Forçar mês" troca a data de TODOS os lançamentos do arquivo — já
+      // jogou 25–31/08 para setembro por engano. Agora sempre confirma antes.
+      if(mesOverride){
+        var _nmM=['','janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+        if(!confirm('⚠️ "Forçar mês" está marcado em '+_nmM[mesOverride].toUpperCase()+'/'+(anoOverride||'')+'.\n\nTODOS os lançamentos deste arquivo terão a data trocada para esse mês, ignorando a data da planilha — e a substituição do período NÃO é feita.\n\nSó use isso se o arquivo realmente não tiver as datas certas.\n\nOK = importar com o mês forçado · Cancelar = parar (volte o campo para "Usar data da planilha")')){
+          input.value=''; document.getElementById('abast-import-log').textContent='Importação cancelada — volte o "Forçar mês" para "Usar data da planilha".'; return;
+        }
+      }
 
       // (15/10) Arquivo "Análise de Consumo" (tem "Tipo de transação"): substitui o
       // período que cobre — externos (diesel e Arla), Arla interno e, antes de
