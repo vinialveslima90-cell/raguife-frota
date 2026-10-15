@@ -155,7 +155,7 @@ if(location.protocol!=='file:'){
   // verificável (evita a ambiguidade que já causou confusão: build parada há
   // semanas enquanto o código mudava por baixo, sem nenhum jeito de confirmar
   // qual versão estava rodando de fato).
-  var RAGUIFE_BUILD_LOCAL = '2026-10-16-AF';
+  var RAGUIFE_BUILD_LOCAL = '2026-10-16-AG';
   window.RAGUIFE_BUILD_LOCAL = RAGUIFE_BUILD_LOCAL;
 
   var FB = {
@@ -25932,6 +25932,10 @@ function abastImportar(input){
       // Verifica se é planilha do RASTREADOR (Prefixo/Placa | Km | km/L)
       // Se for, redireciona para o importador correto sem mostrar erro
       var primeiraLinha = rows[0] ? rows[0].map(function(c){return String(c||'').trim().toLowerCase();}) : [];
+      // (16/10) O relatório "Abastecimentos com custo" tem a coluna "Média (km/l)" —
+      // sem esta checagem ANTES, a detecção abaixo o confundia com a planilha do
+      // Rastreador e desviava o arquivo pro importador de KM/L (nada era importado).
+      if(abastEhFormatoGestao(primeiraLinha)){ abastImportarGestao(rows, 0, file, input); return; }
       var isRastreador = primeiraLinha.some(function(c){return c.indexOf('prefixo')>=0&&c.indexOf('placa')>=0;})
                       || (primeiraLinha.some(function(c){return c.indexOf('km/l')>=0||c==='km';}));
       if(isRastreador){
