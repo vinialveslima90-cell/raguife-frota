@@ -155,7 +155,7 @@ if(location.protocol!=='file:'){
   // verificável (evita a ambiguidade que já causou confusão: build parada há
   // semanas enquanto o código mudava por baixo, sem nenhum jeito de confirmar
   // qual versão estava rodando de fato).
-  var RAGUIFE_BUILD_LOCAL = '2026-10-16-AD';
+  var RAGUIFE_BUILD_LOCAL = '2026-10-16-AF';
   window.RAGUIFE_BUILD_LOCAL = RAGUIFE_BUILD_LOCAL;
 
   var FB = {
@@ -3782,7 +3782,7 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
                 <option value="">Usar data da planilha</option>
                 <option value="1">Jan</option><option value="2">Fev</option><option value="3">Mar</option>
                 <option value="4">Abr</option><option value="5">Mai</option><option value="6">Jun</option>
-                <option value="7">Jul</option><option value="8" selected>Ago</option><option value="9">Set</option>
+                <option value="7">Jul</option><option value="8">Ago</option><option value="9">Set</option>
                 <option value="10">Out</option><option value="11">Nov</option><option value="12">Dez</option>
               </select>
               <select id="abast-import-ano-override" style="font-size:11px;padding:3px 6px;border-radius:5px;border:none">
@@ -23567,6 +23567,7 @@ var PERF_CATS = {"GAA5I61": "RODOTREM", "FSK8E26": "TRUCK", "GAA5I53": "RODOTREM
 var DB_ABAST     = [];   // registros importados
 var DB_ABAST_LOG = [];   // histórico de uploads
 var DB_ABAST_OCULTOS = []; // (15/10) diesel da Veloe substituído pelo relatório oficial — guardado, fora dos cálculos
+var DB_ABAST_REMOVIDOS = []; // (16/10) registros de importações removidas — guardados, fora dos cálculos
 var DB_ABAST_DISCREP = []; // (15/10) lançamentos com valor discrepante — guardados, FORA de todos os cálculos
 // Faixas de R$/litro consideradas normais. Fora delas (ou sem custo, ou sem
 // litros) o lançamento inteiro é desconsiderado: não dá pra saber se o erro
@@ -23833,7 +23834,7 @@ function abastAplicarCorrecaoPreco(){
 
 // ── Storage ─────────────────────────────────────────────────
 function abastSave(){
-  try{ localStorage.setItem('raguife_abast_v2', JSON.stringify({r:DB_ABAST.concat(DB_ABAST_OCULTOS, DB_ABAST_DISCREP), log:DB_ABAST_LOG})); }catch(e){}
+  try{ localStorage.setItem('raguife_abast_v2', JSON.stringify({r:DB_ABAST.concat(DB_ABAST_OCULTOS, DB_ABAST_DISCREP, DB_ABAST_REMOVIDOS), log:DB_ABAST_LOG})); }catch(e){}
 }
 function abastLoadDb(){
   var sR=(typeof _ABAST_SEED_DATA!=='undefined'&&_ABAST_SEED_DATA.r)?_ABAST_SEED_DATA.r:[];
@@ -23841,6 +23842,8 @@ function abastLoadDb(){
   try{var raw=localStorage.getItem('raguife_abast_v2');if(raw){var d=JSON.parse(raw);loaded=d.r||[];DB_ABAST_LOG=d.log||[];}}catch(e){}
   if(!loaded.length && !window.FB_SYNC) loaded=sR; // (15/10) online: dados vêm da nuvem, nunca da base de fábrica
   // (15/10) Registros substituídos ficam guardados à parte — fora de todos os cálculos
+  DB_ABAST_REMOVIDOS = loaded.filter(function(r){ return r && r._removido; });
+  loaded = loaded.filter(function(r){ return r && !r._removido; });
   DB_ABAST_OCULTOS = loaded.filter(function(r){ return r && r._substituido; });
   loaded = loaded.filter(function(r){ return r && !r._substituido; });
   DB_ABAST_DISCREP = loaded.filter(function(r){ return r._discrepante; });
@@ -27228,15 +27231,22 @@ function abastRenderImport(){
 
 
 function abastRemoverImportacao(arquivo){
-  if(!confirm('Remover todos os registros do arquivo "'+arquivo+'"?\n\nEsta ação não pode ser desfeita.')) return;
+  if(!confirm('Remover todos os registros do arquivo "'+arquivo+'"?\n\nEles saem de todos os cálculos (ficam guardados como removidos, para a sincronização não trazê-los de volta).')) return;
   abastLoadDb();
   var antes = DB_ABAST.length;
-  DB_ABAST = DB_ABAST.filter(function(r){ return r._src !== arquivo; });
+  // (16/10) REMOÇÃO "SUAVE": antes os registros eram apagados da base. Como a
+  // base de abastecimento sincroniza em bloco, uma redução grande era vista
+  // como suspeita e MESCLADA com a nuvem — os registros removidos voltavam.
+  // Agora ficam guardados com a marca _removido (fora de todos os cálculos);
+  // a quantidade total não cai e a sincronização não os ressuscita.
+  var _tsRem = new Date().toISOString();
+  var _remover = function(r){ r._removido = {arquivo:arquivo, em:_tsRem}; DB_ABAST_REMOVIDOS.push(r); };
+  DB_ABAST = DB_ABAST.filter(function(r){ if(r._src === arquivo){ _remover(r); return false; } return true; });
   DB_ABAST_LOG = DB_ABAST_LOG.filter(function(l){ return l.arquivo !== arquivo; });
-  // (15/10) Ocultos do próprio arquivo removido saem junto; e o diesel da Veloe
-  // que ESTE arquivo tinha substituído volta a valer.
-  DB_ABAST_OCULTOS = DB_ABAST_OCULTOS.filter(function(r){ return r._src !== arquivo; });
-  DB_ABAST_DISCREP = DB_ABAST_DISCREP.filter(function(r){ return r._src !== arquivo; });
+  // (15/10) Ocultos e discrepantes do próprio arquivo saem junto; e o que ESTE
+  // arquivo tinha substituído volta a valer.
+  DB_ABAST_OCULTOS = DB_ABAST_OCULTOS.filter(function(r){ if(r._src === arquivo){ delete r._substituido; _remover(r); return false; } return true; });
+  DB_ABAST_DISCREP = DB_ABAST_DISCREP.filter(function(r){ if(r._src === arquivo){ _remover(r); return false; } return true; });
   var _volta = DB_ABAST_OCULTOS.filter(function(r){ return r._substituido && r._substituido.por === arquivo; });
   if(_volta.length){
     DB_ABAST_OCULTOS = DB_ABAST_OCULTOS.filter(function(r){ return !(r._substituido && r._substituido.por === arquivo); });
