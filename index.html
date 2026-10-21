@@ -155,7 +155,7 @@ if(location.protocol!=='file:'){
   // verificável (evita a ambiguidade que já causou confusão: build parada há
   // semanas enquanto o código mudava por baixo, sem nenhum jeito de confirmar
   // qual versão estava rodando de fato).
-  var RAGUIFE_BUILD_LOCAL = '2026-10-16-AH';
+  var RAGUIFE_BUILD_LOCAL = '2026-10-21-AN';
   window.RAGUIFE_BUILD_LOCAL = RAGUIFE_BUILD_LOCAL;
 
   var FB = {
@@ -5542,6 +5542,20 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
       <div class="form-top-sub">Preencha os dados do carregamento. Todos os campos marcados com * são obrigatórios.</div>
     </div>
     <div class="form-body">
+      <style>
+        #nf-drop{border:2px dashed var(--gb);border-radius:10px;padding:14px 16px;display:flex;align-items:center;gap:14px;cursor:pointer;background:#fbfdf8;transition:background .15s,border-color .15s;margin-bottom:10px}
+        #nf-drop:hover,#nf-drop.nf-drag{border-color:var(--gd);background:#eef6e6}
+        .form-ctrl.nf-ok{border-color:#16a34a !important;box-shadow:0 0 0 2px rgba(22,163,74,.15)}
+        .form-ctrl.nf-conferir{border-color:#d97706 !important;box-shadow:0 0 0 2px rgba(217,119,6,.18)}
+        .form-ctrl.nf-falta{border-color:#ea580c !important;background:#fff7ed !important;box-shadow:0 0 0 2px rgba(234,88,12,.18)}
+      </style>
+      <div id="nf-drop" onclick="document.getElementById('nf-file').click()" title="Arraste o PDF (DANFE) ou o XML da NF-e">
+        <div style="font-size:26px">📄</div>
+        <div style="flex:1"><div style="font-weight:800;color:var(--gd);font-size:12.5px">Importar dados da Nota Fiscal</div>
+          <div style="font-size:11px;color:var(--txl)">Arraste aqui o PDF (DANFE) ou o XML da NF-e — uma ou várias de uma vez — ou clique para selecionar. Com uma NF, o formulário é preenchido; com várias, aparece uma tabela para conferir e gerar todas as viagens.</div></div>
+        <input type="file" id="nf-file" accept=".pdf,.xml" multiple style="display:none" onchange="nfImportarVarios(this.files); this.value='';">
+      </div>
+      <div id="nf-imp-resumo" style="display:none;border:1px solid var(--gb);background:#fff;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12px"></div>
       <!-- FRETE ENTREGA -->
       <div class="form-div" style="margin-top:8px">Frete de Entrega</div>
       <div class="fg g4">
@@ -5899,6 +5913,9 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
          Histórico" é exatamente a ferramenta que resolve isso. Antes tinha sido
          escondida (display:none) a pedido, em 14/08, quando a base parecia
          limpa — mantendo isso registrado pra contexto futuro. -->
+    <!-- (21/10) Ferramentas de manutenção da base e Consulta de Fretes Retorno OCULTAS a pedido.
+         Continuam no código; para reexibir, trocar display:none por display:contents. -->
+    <div id="kb-ferramentas" style="display:none">
     <div>
     <button onclick="vdupAbrir()" style="padding:7px 14px;background:#fff;border:1px solid var(--gb);color:var(--txm);border-radius:6px;cursor:pointer;font-size:11px;font-weight:700">🔁 Viagens Duplicadas</button>
     <button onclick="abrirDuplicatasExatas()" style="padding:7px 14px;background:#fef2f2;border:1px solid #dc2626;color:#991b1b;border-radius:6px;cursor:pointer;font-size:11px;font-weight:800">🎯 Duplicatas Exatas (base inteira)</button>
@@ -5911,6 +5928,7 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
     </div>
     <button onclick="abrirImportarCorrecaoJSON()" style="padding:7px 14px;background:#fff;border:1px solid #2563eb;color:#1e40af;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700">📥 Importar Correção (JSON)</button>
     <button onclick="recOpenReport('Retorno')" style="margin-left:auto;padding:7px 14px;background:var(--gd);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700">📋 Consulta de Fretes Retorno</button>
+    </div>
   </div>
 
   <div style="background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:11px 16px;display:flex;gap:24px;flex-wrap:wrap;font-size:11px;align-items:center">
@@ -8799,6 +8817,36 @@ function renderKPIs(data){
   const pendRetorno = freteExplodirPernas(fdRetorno()).filter(function(r){return r.retorno==='Sim'&&(r.tipo_ret==='Retorno'||r.tipo_ret==='Outros')&&r.pagamento!=='Pago';}).reduce((a,r)=>a+r.vl_total,0);
   const pendResto = freteExplodirPernas(data).filter(function(r){return r.retorno==='Sim'&&r.tipo_ret!=='MP'&&r.tipo_ret!=='Retorno'&&r.tipo_ret!=='Outros'&&r.pagamento!=='Pago';}).reduce((a,r)=>a+r.vl_total,0);
   const pend = pendRetorno + pendResto + rec_ft_pend;
+  // (16/10) A RECEBER e RECEBIDOS por conta — mesmas fontes e regras de data do
+  // card anterior: Frete Retorno por dt_desc (fdRetorno), demais por dt_carg.
+  // Parcial da Frota Terceirizada: o já pago vai em Recebidos, o saldo em A receber.
+  const _contaN = function(c){ c=String(c||'').trim(); return c||'Sem conta definida'; };
+  const _pendC = {}, _recbC = {};
+  const _add = function(o,c,v){ v=parseFloat(v)||0; if(v){ o[_contaN(c)]=(o[_contaN(c)]||0)+v; } };
+  freteExplodirPernas(fdRetorno()).filter(function(r){return r.retorno==='Sim'&&(r.tipo_ret==='Retorno'||r.tipo_ret==='Outros');})
+    .forEach(function(r){ _add(r.pagamento==='Pago'?_recbC:_pendC, r.conta, r.vl_total); });
+  freteExplodirPernas(data).filter(function(r){return r.retorno==='Sim'&&r.tipo_ret!=='MP'&&r.tipo_ret!=='Retorno'&&r.tipo_ret!=='Outros';})
+    .forEach(function(r){ _add(r.pagamento==='Pago'?_recbC:_pendC, r.conta, r.vl_total); });
+  data.filter(function(r){return r.is_terceiro;}).forEach(function(r){
+    if(r.ft_pgto==='pendente') _add(_pendC, r.ft_conta, r.ft_valor);
+    else if(r.ft_pgto==='parcial'){ var _t=(r.ft_vl_total||r.ft_valor||0), _pg=(r.ft_vl_pago||0); _add(_pendC, r.ft_conta, _t-_pg); _add(_recbC, r.ft_conta, _pg); }
+    else if(r.ft_pgto==='pago') _add(_recbC, r.ft_conta, r.ft_valor);
+  });
+  const _soma = function(o){ return Object.keys(o).reduce(function(a,k){return a+o[k];},0); };
+  const recebidoTot = _soma(_recbC);
+  const _ordemC = ['MB Proni','Ambar Amaral','Carta Frete','Sem conta definida'];
+  const _linhasConta = function(o, comPct){
+    var ks = _ordemC.filter(function(k){ return k==='MB Proni'||k==='Ambar Amaral'||(o[k]||0)>0.005; })
+      .concat(Object.keys(o).filter(function(k){ return _ordemC.indexOf(k)<0 && o[k]>0.005; }));
+    return ks.map(function(k){
+      var v=o[k]||0, fixa=(k==='MB Proni'||k==='Ambar Amaral'), pc=(comPct&&recebidoTot>0)?(v/recebidoTot*100):0;
+      var cor = k==='Sem conta definida' ? 'color:#b45309;' : (fixa?'':'color:var(--txl);');
+      var filtro = k==='Sem conta definida' ? '__sem__' : k;
+      return '<div class="kpi-breakdown-row" style="padding:2px 4px;border-radius:4px;cursor:pointer;'+cor+'" ondblclick="recOpenReport(\'Retorno\',{conta:\''+filtro+'\',status:\''+(comPct?'Pago':'Pendente')+'\'})" title="Duplo clique para ver detalhes">'
+        +'<span class="kpi-bd-label">'+k+'</span><span class="kpi-bd-val">'+(v>0?R(v):'—')+(comPct&&v>0?' · '+pc.toFixed(1).replace('.',',')+'%':'')+'</span></div>'
+        +(comPct&&v>0?'<div class="kpi-bd-bar-wrap" style="margin:1px 4px 3px"><div class="kpi-bd-bar" style="width:'+pc.toFixed(1)+'%;background:'+(k==='MB Proni'?'#024f2b':(k==='Ambar Amaral'?'#8fb33a':'#9ca3af'))+'"></div></div>':'');
+    }).join('');
+  };
   const S=(d,c,s=16)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
   g('kpi-grid').innerHTML=`
     <div class="kpi-card c-gd"><div class="kpi-icon-wrap">${S('<rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 5v4h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>','#024f2b')}</div><div class="kpi-lbl">Total de Viagens</div><div class="kpi-val">${tot}</div><div class="kpi-sub">${com} c/ retorno · ${sem} vazias</div></div>
@@ -8839,13 +8887,20 @@ function renderKPIs(data){
         <div class="kpi-bd-bar-wrap"><div class="kpi-bd-bar" style="width:${rec>0?((rec_ft/rec)*100).toFixed(1):0}%;background:#d97706"></div></div>
       </div>
     </div>
-    <div class="kpi-card c-rd">
-      <div class="kpi-icon-wrap">${S('<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>','#991b1b')}</div>
-      <div class="kpi-lbl">A Receber</div>
-      <div class="kpi-val" style="font-size:18px;letter-spacing:-.3px">${pend>0?R(pend):'<span style="font-size:22px">—</span>'}</div>
-      <div class="kpi-breakdown">
-        <div class="kpi-breakdown-row" style="cursor:pointer;padding:3px 4px;border-radius:4px" ondblclick="recOpenReport('Retorno')" title="Duplo clique para ver detalhes"><span class="kpi-bd-dot" style="background:#024f2b"></span><span class="kpi-bd-label">Frete Retorno</span><span class="kpi-bd-val">${R(fdRetorno().filter(r=>(r.tipo_ret==='Retorno'||r.tipo_ret==='Outros')&&r.retorno==='Sim'&&r.pagamento!=='Pago').reduce((a,r)=>a+r.vl_total,0))}</span></div>
-        <div class="kpi-breakdown-row" style="margin-top:3px;cursor:pointer;padding:3px 4px;border-radius:4px" ondblclick="recOpenReport('Terceirizada')" title="Duplo clique para ver detalhes"><span class="kpi-bd-dot" style="background:#d97706"></span><span class="kpi-bd-label">Frota Terceirizada</span><span class="kpi-bd-val">${R(rec_ft_pend)}</span></div>
+    <div style="display:flex;flex-direction:column;gap:8px;min-width:0">
+      <div class="kpi-card c-rd" style="padding:12px 14px;flex:1">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:6px">
+          <div class="kpi-lbl" style="margin:0">A Receber</div>
+          <div style="font-size:16px;font-weight:800;color:#991b1b;white-space:nowrap">${pend>0?R(pend):'—'}</div>
+        </div>
+        <div class="kpi-breakdown" style="margin-top:6px">${_linhasConta(_pendC,false)}</div>
+      </div>
+      <div class="kpi-card c-gd" style="padding:12px 14px;flex:1">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:6px">
+          <div class="kpi-lbl" style="margin:0">Recebidos</div>
+          <div style="font-size:16px;font-weight:800;color:#024f2b;white-space:nowrap">${recebidoTot>0?R(recebidoTot):'—'}</div>
+        </div>
+        <div class="kpi-breakdown" style="margin-top:6px">${_linhasConta(_recbC,true)}</div>
       </div>
     </div>`;
   const dv=[],de=[],dr=[];
@@ -10326,6 +10381,347 @@ fiCalcFreteEntrega = function(){ freteDerivar('fi-pe','fi-vl-entrega','fi-vton-e
 fiCalcColetaMP     = function(){ freteDerivar('fi-mp-peso','fi-mp-valor','fi-mp-vton'); };
 fiCalcFreteTerceiro= function(){ freteDerivar('fi-ft-peso','fi-ft-valor','fi-ft-vton'); };
 
+// ══ IMPORTAÇÃO DE NOTA FISCAL NO NOVO LANÇAMENTO (21/10) ═══════════════════
+// Arraste/selecione o DANFE (PDF) ou o XML da NF-e: os dados encontrados no
+// documento preenchem a Etapa 1. Nada é salvo automaticamente — a pessoa
+// confere e clica em "Salvar Etapa 1". Só preenche o que está na NF; o que não
+// estiver fica destacado para preenchimento manual. Regras de negócio intactas.
+var NF_PDFJS_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+function nfCarregarPdfJs(){
+  return new Promise(function(res, rej){
+    if(window.pdfjsLib) return res(window.pdfjsLib);
+    var s=document.createElement('script'); s.src=NF_PDFJS_URL;
+    s.onload=function(){ try{ window.pdfjsLib.GlobalWorkerOptions.workerSrc=NF_PDFJS_URL.replace('pdf.min.js','pdf.worker.min.js'); }catch(e){} res(window.pdfjsLib); };
+    s.onerror=function(){ rej(new Error('não foi possível carregar o leitor de PDF (verifique a internet)')); };
+    document.head.appendChild(s);
+  });
+}
+function nfNum(s){ s=String(s||'').trim(); if(!s) return null; if(s.indexOf(',')>=0) s=s.replace(/\./g,'').replace(',','.'); var n=parseFloat(s); return isFinite(n)?n:null; }
+function nfDataISO(s){ var m=String(s||'').match(/(\d{2})\/(\d{2})\/(\d{4})/); if(m) return m[3]+'-'+m[2]+'-'+m[1]; m=String(s||'').match(/(\d{4})-(\d{2})-(\d{2})/); return m?m[0]:''; }
+function nfNorm(s){ return String(s||'').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim(); }
+var NF_RE_PLACA = /\b([A-Z]{3})-?(\d[A-Z0-9]\d{2})\b/;
+// Junta pedaços quebrados pelo PDF ("V" + "ALOR DO FRETE") na mesma linha
+function nfMesclarItens(items){
+  var it=items.filter(function(i){ return String(i.s).trim(); }).map(function(i){ return {s:String(i.s), x:i.x, y:i.y}; });
+  it.sort(function(a,b){ return (b.y-a.y)||(a.x-b.x); });
+  var out=[];
+  it.forEach(function(i){
+    var p=out[out.length-1];
+    if(p && Math.abs(p.y-i.y)<=1 && i.x-p.x<=6 && p.s.trim().length<=2){ p.s=p.s.trim()+i.s; return; }
+    out.push(i);
+  });
+  return out;
+}
+// Valor logo ABAIXO de um rótulo do DANFE (mesma coluna, 4 a 14 pt abaixo)
+function nfAbaixo(it, rotulo, depoisDeY, antesDeY){
+  var lbs=it.filter(function(i){ return nfNorm(i.s)===rotulo && (depoisDeY==null||i.y<depoisDeY) && (antesDeY==null||i.y>antesDeY); });
+  if(!lbs.length) return {txt:'', lbl:null};
+  var L=lbs[0];
+  var cand=it.filter(function(i){ var dy=L.y-i.y; return dy>=3 && dy<=14 && i.x>=L.x-6 && i.x<=L.x+60 && i!==L; })
+    .sort(function(a,b){ return (Math.abs(a.x-L.x)-Math.abs(b.x-L.x)) || (b.y-a.y); });
+  var v=cand.length?cand[0].s.trim():'';
+  // não confundir o rótulo vizinho com valor
+  if(v && /^[A-ZÀ-Ú\/ .]+$/.test(v) && it.some(function(i){ return i===cand[0] && Math.abs(i.y-L.y)<=1; })) v='';
+  return {txt:v, lbl:L};
+}
+function nfExtrairDanfe(items){
+  var it=nfMesclarItens(items), d={fonte:'PDF (DANFE)'};
+  var tudo=it.map(function(i){return i.s;}).join('\n');
+  var m=tudo.match(/N[º°.]?\s*0*(\d{3,9})\b/); if(m) d.nf=m[1];
+  var y=function(r){ var l=it.find(function(i){ return nfNorm(i.s)===r; }); return l?l.y:null; };
+  var yDest=y('DESTINATARIO/REMETENTE'), yFat=y('FATURA')||y('CALCULO DO IMPOSTO'), yTransp=y('TRANSPORTADOR/VOLUMES TRANSPORTADOS'), yProd=y('DADOS DO PRODUTO / SERVICO');
+  d.dataSaida=nfDataISO(nfAbaixo(it,'DATA ENTRADA/SAIDA',yDest!=null?yDest+1:null).txt) || nfDataISO(nfAbaixo(it,'DATA DA SAIDA/ENTRADA').txt);
+  d.dataEmissao=nfDataISO(nfAbaixo(it,'DATA DE EMISSAO',yDest!=null?yDest+1:null).txt) || nfDataISO(nfAbaixo(it,'DATA DA EMISSAO').txt);
+  d.destNome=nfAbaixo(it,'NOME/RAZAO SOCIAL',yDest!=null?yDest+1:null,yFat).txt;
+  var mun=nfAbaixo(it,'MUNICIPIO',yDest!=null?yDest+1:null,yFat);
+  d.destMun=mun.txt;
+  if(mun.lbl){ var ufL=it.find(function(i){ return nfNorm(i.s)==='UF' && Math.abs(i.y-mun.lbl.y)<=1 && i.x>mun.lbl.x; });
+    if(ufL){ var ufV=it.find(function(i){ var dy=ufL.y-i.y; return dy>=3&&dy<=14&&Math.abs(i.x-ufL.x)<=10; }); if(ufV && /^[A-Z]{2}$/.test(ufV.s.trim())) d.destUF=ufV.s.trim(); } }
+  d.vFrete=nfNum(nfAbaixo(it,'VALOR DO FRETE').txt);
+  d.pesoBruto=nfNum(nfAbaixo(it,'PESO BRUTO',yTransp!=null?yTransp+1:null).txt);
+  d.pesoLiq=nfNum(nfAbaixo(it,'PESO LIQUIDO',yTransp!=null?yTransp+1:null).txt);
+  var pl=nfAbaixo(it,'PLACA DO VEICULO',yTransp!=null?yTransp+1:null).txt.toUpperCase().replace(/[^A-Z0-9]/g,'');
+  if(NF_RE_PLACA.test(pl)){ d.placa=pl; d.placaFonte='campo Placa do Veículo'; }
+  d.natureza=nfAbaixo(it,'NATUREZA DA OPERACAO').txt;
+  // emitente: linha "CIDADE/UF" no bloco do emitente (acima do destinatário)
+  var em=it.find(function(i){ return (yDest==null||i.y>yDest+20) && /^[A-ZÀ-Ú][A-ZÀ-Ú .'-]+\/[A-Z]{2}$/.test(i.s.trim()); });
+  if(em){ var p=em.s.trim().split('/'); d.emitMun=p[0].trim(); d.emitUF=p[1]; }
+  // informações complementares
+  var yInf=y('INFORMACOES COMPLEMENTARES');
+  d.infCpl = yInf!=null ? it.filter(function(i){ return i.y<yInf && i.x<330; }).map(function(i){return i.s;}).join(' ') : '';
+  nfDoInfCpl(d);
+  return d;
+}
+function nfDoInfCpl(d){
+  var inf=String(d.infCpl||'').toUpperCase();
+  if(!d.placa){ var mp=inf.match(NF_RE_PLACA); if(mp){ d.placa=mp[1]+mp[2]; d.placaFonte='Informações Complementares'; } }
+  var mm=inf.match(/[A-Z]{3}-?\d[A-Z0-9]\d{2}\s*\/\s*([A-ZÀ-Ú][A-ZÀ-Ú ]{1,40}?)\s*(?:[,;\/]|LACRE|KM\b|$)/)
+       || inf.match(/MOTORISTA\s*[:\-]?\s*([A-ZÀ-Ú][A-ZÀ-Ú ]{1,40}?)\s*(?:[,;\/]|LACRE|KM\b|PLACA|$)/);
+  if(mm) d.motoristaCitado=mm[1].trim();
+  // (21/10) KM DE SAÍDA nas Informações Complementares — formatos aceitos:
+  // "KM SAIDA: 123456", "KM SAÍDA 123.456", "KM INICIAL 123456", "KM: 123456", "KM 123456"
+  var mk=inf.match(/\bKM\.?\s*(?:DE\s*)?(?:SA[IÍ]DA|INICIAL|SAIDA)?\s*[:=\-]?\s*(\d{1,3}(?:\.\d{3})+|\d{4,7})\b/);
+  if(mk) d.kmSaida=parseInt(mk[1].replace(/\./g,''),10);
+  var mo=inf.match(/POR CONTA E ORDEM DE\s+(.+?)\s+CNPJ/); if(mo) d.contaOrdem=mo[1].trim();
+}
+function nfExtrairXml(txt){
+  var doc=new DOMParser().parseFromString(txt,'application/xml');
+  var q=function(sel, base){ var b=base||doc; var e=b.getElementsByTagName(sel)[0]; return e?e.textContent.trim():''; };
+  var bloco=function(tag){ return doc.getElementsByTagName(tag)[0]||null; };
+  if(!bloco('infNFe')) throw new Error('XML não parece ser uma NF-e');
+  var dest=bloco('dest'), emit=bloco('emit'), transp=bloco('transp');
+  var d={fonte:'XML da NF-e'};
+  d.nf=q('nNF').replace(/^0+/,'');
+  d.dataSaida=nfDataISO(q('dhSaiEnt')||q('dSaiEnt'));
+  d.dataEmissao=nfDataISO(q('dhEmi')||q('dEmi'));
+  if(dest){ d.destNome=q('xNome',dest); d.destMun=q('xMun',dest); d.destUF=q('UF',dest); }
+  if(emit){ d.emitMun=q('xMun',emit); d.emitUF=q('UF',emit); }
+  var tot=bloco('ICMSTot'); if(tot){ d.vFrete=nfNum(q('vFrete',tot)); }
+  if(transp){ var vol=transp.getElementsByTagName('vol'); var pb=0,pl=0; for(var i=0;i<vol.length;i++){ pb+=nfNum(q('pesoB',vol[i]))||0; pl+=nfNum(q('pesoL',vol[i]))||0; } d.pesoBruto=pb||null; d.pesoLiq=pl||null;
+    var vp=q('placa',transp).toUpperCase().replace(/[^A-Z0-9]/g,''); if(vp){ d.placa=vp; d.placaFonte='campo Placa do Veículo'; } }
+  d.natureza=q('natOp'); d.infCpl=q('infCpl');
+  nfDoInfCpl(d);
+  return d;
+}
+// Motorista pelo nome citado na NF: só preenche se identificar UM motorista
+// ativo do cadastro (nome completo, ou primeiro nome único). Com vários
+// possíveis, prioriza a mesma categoria do veículo; se ainda ficar ambíguo, não chuta.
+function nfMotoristaPorNome(citado, categoria){
+  // Busca na lista GERAL de motoristas ativos — a categoria do veículo não restringe
+  // a busca; só serve de desempate quando o nome citado bate com mais de um motorista.
+  pessGarantirLista();
+  if(typeof PESS_MOT==='undefined' || !citado) return null;
+  var c=nfNorm(citado); if(c.length<3) return null;
+  var ativos=PESS_MOT.filter(function(m){ return m && m.nome && m.status!=='DESLIGADO'; });
+  var exato=ativos.filter(function(m){ return nfNorm(m.nome)===c; }); if(exato.length===1) return exato[0];
+  var cand=ativos.filter(function(m){ var n=nfNorm(m.nome); return n.indexOf(c+' ')===0 || (' '+n+' ').indexOf(' '+c+' ')>=0; });
+  if(cand.length===1) return cand[0];
+  if(cand.length>1 && categoria){ var mc=cand.filter(function(m){ return nfNorm(m.cat)===nfNorm(categoria); }); if(mc.length===1) return mc[0]; }
+  return cand.length>1 ? {varios:cand.map(function(m){return m.nome;})} : null;
+}
+function nfMarcar(id, estado){
+  var e=g(id); if(!e) return;
+  e.classList.remove('nf-ok','nf-falta','nf-conferir');
+  if(estado) e.classList.add('nf-'+estado);
+  if(!e._nfLimpa){ e._nfLimpa=true; var f=function(){ e.classList.remove('nf-falta'); }; e.addEventListener('input',f); e.addEventListener('change',f); }
+}
+function nfSetSelect(id, valor){
+  var e=g(id); if(!e||!valor) return false;
+  var alvo=nfNorm(valor), op=Array.prototype.find.call(e.options, function(o){ return nfNorm(o.value)===alvo||nfNorm(o.text)===alvo; });
+  if(op){ e.value=op.value; return true; } return false;
+}
+function nfAplicar(d, nomeArq){
+  var ok=[], falta=[], avisos=[];
+  var set=function(id, v, rotulo, estado){ var e=g(id); if(!e) return; if(v==null||v===''){ return; } e.value=v; nfMarcar(id, estado||'ok'); ok.push(rotulo); };
+  // NF
+  if(d.nf) set('fi-nf', d.nf, 'Nº NF'); else { nfMarcar('fi-nf','falta'); falta.push('Nº NF'); }
+  // NF já lançada?
+  if(d.nf){ var ja=DB.filter(function(r){ return r && !r._excluida && String(r.nf||'').replace(/^0+/,'')===d.nf; });
+    if(ja.length) avisos.push('⚠️ <b>A NF '+d.nf+' já está lançada</b> em '+ja.map(function(r){ return (r.placa||'')+' de '+FD(r.dt_carg); }).join(', ')+'. Confira antes de salvar para não duplicar.'); }
+  // cliente (destinatário) — dispara o preenchimento existente pelo cadastro de clientes
+  if(d.destNome){ set('fi-cliente', d.destNome.toUpperCase(), 'Cliente (destinatário)'); try{ fiClienteLookup(); }catch(e){} } else { nfMarcar('fi-cliente','falta'); falta.push('Cliente'); }
+  // data de carregamento = data de saída (se não houver, emissão — sinalizado)
+  if(d.dataSaida) set('fi-dtc', d.dataSaida, 'Data de carregamento (saída da NF)');
+  else if(d.dataEmissao){ set('fi-dtc', d.dataEmissao, 'Data de carregamento (emissão da NF — sem data de saída)', 'conferir'); }
+  else { nfMarcar('fi-dtc','falta'); falta.push('Data de carregamento'); }
+  // origem = emitente (mantém a grafia já usada no sistema quando é a mesma cidade)
+  if(d.emitMun){ var oc=g('fi-orig-cidade'); if(oc && nfNorm(oc.value)===nfNorm(d.emitMun)){ nfMarcar('fi-orig-cidade','ok'); ok.push('Cidade de origem'); } else set('fi-orig-cidade', d.emitMun.toUpperCase(), 'Cidade de origem'); }
+  if(d.emitUF){ if(nfSetSelect('fi-orig-uf', d.emitUF)){ nfMarcar('fi-orig-uf','ok'); ok.push('UF de origem'); } }
+  // peso
+  var peso=d.pesoBruto||d.pesoLiq;
+  if(peso){ set('fi-pe', String(Math.round(peso*1000)/1000), 'Peso carregado ('+(d.pesoBruto?'peso bruto':'peso líquido')+')'); } else { nfMarcar('fi-pe','falta'); falta.push('Peso carregado'); }
+  // destino (a NF prevalece sobre o cadastro do cliente)
+  if(d.destMun){
+    var antes=nfNorm(g('fi-dest-cidade')?g('fi-dest-cidade').value:'');
+    set('fi-dest-cidade', d.destMun.toUpperCase(), 'Cidade de destino');
+    if(d.destUF && nfSetSelect('fi-dest-uf', d.destUF)){ nfMarcar('fi-dest-uf','ok'); ok.push('UF de destino'); }
+    if(antes!==nfNorm(d.destMun)){ try{ if(typeof fiDestinoLookup==='function') fiDestinoLookup(); }catch(e){} }
+  } else { nfMarcar('fi-dest-cidade','falta'); falta.push('Cidade de destino'); }
+  // frete
+  if(d.vFrete!=null && d.vFrete>0){
+    var vf=g('fi-vl-entrega'); if(vf){ vf.value=d.vFrete.toFixed(2); vf.dispatchEvent(new Event('input',{bubbles:true})); nfMarcar('fi-vl-entrega','conferir'); ok.push('Valor do frete (campo "Valor do Frete" da NF — confira)'); }
+  } else { nfMarcar('fi-vl-entrega','falta'); falta.push('Valor do frete (não consta na NF)'); }
+  // placa → categoria e motorista pelo cadastro (regra existente)
+  if(d.placa){
+    set('fi-placa', d.placa, 'Placa ('+d.placaFonte+')', d.placaFonte==='campo Placa do Veículo'?'ok':'conferir');
+    try{ fiPlacaLookup(); }catch(e){}
+    if(g('fi-cat') && g('fi-cat').value){ nfMarcar('fi-cat','ok'); } else { nfMarcar('fi-cat','falta'); falta.push('Categoria'); }
+    var mot=g('fi-motorista');
+    var achado = d.motoristaCitado ? nfMotoristaPorNome(d.motoristaCitado, g('fi-cat')?g('fi-cat').value:'') : null;
+    if(mot && mot.value && d.motoristaCitado && nfNorm(mot.value).indexOf(nfNorm(d.motoristaCitado))>=0){
+      nfMarcar('fi-motorista','ok');
+    } else if(achado && achado.nome){
+      var sugerido = mot ? mot.value : '';
+      if(mot) mot.value = achado.nome.toUpperCase();
+      nfMarcar('fi-motorista','conferir'); ok.push('Motorista (nome citado na NF: '+d.motoristaCitado+')');
+      if(sugerido && nfNorm(sugerido)!==nfNorm(achado.nome)) avisos.push('A NF cita <b>'+d.motoristaCitado+'</b> → usado <b>'+achado.nome.toUpperCase()+'</b> (o cadastro da placa sugeria '+sugerido+') — confira o condutor.');
+      else if(!sugerido) avisos.push('A placa não tem motorista vinculado na Gestão de Pessoas; usado <b>'+achado.nome.toUpperCase()+'</b> pelo nome citado na NF ('+d.motoristaCitado+') — confira.');
+    } else if(mot && mot.value){
+      if(d.motoristaCitado){ nfMarcar('fi-motorista','falta'); avisos.push('A NF cita o motorista <b>'+d.motoristaCitado+'</b>'+(achado&&achado.varios?' (mais de um motorista com esse nome: '+achado.varios.join(', ')+')':' (não encontrado no cadastro)')+', mas o cadastro da placa sugere <b>'+mot.value+'</b> — confira o condutor.'); }
+      else nfMarcar('fi-motorista','conferir');
+    } else {
+      nfMarcar('fi-motorista','falta');
+      falta.push('Motorista'+(d.motoristaCitado?' (NF cita: '+d.motoristaCitado+(achado&&achado.varios?' — vários no cadastro: '+achado.varios.join(', '):' — não encontrado no cadastro')+')':''));
+    }
+  } else { ['fi-placa','fi-cat','fi-motorista'].forEach(function(id){ nfMarcar(id,'falta'); }); falta.push('Placa'); falta.push('Categoria'); falta.push('Motorista'+(d.motoristaCitado?' (NF cita: '+d.motoristaCitado+')':'')); }
+  if(d.kmSaida){ set('fi-km-saida', String(d.kmSaida), 'KM de saída (Informações Complementares)', 'conferir'); }
+  if(g('fi-km')&&g('fi-km').value){ nfMarcar('fi-km','conferir'); nfMarcar('fi-kmg','conferir'); ok.push('KM exato e Grupo KM (cadastro de clientes/localidades)'); }
+  // não constam na NF
+  ['fi-km-saida','fi-kmg','fi-km'].forEach(function(id){ var e=g(id); if(e && !e.value) nfMarcar(id,'falta'); });
+  if(!(g('fi-km-saida')&&g('fi-km-saida').value)) falta.push('KM de saída (não consta na NF — informe "KM SAIDA: 123456" nas Informações Complementares)');
+  if(!(g('fi-kmg')&&g('fi-kmg').value)) falta.push('Grupo KM');
+  if(!(g('fi-km')&&g('fi-km').value)) falta.push('KM exato');
+  if(d.contaOrdem) avisos.push('Mercadoria remetida por conta e ordem de <b>'+d.contaOrdem+'</b>.');
+  if(d.natureza) avisos.push('Natureza da operação: '+d.natureza+'.');
+  var box=g('nf-imp-resumo');
+  if(box){
+    box.style.display='block';
+    box.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><b style="color:var(--gd)">📄 NF '+(d.nf||'')+' lida — '+(nomeArq||'')+' ('+d.fonte+')</b>'
+      +'<button type="button" onclick="nfLimparDestaques()" style="padding:4px 10px;border:1px solid var(--gb);background:#fff;border-radius:6px;font-size:11px;cursor:pointer">Limpar destaques</button></div>'
+      +'<div style="margin-top:6px;font-size:11.5px"><span style="color:#166534;font-weight:700">✔ Preenchido ('+ok.length+'):</span> '+ok.join(' · ')+'</div>'
+      +(falta.length?'<div style="margin-top:4px;font-size:11.5px"><span style="color:#b45309;font-weight:700">⚠ Preencher manualmente ('+falta.length+'):</span> '+falta.join(' · ')+'</div>':'')
+      +(avisos.length?'<div style="margin-top:4px;font-size:11.5px;color:var(--tx)">'+avisos.map(function(a){return '<div>• '+a+'</div>';}).join('')+'</div>':'')
+      +'<div style="margin-top:6px;font-size:11px;color:var(--txl)">Nada foi salvo ainda: confira os campos (verde = da NF, amarelo = conferir, laranja = preencher) e clique em <b>Salvar Etapa 1</b>.</div>';
+  }
+  return {ok:ok, falta:falta, avisos:avisos};
+}
+function nfLimparDestaques(){ document.querySelectorAll('.nf-ok,.nf-falta,.nf-conferir').forEach(function(e){ e.classList.remove('nf-ok','nf-falta','nf-conferir'); }); var b=g('nf-imp-resumo'); if(b){ b.style.display='none'; b.innerHTML=''; } }
+async function nfImportarArquivo(file){
+  var box=g('nf-imp-resumo'); if(box){ box.style.display='block'; box.innerHTML='⏳ Lendo '+file.name+'…'; }
+  try{
+    var nome=file.name.toLowerCase(), d;
+    await pessGarantirListaNuvem();
+    if(nome.endsWith('.xml')){ d=nfExtrairXml(await file.text()); }
+    else if(nome.endsWith('.pdf')){
+      var lib=await nfCarregarPdfJs(); var doc=await lib.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise;
+      var pg=await doc.getPage(1), tc=await pg.getTextContent();
+      var items=tc.items.map(function(i){ return {s:i.str, x:Math.round(i.transform[4]), y:Math.round(i.transform[5])}; });
+      if(!items.filter(function(i){return String(i.s).trim();}).length) throw new Error('o PDF não tem texto (parece ser uma imagem escaneada) — use o XML da NF ou digite os dados');
+      d=nfExtrairDanfe(items);
+    } else throw new Error('formato não suportado — use o PDF (DANFE) ou o XML da NF-e');
+    if(!d.nf && !d.destNome && !d.pesoBruto) throw new Error('não reconheci uma NF-e neste arquivo');
+    nfAplicar(d, file.name);
+  }catch(err){ if(box) box.innerHTML='<span style="color:#991b1b;font-weight:700">Não foi possível ler a NF: '+err.message+'.</span>'; }
+}
+// ══ IMPORTAÇÃO DE VÁRIAS NFs DE UMA VEZ (21/10) ══════════════════════════════
+// Lê todas as NFs, mostra uma tabela de conferência (com os campos que faltam
+// editáveis) e só gera as viagens marcadas quando a pessoa confirma. Cada viagem
+// é gravada pelo MESMO salvamento da Etapa 1 (saveEtapa1) — mesmas validações,
+// mesmas regras e mesma base que o lançamento manual.
+var NF_LOTE = [];
+var NF_CAMPOS = ['fi-nf','fi-cliente','fi-dtc','fi-orig-cidade','fi-orig-uf','fi-pe','fi-dest-cidade','fi-dest-uf','fi-kmg','fi-km','fi-vl-entrega','fi-placa','fi-cat','fi-motorista','fi-km-saida'];
+var NF_OBRIG = {'fi-placa':'Placa','fi-cat':'Categoria','fi-dtc':'Data','fi-orig-cidade':'Cidade origem','fi-orig-uf':'UF origem','fi-dest-cidade':'Cidade destino','fi-dest-uf':'UF destino','fi-kmg':'Grupo KM','fi-km-saida':'KM saída','fi-km':'KM exato','fi-motorista':'Motorista'};
+async function nfLerArquivo(file){
+  var nome=file.name.toLowerCase();
+  if(nome.endsWith('.xml')) return nfExtrairXml(await file.text());
+  if(nome.endsWith('.pdf')){
+    var lib=await nfCarregarPdfJs(); var doc=await lib.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise;
+    var tc=await (await doc.getPage(1)).getTextContent();
+    var items=tc.items.map(function(i){ return {s:i.str, x:Math.round(i.transform[4]), y:Math.round(i.transform[5])}; });
+    if(!items.filter(function(i){return String(i.s).trim();}).length) throw new Error('PDF sem texto (escaneado)');
+    return nfExtrairDanfe(items);
+  }
+  throw new Error('formato não suportado');
+}
+function nfLoteSnapshot(){ var s={}; NF_CAMPOS.forEach(function(id){ var e=g(id); s[id]=e?String(e.value||''):''; }); return s; }
+async function nfLoteImportar(files){
+  var box=g('nf-imp-resumo'); if(box){ box.style.display='block'; box.innerHTML='⏳ Lendo '+files.length+' notas fiscais…'; }
+  clearForm(); NF_LOTE=[];
+  await pessGarantirListaNuvem();
+  for(var i=0;i<files.length;i++){
+    var f=files[i], row={arquivo:f.name};
+    try{
+      var d=await nfLerArquivo(f);
+      clearForm();
+      var r=nfAplicar(d, f.name);
+      row.d=d; row.v=nfLoteSnapshot(); row.avisos=r.avisos;
+    }catch(err){ row.erro=err.message; }
+    NF_LOTE.push(row);
+    if(box) box.innerHTML='⏳ Lendo notas fiscais… '+(i+1)+'/'+files.length;
+  }
+  clearForm(); nfLimparDestaques();
+  // NF repetida no próprio lote ou já lançada
+  var vistas={};
+  NF_LOTE.forEach(function(r){ if(!r.v) return; var n=String(r.v['fi-nf']||'').replace(/^0+/,'');
+    r.jaLancada = n && DB.some(function(x){ return x && !x._excluida && String(x.nf||'').replace(/^0+/,'')===n; });
+    r.repetidaNoLote = n && vistas[n]; if(n) vistas[n]=1; });
+  nfLoteRender();
+}
+function nfLoteFaltas(r){ return Object.keys(NF_OBRIG).filter(function(id){ return !String(r.v[id]||'').trim(); }).map(function(id){ return NF_OBRIG[id]; }); }
+function nfLoteRender(){
+  var box=g('nf-imp-resumo'); if(!box) return;
+  var fR=function(v){ v=parseFloat(v); return v>0?'R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'—'; };
+  var inp=function(i,id,w,lista){ var v=NF_LOTE[i].v[id]||''; var falta=!String(v).trim();
+    return '<input value="'+String(v).replace(/"/g,'&quot;')+'" '+(lista?'list="'+lista+'" ':'')+'onchange="nfLoteEditar('+i+',\''+id+'\',this.value)" style="width:'+w+'px;padding:3px 5px;font-size:11px;border:1px solid '+(falta?'#ea580c':'var(--gb)')+';background:'+(falta?'#fff7ed':'#fff')+';border-radius:4px">'; };
+  var linhas=NF_LOTE.map(function(r,i){
+    if(r.erro) return '<tr style="border-top:1px solid #eee"><td></td><td colspan="9" style="padding:6px;color:#991b1b">'+r.arquivo+': não foi possível ler ('+r.erro+')</td></tr>';
+    var falta=nfLoteFaltas(r), bloqueio=r.jaLancada?'NF já lançada':(r.repetidaNoLote?'NF repetida neste lote':'');
+    if(r.sel===undefined) r.sel=!falta.length && !bloqueio;
+    var st = bloqueio ? '<span style="color:#991b1b;font-weight:700">⛔ '+bloqueio+'</span>'
+      : (falta.length ? '<span style="color:#b45309;font-weight:700">⚠ Falta: '+falta.join(', ')+'</span>' : '<span style="color:#166534;font-weight:700">✔ Pronta</span>');
+    var av=(r.avisos||[]).filter(function(a){ return /motorista|já está lançada/i.test(a); }).map(function(a){ return '<div style="font-size:10.5px;color:#92400e">'+a+'</div>'; }).join('');
+    return '<tr style="border-top:1px solid #eee;vertical-align:top">'
+      +'<td style="padding:5px"><input type="checkbox" '+(r.sel?'checked':'')+(bloqueio?' disabled':'')+' onchange="NF_LOTE['+i+'].sel=this.checked;if(!this.checked)NF_LOTE['+i+']._desmarcadaManual=true;nfLoteContar()"></td>'
+      +'<td style="padding:5px;font-weight:800;color:var(--gd)">'+(r.v['fi-nf']||'—')+'</td>'
+      +'<td style="padding:5px">'+(r.v['fi-dtc']?r.v['fi-dtc'].split('-').reverse().join('/'):'—')+'</td>'
+      +'<td style="padding:5px">'+inp(i,'fi-placa',80,'fi-placa-list')+'<div style="font-size:10px;color:var(--txl)">'+(r.v['fi-cat']||'')+'</div></td>'
+      +'<td style="padding:5px">'+inp(i,'fi-motorista',150,'fi-motorista-list')+av+'</td>'
+      +'<td style="padding:5px;font-size:11px">'+(r.v['fi-cliente']||'—')+'<div style="color:var(--txl)">→ '+(r.v['fi-dest-cidade']||'?')+'/'+(r.v['fi-dest-uf']||'?')+'</div></td>'
+      +'<td style="padding:5px;text-align:right">'+(r.v['fi-pe']?(+r.v['fi-pe']).toLocaleString('pt-BR')+' kg':'—')+'<div>'+fR(r.v['fi-vl-entrega'])+'</div></td>'
+      +'<td style="padding:5px">'+inp(i,'fi-km-saida',80)+'</td>'
+      +'<td style="padding:5px">'+inp(i,'fi-km',60)+'</td>'
+      +'<td style="padding:5px;font-size:11px">'+st+'</td></tr>';
+  }).join('');
+  box.style.display='block';
+  box.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px"><b style="color:var(--gd)">📄 '+NF_LOTE.length+' notas fiscais lidas — confira e gere as viagens</b>'
+    +'<span><button type="button" id="nf-lote-gerar" onclick="nfLoteGerar()" style="padding:7px 14px;background:var(--gd);color:#fff;border:none;border-radius:6px;font-size:11.5px;font-weight:800;cursor:pointer">Gerar viagens</button> '
+    +'<button type="button" onclick="NF_LOTE=[];nfLimparDestaques()" style="padding:7px 12px;border:1px solid var(--gb);background:#fff;border-radius:6px;font-size:11px;cursor:pointer">Cancelar</button></span></div>'
+    +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11.5px"><thead><tr style="text-align:left;color:var(--txl);font-size:10.5px;text-transform:uppercase"><th></th><th style="padding:4px 5px">NF</th><th style="padding:4px 5px">Carreg.</th><th style="padding:4px 5px">Placa</th><th style="padding:4px 5px">Motorista</th><th style="padding:4px 5px">Cliente / destino</th><th style="padding:4px 5px;text-align:right">Peso / frete</th><th style="padding:4px 5px">KM saída</th><th style="padding:4px 5px">KM exato</th><th style="padding:4px 5px">Situação</th></tr></thead><tbody>'+linhas+'</tbody></table></div>'
+    +'<div style="font-size:11px;color:var(--txl);margin-top:6px">Campos em laranja não constam na NF — preencha na própria tabela. Só as linhas marcadas viram viagens; cada uma passa pelas mesmas validações do lançamento manual.</div>';
+  nfLoteContar();
+}
+function nfLoteEditar(i, id, val){
+  var r=NF_LOTE[i]; r.v[id]=String(val).toUpperCase().trim();
+  if(id==='fi-km' && typeof freteGrupoDeIda==='function' && parseFloat(val)>0) r.v['fi-kmg']=String(freteGrupoDeIda(parseFloat(val)));
+  if(id==='fi-placa' && typeof FROTA_SEED!=='undefined'){ var p=r.v[id].replace(/-/g,''); var fv=FROTA_SEED.find(function(x){ return x.id.replace(/-/g,'').toUpperCase()===p; }); if(fv && typeof frotaMapTipoParaCategoria==='function') r.v['fi-cat']=frotaMapTipoParaCategoria(fv.tipo)||r.v['fi-cat']; }
+  var falta=nfLoteFaltas(r); if(!falta.length && !r.jaLancada && !r.repetidaNoLote && r.sel===false && !r._desmarcadaManual) r.sel=true;
+  nfLoteRender();
+}
+function nfLoteContar(){ var n=NF_LOTE.filter(function(r){ return r.sel && r.v; }).length; var b=g('nf-lote-gerar'); if(b){ b.textContent='Gerar '+n+' viagem'+(n===1?'':'s'); b.disabled=!n; b.style.opacity=n?1:.5; } }
+function nfLoteGerar(){
+  var sel=NF_LOTE.filter(function(r){ return r.sel && r.v; });
+  if(!sel.length) return;
+  var incompletas=sel.filter(function(r){ return nfLoteFaltas(r).length; });
+  if(incompletas.length){ toast(incompletas.length+' NF(s) marcada(s) ainda têm campos obrigatórios vazios — preencha na tabela ou desmarque.','error'); return; }
+  if(!confirm('Gerar '+sel.length+' viagem(ns) a partir das notas fiscais conferidas?')) return;
+  var confirmOrig=window.confirm, criadas=0, falhas=[];
+  window.confirm=function(){ return true; }; // mesma placa no mesmo dia: já conferido na tabela
+  try{
+    sel.forEach(function(r){
+      clearForm();
+      NF_CAMPOS.forEach(function(id){ var e=g(id); if(e) e.value=r.v[id]||''; });
+      var vf=g('fi-vl-entrega'); if(vf && vf.value) vf.dispatchEvent(new Event('input',{bubbles:true}));
+      var antes=DB.length;
+      window._saveEtapa1EmAndamento=false;
+      saveEtapa1();
+      if(DB.length>antes){ criadas++; r.gerada=true; } else falhas.push(r.v['fi-nf']||r.arquivo);
+    });
+  } finally { window.confirm=confirmOrig; window._saveEtapa1EmAndamento=false; clearForm(); }
+  try{ if(window.FB_SYNC && FB_SYNC.registrarLog) FB_SYNC.registrarLog('Gerou viagens por importação de NFs', criadas+' viagens'+(falhas.length?' · falharam: '+falhas.join(', '):'')); }catch(e){}
+  NF_LOTE=NF_LOTE.filter(function(r){ return !r.gerada; });
+  if(NF_LOTE.length) nfLoteRender(); else nfLimparDestaques();
+  toast(criadas+' viagem(ns) gerada(s) a partir das NFs'+(falhas.length?' · '+falhas.length+' não salva(s): '+falhas.join(', '):'')+' ✅', falhas.length?'warning':'success');
+}
+
+function nfImportarVarios(files){ files=Array.prototype.slice.call(files||[]); if(!files.length) return; if(files.length===1) nfImportarArquivo(files[0]); else nfLoteImportar(files); }
+function nfDropInit(){
+  var z=g('nf-drop'); if(!z || z._nfInit) return; z._nfInit=true;
+  ['dragenter','dragover'].forEach(function(ev){ z.addEventListener(ev,function(e){ e.preventDefault(); z.classList.add('nf-drag'); }); });
+  ['dragleave','drop'].forEach(function(ev){ z.addEventListener(ev,function(e){ e.preventDefault(); z.classList.remove('nf-drag'); }); });
+  z.addEventListener('drop',function(e){ if(e.dataTransfer&&e.dataTransfer.files) nfImportarVarios(e.dataTransfer.files); });
+}
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', nfDropInit); else nfDropInit();
+
 function fiUpdatePgtoTerceiro(){
   var pgto    = document.getElementById('fi-ft-pgto').value;
   var dtGrp   = document.getElementById('fi-ft-dt-pgto-grp');
@@ -10932,7 +11328,31 @@ function fiPlacaLookup(){
 // Busca o motorista atualmente vinculado a essa placa na Gestão de Pessoas (PESS_MOT) e
 // sugere no campo Motorista — o analista pode trocar manualmente se for outro condutor
 // naquela viagem específica (a sugestão não é travada, só um ponto de partida).
+// (21/10) Lista geral de motoristas disponível em QUALQUER tela. Desde 02/10 a
+// lista só era carregada ao abrir Gestão de Pessoas — em Lançamentos ela ficava
+// vazia, e o motorista não era encontrado (nem pela placa, nem pelo nome da NF).
+// Só LÊ a cópia local já sincronizada com a nuvem; não grava, não cria nem altera cadastro.
+function pessGarantirLista(){
+  try{
+    if(typeof PESS_MOT!=='undefined' && PESS_MOT && PESS_MOT.length) return;
+    var raw=localStorage.getItem('raguife_pess_v1');
+    if(raw){ var o=JSON.parse(raw); if(o && Array.isArray(o.motoristas) && o.motoristas.length){ PESS_MOT=o.motoristas; return; } }
+    // Arquivo aberto do computador (file://): sem nuvem — usa o cadastro de exemplo embutido
+    if(location.protocol==='file:' && window.PESS_MOT_FABRICA && PESS_MOT_FABRICA.length) PESS_MOT=JSON.parse(JSON.stringify(PESS_MOT_FABRICA));
+  }catch(e){}
+}
+// Se a cópia local ainda não tiver os motoristas (navegador novo/cache limpo),
+// lê direto da nuvem — só leitura, não grava nada.
+function pessGarantirListaNuvem(){
+  pessGarantirLista();
+  if((typeof PESS_MOT!=='undefined' && PESS_MOT && PESS_MOT.length) || typeof firebase==='undefined' || location.protocol==='file:') return Promise.resolve();
+  return firebase.database().ref('sync/pess_mot_records').once('value').then(function(s){
+    var v=s.val()||{}, lista=Object.keys(v).map(function(id){ var d=v[id]&&v[id].data; if(d && !d._id) d._id=id; return d; }).filter(Boolean);
+    if(lista.length) PESS_MOT=lista;
+  }).catch(function(){});
+}
 function fiMotoristaLookupPorPlaca(placaNorm){
+  pessGarantirLista();
   var hintM = g('fi-motorista-hint');
   var motEl = g('fi-motorista');
   if(!motEl || typeof PESS_MOT==='undefined') return;
@@ -10945,6 +11365,7 @@ function fiMotoristaLookupPorPlaca(placaNorm){
   }
 }
 function fiPopularMotoristaList(){
+  pessGarantirLista();
   var dl = g('fi-motorista-list');
   if(!dl || typeof PESS_MOT==='undefined') return;
   var nomes = {};
@@ -17729,8 +18150,12 @@ document.getElementById('ft-pagto-modal') && document.getElementById('ft-pagto-m
 
 // ══ RELATÓRIO A RECEBER ═══════════════════════════════════════
 var _recTab='Retorno';
-function recOpenReport(tipo){
+function recOpenReport(tipo, filtro){
   _recTab=tipo||'Retorno';
+  // (16/10) Aberto pelos cards A Receber/Recebidos: já filtra conta e status.
+  var _cS=document.getElementById('rec-conta'), _sS=document.getElementById('rec-status');
+  if(_cS) _cS.value = (filtro && filtro.conta) ? filtro.conta : '';
+  if(_sS && filtro && filtro.status) _sS.value = filtro.status;
   var modal=document.getElementById('rec-modal');
   if(modal) modal.style.display='flex';
   var now=new Date(),de=new Date(now);
@@ -17767,6 +18192,7 @@ function recClearFilter(){
   var p=document.getElementById('rec-placa'),c=document.getElementById('rec-cat'),s=document.getElementById('rec-status');
   if(d)d.value='';if(a)a.value='';
   if(p)p.value='';if(c)c.value='';if(s)s.value='';
+  var _ct=document.getElementById('rec-conta'); if(_ct)_ct.value='';
   recRender();
 }
 var CONTAS_PADRAO = ['MB Proni','Ambar Amaral','Carta Frete'];
@@ -17869,6 +18295,7 @@ function recRender(){
   var placaF=document.getElementById('rec-placa')?document.getElementById('rec-placa').value:'';
   var catF=document.getElementById('rec-cat')?document.getElementById('rec-cat').value:'';
   var stF=document.getElementById('rec-status')?document.getElementById('rec-status').value:'';
+  var contaF=document.getElementById('rec-conta')?document.getElementById('rec-conta').value:'';
   var tab=_recTab;
   var tbody=document.getElementById('rec-tbody'),tfoot=document.getElementById('rec-tfoot');
   var sub=document.getElementById('rec-modal-sub'),cnt=document.getElementById('rec-modal-count');
@@ -17889,6 +18316,8 @@ function recRender(){
     if(catF&&r.categoria!==catF) return false;
     if(stF==='Pago'&&r.pagamento!=='Pago') return false;
     if(stF==='Pendente'&&r.pagamento==='Pago') return false;
+    if(contaF==='__sem__'&&String(r.conta||'').trim()) return false;
+    if(contaF&&contaF!=='__sem__'&&String(r.conta||'').trim()!==contaF) return false;
     return true;
   }).sort(function(a,b){return (b.dt_carg||'').localeCompare(a.dt_carg||'');});
   _recRows = rows;
@@ -29096,6 +29525,12 @@ function ftlImpRenderLog(){
       <div style="display:flex;align-items:center;gap:6px">
         <span style="font-size:11px;font-weight:700;color:var(--txl)">CATEGORIA:</span>
         <select id="rec-cat" onchange="recRender()" style="font-size:11px;padding:5px 8px;border:1px solid var(--gb);border-radius:6px"><option value="">Todas</option></select>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span style="font-size:11px;font-weight:700;color:var(--txl)">CONTA:</span>
+        <select id="rec-conta" onchange="recRender()" style="font-size:11px;padding:5px 8px;border:1px solid var(--gb);border-radius:6px">
+          <option value="">Todas</option><option value="MB Proni">MB Proni</option><option value="Ambar Amaral">Ambar Amaral</option><option value="Carta Frete">Carta Frete</option><option value="__sem__">Sem conta definida</option>
+        </select>
       </div>
       <div style="display:flex;align-items:center;gap:6px">
         <span style="font-size:11px;font-weight:700;color:var(--txl)">PAGAMENTO:</span>
