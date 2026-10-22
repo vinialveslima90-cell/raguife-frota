@@ -155,7 +155,7 @@ if(location.protocol!=='file:'){
   // verificável (evita a ambiguidade que já causou confusão: build parada há
   // semanas enquanto o código mudava por baixo, sem nenhum jeito de confirmar
   // qual versão estava rodando de fato).
-  var RAGUIFE_BUILD_LOCAL = '2026-10-21-AN';
+  var RAGUIFE_BUILD_LOCAL = '2026-10-22-AQ';
   window.RAGUIFE_BUILD_LOCAL = RAGUIFE_BUILD_LOCAL;
 
   var FB = {
@@ -232,7 +232,7 @@ if(location.protocol!=='file:'){
       var ib = FB._infoBase, chip = document.getElementById('raguife-base-chip');
       var badge = document.getElementById('raguife-build-badge');
       if(!chip && badge && badge.parentNode){
-        chip = document.createElement('span'); chip.id='raguife-base-chip';
+        chip = document.createElement('span'); chip.id='raguife-base-chip'; chip.style.display='none';
         chip.style.cssText='margin-left:6px;padding:2px 8px;font-size:9px;font-weight:800;color:#166534;background:#dcfce7;border-radius:8px;cursor:help';
         badge.parentNode.insertBefore(chip, badge.nextSibling);
       }
@@ -241,6 +241,7 @@ if(location.protocol!=='file:'){
         chip.textContent = 'Base: '+ib.viagens.toLocaleString('pt-BR')+' viagens';
         chip.title = 'BASE DE VIAGENS (nuvem — fonte oficial)\nViagens ativas: '+ib.viagens+' (registros: '+ib.registros+')\nToneladas (entrega+retorno, todos os meses): '+ib.toneladas.toLocaleString('pt-BR')+' t\nÚltima alteração na nuvem: '+f(ib.ultimaAlteracao)+'\nCarregada nesta tela: '+f(ib.carregadaEm)+'\nVersão do sistema: '+(window.RAGUIFE_BUILD_LOCAL||'?');
       }
+      try{ FB._updateBadge(); }catch(e){}
       console.log('[Base] Carregada da nuvem:', FB._infoBase);
     },
     // ── CÓPIA DIÁRIA + ALARME DE QUEDA (01/10) ───────────────────────────
@@ -439,8 +440,8 @@ if(location.protocol!=='file:'){
         }
         var b = document.createElement('div');
         b.id='fb-status-badge';
-        b.style.cssText='display:flex;align-items:center;gap:4px;font-size:10px;padding:2px 8px;border-radius:10px;margin-left:8px;font-weight:600;white-space:nowrap';
-        bar.appendChild(b);
+        b.className='hdr-status';
+        bar.insertBefore(b, bar.firstChild); // status primeiro, usuário depois
         FB._statusEl = b;
         FB._updateBadge();
 
@@ -451,6 +452,7 @@ if(location.protocol!=='file:'){
         diagBtn.textContent = '🔍 Diagnóstico';
         diagBtn.style.cssText = 'margin-left:8px;padding:3px 10px;font-size:10px;font-weight:700;border:1px solid var(--gb);border-radius:8px;background:#fff;color:var(--txl);cursor:pointer';
         diagBtn.onclick = function(){ if(typeof abrirDiagnostico==='function') abrirDiagnostico(); };
+        diagBtn.style.display='none'; // (21/10) oculto a pedido — função preservada
         bar.appendChild(diagBtn);
 
         var lockBtn = document.createElement('button');
@@ -467,6 +469,7 @@ if(location.protocol!=='file:'){
             FB.lock(motivo||'Manutenção em andamento');
           }
         };
+        lockBtn.style.display='none'; // (21/10) oculto a pedido — função preservada
         bar.appendChild(lockBtn);
         FB._lockBtnEl = lockBtn;
 
@@ -478,12 +481,14 @@ if(location.protocol!=='file:'){
         alertBtn.innerHTML = '🔔 Alertas <span id="central-alertas-badge" style="display:none;background:#dc2626;color:#fff;border-radius:9px;padding:0 6px;margin-left:4px;font-size:9px">0</span>';
         alertBtn.style.cssText = 'margin-left:8px;padding:3px 10px;font-size:10px;font-weight:700;border:1px solid var(--gb);border-radius:8px;background:#fff;color:var(--txl);cursor:pointer';
         alertBtn.onclick = function(){ if(typeof abrirCentralAlertas==='function') abrirCentralAlertas(); };
+        alertBtn.style.display='none'; // (21/10) oculto a pedido — função preservada
         bar.appendChild(alertBtn);
 
         var logBtn = document.createElement('button');
         logBtn.innerHTML = '📜 Log de Alterações';
         logBtn.style.cssText = 'margin-left:8px;padding:3px 10px;font-size:10px;font-weight:700;border:1px solid var(--gb);border-radius:8px;background:#fff;color:var(--txl);cursor:pointer';
         logBtn.onclick = function(){ if(typeof abrirLogAlteracoes==='function') abrirLogAlteracoes(); };
+        logBtn.style.display='none'; // (21/10) oculto a pedido — função preservada
         bar.appendChild(logBtn);
 
         // ── BACKUP COMPLETO DA BASE (16/09) ──────────────────────────────────
@@ -498,6 +503,7 @@ if(location.protocol!=='file:'){
         backupBtn.title = 'Baixa um arquivo com todos os dados do sistema (Frete, Financeiro, Frota, Pessoas, Jornada, etc.) — operação só de leitura, não altera nada';
         backupBtn.style.cssText = 'margin-left:8px;padding:3px 10px;font-size:10px;font-weight:700;border:1px solid var(--gb);border-radius:8px;background:#fff;color:var(--txl);cursor:pointer';
         backupBtn.onclick = function(){ backupExportarCompleto(); };
+        backupBtn.style.display='none'; // (21/10) oculto a pedido — função preservada
         bar.appendChild(backupBtn);
 
         var restoreBtn = document.createElement('button');
@@ -505,6 +511,7 @@ if(location.protocol!=='file:'){
         restoreBtn.title = 'Carrega um arquivo de backup gerado por este sistema e restaura a base — pede confirmação antes, pois substitui os dados atuais';
         restoreBtn.style.cssText = 'margin-left:8px;padding:3px 10px;font-size:10px;font-weight:700;border:1px solid var(--gb);border-radius:8px;background:#fff;color:var(--txl);cursor:pointer';
         restoreBtn.onclick = function(){ backupAbrirSeletorRestauracao(); };
+        restoreBtn.style.display='none'; // (21/10) oculto a pedido — função preservada
         bar.appendChild(restoreBtn);
         var backupFileInput = document.createElement('input');
         backupFileInput.type = 'file';
@@ -517,7 +524,7 @@ if(location.protocol!=='file:'){
         var verBadge = document.createElement('span');
         verBadge.id = 'raguife-build-badge';
         verBadge.textContent = 'build '+RAGUIFE_BUILD_LOCAL;
-        verBadge.style.cssText = 'margin-left:6px;padding:2px 8px;font-size:9px;font-weight:800;color:#7c2d12;background:#fef3c7;border-radius:8px';
+        verBadge.style.cssText = 'display:none;margin-left:6px;padding:2px 8px;font-size:9px;font-weight:800;color:#7c2d12;background:#fef3c7;border-radius:8px';
         bar.appendChild(verBadge);
 
         // CORREÇÃO (10/09) — fecha a brecha real que causou a reincidência do
@@ -534,7 +541,7 @@ if(location.protocol!=='file:'){
               firebase.database().ref('sync/_versao_atual').set(RAGUIFE_BUILD_LOCAL);
             } else if(versaoNuvem > RAGUIFE_BUILD_LOCAL){
               if(window.FB_SYNC) FB_SYNC._versaoDesatualizada = true;
-              verBadge.style.cssText = 'margin-left:6px;padding:2px 8px;font-size:9px;font-weight:800;color:#fff;background:#dc2626;border-radius:8px;cursor:pointer';
+              verBadge.style.cssText = 'display:inline-block;margin-left:6px;padding:4px 10px;font-size:10.5px;font-weight:800;color:#fff;background:#dc2626;border-radius:999px;cursor:pointer';
               verBadge.textContent = '⚠️ desatualizado';
               verBadge.title = 'Sua versão ('+RAGUIFE_BUILD_LOCAL+') é mais antiga que a mais nova já vista ('+versaoNuvem+'). Clique pra atualizar.';
               verBadge.onclick = function(){ location.reload(true); };
@@ -555,16 +562,12 @@ if(location.protocol!=='file:'){
     _updateBadge:function(){
       var el = FB._statusEl;
       if(!el) return;
-      if(FB.ready && FB.online){
-        el.style.background='#dcfce7'; el.style.color='#166534';
-        el.textContent='● Sincronizado';
-      }else if(FB.ready && !FB.online){
-        el.style.background='#fef3c7'; el.style.color='#92400e';
-        el.textContent='● Offline (local)';
-      }else{
-        el.style.background='#f3f4f6'; el.style.color='#6b7280';
-        el.textContent='● Conectando…';
-      }
+      var _st = (FB.ready && FB.online) ? ['ok','Sincronizado'] : ((FB.ready && !FB.online) ? ['off','Offline'] : ['','Conectando…']);
+      el.className = 'hdr-status '+_st[0];
+      el.innerHTML = '<span class="hdr-dot"></span>'+_st[1];
+      var _ib = FB._infoBase;
+      el.title = 'Versão do sistema: '+(window.RAGUIFE_BUILD_LOCAL||'?')
+        + (_ib ? '\nBase de viagens: '+_ib.viagens+' viagens · '+String(_ib.toneladas).replace('.',',')+' t\nÚltima alteração na nuvem: '+(_ib.ultimaAlteracao?new Date(_ib.ultimaAlteracao).toLocaleString('pt-BR'):'—') : '');
     },
 
     _pullAll:function(){
@@ -1245,6 +1248,21 @@ if(location.protocol!=='file:'){
         mot = mot.filter(function(m){ return !m || (m._id && FB._ultimoEstadoMotoristas[m._id]) || !FB._pessFabSig[(m.nome||'')+'|'+(m.placa||'')]; });
         if(mot.length < _antes) console.error('[FB Sync] BLOQUEADO: '+(_antes-mot.length)+' motoristas novos idênticos à base de fábrica não foram enviados.');
       }
+      // (21/10) SEM CADASTRO DUPLICADO: motorista NOVO (código que a nuvem ainda não
+      // conhece) com o MESMO NOME de um já existente não sobe — foi assim que a lista
+      // foi de 61 para 170 registros. Edições de motoristas existentes seguem normais.
+      (function(){
+        var nz=function(s){ return String(s||'').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim(); };
+        var conhecidos={};
+        Object.keys(FB._ultimoEstadoMotoristas||{}).forEach(function(id){ try{ var o=JSON.parse(FB._ultimoEstadoMotoristas[id]); var n=nz(o&&o.nome); if(n) conhecidos[n]=1; }catch(e){} });
+        var bloq=0, novos={};
+        mot = mot.filter(function(m){
+          if(!m || (m._id && FB._ultimoEstadoMotoristas[m._id])) return true;
+          var n=nz(m.nome); if(n && (conhecidos[n] || novos[n])){ bloq++; return false; }
+          if(n) novos[n]=1; return true;
+        });
+        if(bloq){ console.error('[FB Sync] BLOQUEADO: '+bloq+' motorista(s) novo(s) com nome já cadastrado — não criados.'); try{ FB.registrarLog('Cadastro duplicado de motorista BLOQUEADO', bloq+' registro(s)'); }catch(e){} }
+      })();
       var resto = { ferias:obj.ferias||[], toxicologico:obj.toxicologico||[], treinamentos:obj.treinamentos||[] };
       var ts = Date.now();
       var updates = {};
@@ -2644,7 +2662,26 @@ html,body{overflow:hidden;height:100%}
 .sb-act .sb-lbl{color:var(--sb-text);font-size:12px;font-weight:600;white-space:nowrap}.sb-act:hover .sb-lbl{color:var(--sb-ta)}
 .sb-date{font-size:9.5px;color:#9ca3af;padding:2px 14px;white-space:nowrap}
 .content{flex:1;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;min-width:0}
-.content-header{display:flex;align-items:center;min-height:40px;padding:8px 24px;border-bottom:1px solid var(--gb);background:var(--wh);position:sticky;top:0;z-index:50;flex-shrink:0}
+.content-header{display:flex;align-items:center;gap:16px;min-height:60px;padding:10px 28px;border-bottom:1px solid #e6e9e5;background:var(--wh);position:sticky;top:0;z-index:50;flex-shrink:0}
+/* (21/10) Cabeçalho corporativo enxuto */
+.hdr-titulo{display:flex;flex-direction:column;min-width:0}
+.hdr-titulo .hdr-crumb{font-size:11px;font-weight:600;color:var(--txl);letter-spacing:.3px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hdr-titulo .hdr-page{font-size:17px;font-weight:800;color:var(--gd);line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#auth-user-bar{gap:10px !important}
+.hdr-status{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;padding:5px 12px;border-radius:999px;background:var(--gbg);color:var(--txm);white-space:nowrap;cursor:default}
+.hdr-status .hdr-dot{width:8px;height:8px;border-radius:50%;background:#9ca3af;flex-shrink:0}
+.hdr-status.ok .hdr-dot{background:#16a34a;box-shadow:0 0 0 3px rgba(22,163,74,.15)}
+.hdr-status.off .hdr-dot{background:#d97706}
+.hdr-sep{width:1px;height:28px;background:#e6e9e5}
+.hdr-user{display:flex;align-items:center;gap:10px}
+.hdr-avatar{width:34px;height:34px;border-radius:50%;background:var(--gd);color:#fff;font-weight:800;font-size:12.5px;display:flex;align-items:center;justify-content:center;flex-shrink:0;letter-spacing:.5px}
+.hdr-user-txt{display:flex;flex-direction:column;line-height:1.2}
+.hdr-user-nome{font-size:12.5px;font-weight:700;color:var(--txt)}
+.hdr-user-perfil{font-size:10.5px;color:var(--txl)}
+.hdr-btn{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:7px 12px;border:1px solid #dfe3de;border-radius:8px;background:#fff;color:var(--txm);cursor:pointer;transition:background .15s,border-color .15s,color .15s}
+.hdr-btn:hover{background:var(--gg);border-color:var(--go);color:var(--gd)}
+.hdr-btn svg{width:15px;height:15px}
+@media(max-width:900px){ .hdr-user-txt,.hdr-titulo .hdr-crumb{display:none} .content-header{padding:8px 14px;gap:10px} .hdr-btn span{display:none} }
 .tab-panel{display:none;flex:1;overflow-y:auto;overflow-x:hidden;padding:20px 24px 32px;gap:16px;flex-direction:column;min-height:0}
 .tab-panel.active{display:flex}
 
@@ -2956,9 +2993,10 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
 
 <div class="content">
 <div class="content-header">
+  <div class="hdr-titulo"><div class="hdr-crumb" id="hdr-crumb">Dashboard</div><div class="hdr-page" id="hdr-page">Frete Frota</div></div>
   <div id="auth-user-bar" style="display:none;align-items:center;gap:6px;margin-left:auto">
+    <div id="auth-admin-btn" style="display:none"><button class="hdr-btn" onclick="document.getElementById('auth-admin-modal').style.display='flex';authAdminRender()" title="Gerenciar usuários e perfis de acesso"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="8" cy="7" r="3"/><path d="M2.5 17c.6-3 2.8-4.5 5.5-4.5s4.9 1.5 5.5 4.5"/><path d="M13.5 4.2a3 3 0 010 5.6M17.5 17c-.4-2-1.5-3.3-3-4"/></svg><span>Usuários</span></button></div>
     <div id="auth-user-info" style="display:flex;align-items:center;gap:5px;font-size:11px"></div>
-    <div id="auth-admin-btn" style="display:none"><button onclick="document.getElementById('auth-admin-modal').style.display='flex';authAdminRender()" style="font-size:10px;padding:3px 8px;border:1px solid var(--gb);border-radius:5px;cursor:pointer;background:#fff;color:var(--gd);font-weight:700">&#128100; Usu&#225;rios</button></div>
   </div>
 </div>
 <div class="tab-panel active" id="tab-dashboard">
@@ -10455,7 +10493,7 @@ function nfExtrairDanfe(items){
 function nfDoInfCpl(d){
   var inf=String(d.infCpl||'').toUpperCase();
   if(!d.placa){ var mp=inf.match(NF_RE_PLACA); if(mp){ d.placa=mp[1]+mp[2]; d.placaFonte='Informações Complementares'; } }
-  var mm=inf.match(/[A-Z]{3}-?\d[A-Z0-9]\d{2}\s*\/\s*([A-ZÀ-Ú][A-ZÀ-Ú ]{1,40}?)\s*(?:[,;\/]|LACRE|KM\b|$)/)
+  var mm=inf.match(/[A-Z]{3}-?\d[A-Z0-9]\d{2}\s*[\/|]\s*([A-ZÀ-Ú][A-ZÀ-Ú ]{1,40}?)\s*(?:[,;\/|]|LACRE|KM\b|REF\b|PROTOCOLO|$)/)
        || inf.match(/MOTORISTA\s*[:\-]?\s*([A-ZÀ-Ú][A-ZÀ-Ú ]{1,40}?)\s*(?:[,;\/]|LACRE|KM\b|PLACA|$)/);
   if(mm) d.motoristaCitado=mm[1].trim();
   // (21/10) KM DE SAÍDA nas Informações Complementares — formatos aceitos:
@@ -10487,17 +10525,34 @@ function nfExtrairXml(txt){
 // ativo do cadastro (nome completo, ou primeiro nome único). Com vários
 // possíveis, prioriza a mesma categoria do veículo; se ainda ficar ambíguo, não chuta.
 function nfMotoristaPorNome(citado, categoria){
-  // Busca na lista GERAL de motoristas ativos — a categoria do veículo não restringe
-  // a busca; só serve de desempate quando o nome citado bate com mais de um motorista.
+  // Lista GERAL de motoristas ativos (a categoria do veículo não restringe; só
+  // desempata). Nomes iguais contam como UMA pessoa (o cadastro pode ter
+  // registros repetidos). Só preenche quando identifica UM motorista com segurança.
   pessGarantirLista();
   if(typeof PESS_MOT==='undefined' || !citado) return null;
   var c=nfNorm(citado); if(c.length<3) return null;
-  var ativos=PESS_MOT.filter(function(m){ return m && m.nome && m.status!=='DESLIGADO'; });
-  var exato=ativos.filter(function(m){ return nfNorm(m.nome)===c; }); if(exato.length===1) return exato[0];
-  var cand=ativos.filter(function(m){ var n=nfNorm(m.nome); return n.indexOf(c+' ')===0 || (' '+n+' ').indexOf(' '+c+' ')>=0; });
-  if(cand.length===1) return cand[0];
-  if(cand.length>1 && categoria){ var mc=cand.filter(function(m){ return nfNorm(m.cat)===nfNorm(categoria); }); if(mc.length===1) return mc[0]; }
-  return cand.length>1 ? {varios:cand.map(function(m){return m.nome;})} : null;
+  var porNome={};
+  PESS_MOT.forEach(function(m){ if(m && m.nome && m.status!=='DESLIGADO'){ var k=nfNorm(m.nome); if(!porNome[k]) porNome[k]=m; } });
+  var ativos=Object.keys(porNome).map(function(k){ return porNome[k]; });
+  var unico=function(lst){ return lst.length===1 ? lst[0] : null; };
+  var desempate=function(lst){ if(lst.length>1 && categoria){ var mc=lst.filter(function(m){ return nfNorm(m.cat)===nfNorm(categoria); }); if(mc.length===1) return mc[0]; } return null; };
+  var r=unico(ativos.filter(function(m){ return nfNorm(m.nome)===c; })); if(r) return r;
+  // o nome citado é o INÍCIO do nome cadastrado ("PEDRO", "PAULO MARCOLINO", "ADRIANO")
+  var ini=ativos.filter(function(m){ var n=nfNorm(m.nome); return n===c || n.indexOf(c+' ')===0; });
+  r=unico(ini)||desempate(ini); if(r) return r;
+  // todas as palavras citadas aparecem no nome ("ADRIANO JESUS")
+  var pal=c.split(' ').filter(function(w){ return w.length>=3; });
+  var todas=ativos.filter(function(m){ var ws=nfNorm(m.nome).split(' '); return pal.length && pal.every(function(w){ return ws.indexOf(w)>=0; }); });
+  if(!ini.length){ r=unico(todas)||desempate(todas); if(r) return r; }
+  // variação de grafia: sobrenome igual e 1º nome com até 2 letras de diferença ("ALEXANDRE" × "ALEXANDRO")
+  if(pal.length>=2){
+    var lev=function(s,t){ var dd=[],i2,j2;for(i2=0;i2<=s.length;i2++){dd[i2]=[i2];}for(j2=0;j2<=t.length;j2++){dd[0][j2]=j2;}
+      for(i2=1;i2<=s.length;i2++)for(j2=1;j2<=t.length;j2++)dd[i2][j2]=Math.min(dd[i2-1][j2]+1,dd[i2][j2-1]+1,dd[i2-1][j2-1]+(s[i2-1]===t[j2-1]?0:1)); return dd[s.length][t.length]; };
+    var ult=pal[pal.length-1], pri=pal[0];
+    r=unico(ativos.filter(function(m){ var ws=nfNorm(m.nome).split(' '); return ws.indexOf(ult)>=0 && lev(ws[0],pri)<=2; })); if(r) return r;
+  }
+  var cands = ini.length ? ini : todas;
+  return cands.length>1 ? {varios:cands.map(function(m){return m.nome;})} : null;
 }
 function nfMarcar(id, estado){
   var e=g(id); if(!e) return;
@@ -10588,6 +10643,10 @@ function nfAplicar(d, nomeArq){
 function nfLimparDestaques(){ document.querySelectorAll('.nf-ok,.nf-falta,.nf-conferir').forEach(function(e){ e.classList.remove('nf-ok','nf-falta','nf-conferir'); }); var b=g('nf-imp-resumo'); if(b){ b.style.display='none'; b.innerHTML=''; } }
 async function nfImportarArquivo(file){
   var box=g('nf-imp-resumo'); if(box){ box.style.display='block'; box.innerHTML='⏳ Lendo '+file.name+'…'; }
+  // PDF com várias NFs (uma por página) → vai para a tabela de conferência
+  if(file.name.toLowerCase().endsWith('.pdf')){
+    try{ var _ls=await nfLerArquivo(file); if(_ls.length>1) return nfLoteImportar([file]); }catch(e){}
+  }
   try{
     var nome=file.name.toLowerCase(), d;
     await pessGarantirListaNuvem();
@@ -10611,17 +10670,64 @@ async function nfImportarArquivo(file){
 var NF_LOTE = [];
 var NF_CAMPOS = ['fi-nf','fi-cliente','fi-dtc','fi-orig-cidade','fi-orig-uf','fi-pe','fi-dest-cidade','fi-dest-uf','fi-kmg','fi-km','fi-vl-entrega','fi-placa','fi-cat','fi-motorista','fi-km-saida'];
 var NF_OBRIG = {'fi-placa':'Placa','fi-cat':'Categoria','fi-dtc':'Data','fi-orig-cidade':'Cidade origem','fi-orig-uf':'UF origem','fi-dest-cidade':'Cidade destino','fi-dest-uf':'UF destino','fi-kmg':'Grupo KM','fi-km-saida':'KM saída','fi-km':'KM exato','fi-motorista':'Motorista'};
+// Devolve uma LISTA de NFs: um PDF pode conter várias notas (uma por página).
 async function nfLerArquivo(file){
   var nome=file.name.toLowerCase();
-  if(nome.endsWith('.xml')) return nfExtrairXml(await file.text());
+  if(nome.endsWith('.xml')) return [nfExtrairXml(await file.text())];
   if(nome.endsWith('.pdf')){
     var lib=await nfCarregarPdfJs(); var doc=await lib.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise;
-    var tc=await (await doc.getPage(1)).getTextContent();
-    var items=tc.items.map(function(i){ return {s:i.str, x:Math.round(i.transform[4]), y:Math.round(i.transform[5])}; });
-    if(!items.filter(function(i){return String(i.s).trim();}).length) throw new Error('PDF sem texto (escaneado)');
-    return nfExtrairDanfe(items);
+    var lista=[], semTexto=0;
+    for(var p=1;p<=doc.numPages;p++){
+      var tc=await (await doc.getPage(p)).getTextContent();
+      var items=tc.items.map(function(i){ return {s:i.str, x:Math.round(i.transform[4]), y:Math.round(i.transform[5])}; });
+      if(!items.filter(function(i){return String(i.s).trim();}).length){ semTexto++; continue; }
+      var d=nfExtrairDanfe(items);
+      if(d.nf || d.destNome || d.pesoBruto){ d.pagina=p; lista.push(d); }
+    }
+    if(!lista.length) throw new Error(semTexto?'PDF sem texto (escaneado)':'não reconheci uma NF-e neste arquivo');
+    return lista;
   }
   throw new Error('formato não suportado');
+}
+// ── CONSOLIDAÇÃO DE NFs DA MESMA CARGA (21/10) ─────────────────────────────
+// Regra definida pela operação: MESMA PLACA + MESMO MOTORISTA + MESMA DATA DE
+// EMISSÃO = mesma carga → uma única viagem. Peso e frete somados; KM = maior
+// distância; destino/cliente iguais ficam como estão, diferentes viram
+// "MÚLTIPLOS DESTINOS (N)" / "MÚLTIPLOS CLIENTES (N)" com a lista na observação
+// (mesmo padrão da importação de planilha de saída). Sem placa, motorista ou
+// data, a NF nunca é juntada. A junção pode ser desfeita na tabela.
+function nfLoteChave(r){
+  if(!r.v) return '';
+  var pl=String(r.v['fi-placa']||'').trim(), mo=nfNorm(r.v['fi-motorista']||''), de=(r.d&&(r.d.dataEmissao||r.d.dataSaida))||'';
+  return (pl && mo && de) ? pl+'|'+mo+'|'+de : '';
+}
+function nfLoteJuntar(grupo){
+  var base=grupo[0], v=JSON.parse(JSON.stringify(base.v));
+  var num=function(s){ var n=parseFloat(String(s||'').replace(',','.')); return isFinite(n)?n:0; };
+  v['fi-nf']=grupo.map(function(r){ return r.v['fi-nf']; }).filter(Boolean).join(' / ');
+  v['fi-pe']=String(Math.round(grupo.reduce(function(a,r){ return a+num(r.v['fi-pe']); },0)*1000)/1000);
+  var fr=grupo.reduce(function(a,r){ return a+num(r.v['fi-vl-entrega']); },0); v['fi-vl-entrega']=fr>0?fr.toFixed(2):'';
+  var maior=grupo.slice().sort(function(a,b){ return num(b.v['fi-km'])-num(a.v['fi-km']); })[0];
+  v['fi-km']=maior.v['fi-km']; v['fi-kmg']=maior.v['fi-kmg'];
+  var kmS=grupo.map(function(r){ return r.v['fi-km-saida']; }).filter(Boolean); v['fi-km-saida']=kmS.length?kmS[0]:'';
+  var dests={}, clis={};
+  grupo.forEach(function(r){ dests[nfNorm(r.v['fi-dest-cidade'])+'/'+(r.v['fi-dest-uf']||'')]=1; clis[nfNorm(r.v['fi-cliente'])]=1; });
+  var nD=Object.keys(dests).length, nC=Object.keys(clis).length;
+  if(nD>1){ v['fi-dest-cidade']='MÚLTIPLOS DESTINOS ('+nD+')'; v['fi-dest-uf']=maior.v['fi-dest-uf']; }
+  if(nC>1){ v['fi-cliente']='MÚLTIPLOS CLIENTES ('+nC+')'; }
+  var obs = 'Carga consolidada de '+grupo.length+' NFs: '+grupo.map(function(r){ return 'NF '+r.v['fi-nf']+' — '+(r.v['fi-cliente']||'?')+' — '+(r.v['fi-dest-cidade']||'?')+'/'+(r.v['fi-dest-uf']||'')+' — '+(num(r.v['fi-pe'])).toLocaleString('pt-BR')+' kg'+(num(r.v['fi-vl-entrega'])?' — frete R$ '+num(r.v['fi-vl-entrega']).toLocaleString('pt-BR',{minimumFractionDigits:2}):''); }).join(' | ');
+  var avisos=[]; grupo.forEach(function(r){ (r.avisos||[]).forEach(function(a){ if(avisos.indexOf(a)<0) avisos.push(a); }); });
+  return {arquivo:grupo.map(function(r){return r.arquivo;}).join(', '), d:base.d, v:v, avisos:avisos, obs:obs, grupo:grupo};
+}
+function nfLoteConsolidar(){
+  var grupos={}, ordem=[];
+  NF_LOTE.forEach(function(r){ var k=nfLoteChave(r); if(!k||r._separada){ ordem.push([r]); return; } if(!grupos[k]){ grupos[k]=[]; ordem.push(grupos[k]); } grupos[k].push(r); });
+  NF_LOTE=ordem.map(function(gp){ return gp.length>1 ? nfLoteJuntar(gp) : gp[0]; });
+}
+function nfLoteSeparar(i){
+  var r=NF_LOTE[i]; if(!r||!r.grupo) return;
+  var partes=r.grupo.map(function(x){ x._separada=true; x.sel=undefined; return x; });
+  NF_LOTE.splice.apply(NF_LOTE,[i,1].concat(partes)); nfLoteRender();
 }
 function nfLoteSnapshot(){ var s={}; NF_CAMPOS.forEach(function(id){ var e=g(id); s[id]=e?String(e.value||''):''; }); return s; }
 async function nfLoteImportar(files){
@@ -10629,22 +10735,26 @@ async function nfLoteImportar(files){
   clearForm(); NF_LOTE=[];
   await pessGarantirListaNuvem();
   for(var i=0;i<files.length;i++){
-    var f=files[i], row={arquivo:f.name};
-    try{
-      var d=await nfLerArquivo(f);
+    var f=files[i], lista;
+    try{ lista=await nfLerArquivo(f); }catch(err){ NF_LOTE.push({arquivo:f.name, erro:err.message}); continue; }
+    lista.forEach(function(d){
+      var row={arquivo:f.name+(lista.length>1?' (pág. '+d.pagina+')':'')};
       clearForm();
-      var r=nfAplicar(d, f.name);
+      var r=nfAplicar(d, row.arquivo);
       row.d=d; row.v=nfLoteSnapshot(); row.avisos=r.avisos;
-    }catch(err){ row.erro=err.message; }
-    NF_LOTE.push(row);
-    if(box) box.innerHTML='⏳ Lendo notas fiscais… '+(i+1)+'/'+files.length;
+      NF_LOTE.push(row);
+    });
+    if(box) box.innerHTML='⏳ Lendo notas fiscais… '+(i+1)+'/'+files.length+' arquivo(s) · '+NF_LOTE.length+' NF(s)';
   }
   clearForm(); nfLimparDestaques();
+  nfLoteConsolidar();
   // NF repetida no próprio lote ou já lançada
   var vistas={};
-  NF_LOTE.forEach(function(r){ if(!r.v) return; var n=String(r.v['fi-nf']||'').replace(/^0+/,'');
-    r.jaLancada = n && DB.some(function(x){ return x && !x._excluida && String(x.nf||'').replace(/^0+/,'')===n; });
-    r.repetidaNoLote = n && vistas[n]; if(n) vistas[n]=1; });
+  var nfsDe=function(s){ return String(s||'').split(/\s*\/\s*/).map(function(x){ return x.replace(/^0+/,'').trim(); }).filter(Boolean); };
+  var lancadas={}; DB.forEach(function(x){ if(x && !x._excluida) nfsDe(x.nf).forEach(function(n){ lancadas[n]=1; }); });
+  NF_LOTE.forEach(function(r){ if(!r.v) return; var ns=nfsDe(r.v['fi-nf']);
+    r.jaLancada = ns.some(function(n){ return lancadas[n]; });
+    r.repetidaNoLote = ns.some(function(n){ return vistas[n]; }); ns.forEach(function(n){ vistas[n]=1; }); });
   nfLoteRender();
 }
 function nfLoteFaltas(r){ return Object.keys(NF_OBRIG).filter(function(id){ return !String(r.v[id]||'').trim(); }).map(function(id){ return NF_OBRIG[id]; }); }
@@ -10662,7 +10772,7 @@ function nfLoteRender(){
     var av=(r.avisos||[]).filter(function(a){ return /motorista|já está lançada/i.test(a); }).map(function(a){ return '<div style="font-size:10.5px;color:#92400e">'+a+'</div>'; }).join('');
     return '<tr style="border-top:1px solid #eee;vertical-align:top">'
       +'<td style="padding:5px"><input type="checkbox" '+(r.sel?'checked':'')+(bloqueio?' disabled':'')+' onchange="NF_LOTE['+i+'].sel=this.checked;if(!this.checked)NF_LOTE['+i+']._desmarcadaManual=true;nfLoteContar()"></td>'
-      +'<td style="padding:5px;font-weight:800;color:var(--gd)">'+(r.v['fi-nf']||'—')+'</td>'
+      +'<td style="padding:5px;font-weight:800;color:var(--gd)">'+(r.v['fi-nf']||'—')+(r.grupo?'<div style="font-size:10px;font-weight:700;color:#1d4ed8">🔗 '+r.grupo.length+' NFs · mesma carga</div><button type="button" onclick="nfLoteSeparar('+i+')" style="margin-top:3px;font-size:10px;padding:2px 6px;border:1px solid var(--gb);background:#fff;border-radius:4px;cursor:pointer">Separar</button>':'')+'</td>'
       +'<td style="padding:5px">'+(r.v['fi-dtc']?r.v['fi-dtc'].split('-').reverse().join('/'):'—')+'</td>'
       +'<td style="padding:5px">'+inp(i,'fi-placa',80,'fi-placa-list')+'<div style="font-size:10px;color:var(--txl)">'+(r.v['fi-cat']||'')+'</div></td>'
       +'<td style="padding:5px">'+inp(i,'fi-motorista',150,'fi-motorista-list')+av+'</td>'
@@ -10703,7 +10813,8 @@ function nfLoteGerar(){
       var vf=g('fi-vl-entrega'); if(vf && vf.value) vf.dispatchEvent(new Event('input',{bubbles:true}));
       var antes=DB.length;
       window._saveEtapa1EmAndamento=false;
-      saveEtapa1();
+      window._nfObsPendente = r.obs || '';
+      try{ saveEtapa1(); } finally { window._nfObsPendente=''; }
       if(DB.length>antes){ criadas++; r.gerada=true; } else falhas.push(r.v['fi-nf']||r.arquivo);
     });
   } finally { window.confirm=confirmOrig; window._saveEtapa1EmAndamento=false; clearForm(); }
@@ -11218,7 +11329,7 @@ function saveEtapa1(){
     km:parseFloat(g('fi-km').value)||kmLow||0,peso_ent:parseFloat(g('fi-pe').value)||0,
     km_saida:parseFloat(g('fi-km-saida').value)||null,
     retorno:'Não',dt_desc:'',dt_base:'',dest_ret:'',dest_ret_cidade:'',dest_ret_uf:'',
-    tipo_ret:'',peso_ret:0,vl_ton:0,vl_total:0,pagamento:'',conta:'',obs:'',
+    tipo_ret:'',peso_ret:0,vl_ton:0,vl_total:0,pagamento:'',conta:'',obs:(window._nfObsPendente||''),
     cliente:g('fi-cliente')?g('fi-cliente').value.trim():'',
     vl_ent:parseFloat(g('fi-vl-entrega')?g('fi-vl-entrega').value:0)||0,
     vton_ent:freteVtonDe(g('fi-vl-entrega')?g('fi-vl-entrega').value:0, g('fi-pe')?g('fi-pe').value:0)||0,
@@ -11920,6 +12031,15 @@ function sbToggleGroup(group){
   if(!isOpen && grpEl && childEl){ grpEl.classList.add('open'); childEl.classList.add('open'); }
 }
 
+function hdrAtualizarTitulo(){
+  try{
+    var ch=document.querySelector('.sb-child.active'), crumb=document.getElementById('hdr-crumb'), pg=document.getElementById('hdr-page');
+    if(!ch||!crumb||!pg) return;
+    var grupo=ch.closest('.sb-group')||ch.parentElement.parentElement, pai=grupo?grupo.querySelector('.sb-parent .sb-lbl'):null;
+    crumb.textContent = pai ? pai.textContent.trim() : '';
+    pg.textContent = (ch.querySelector('span')||ch).textContent.trim();
+  }catch(e){}
+}
 function selectModule(mainTab, module){
   _currentMainTab = mainTab;
   // Destruir gráficos ao trocar de aba principal
@@ -12013,6 +12133,12 @@ function selectModule(mainTab, module){
     if(module==='pa-dashboard'){ paLoad(); paDashRender(); }
   }
 }
+// (21/10) título do cabeçalho acompanha a tela aberta
+var _hdrSelModOrig = selectModule;
+selectModule = function(){ var r=_hdrSelModOrig.apply(this, arguments); setTimeout(hdrAtualizarTitulo,0); return r; };
+document.addEventListener('click', function(e){ if(e.target.closest && e.target.closest('.sb-child')) setTimeout(hdrAtualizarTitulo,0); });
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(hdrAtualizarTitulo,300); }); else setTimeout(hdrAtualizarTitulo,300);
+
 
 function switchTab(tab, btn){ selectModule(tab, tab==='dashboard'?'frete-frota':tab==='lancamento'?'saida':'gestao-rotina'); }
 function switchMainTab(tab, btn){ switchTab(tab, btn); }
@@ -22188,6 +22314,76 @@ function forcarSincronizacaoLimpeza(btn){
   });
 }
 
+// ══ FÉRIAS — REGRAS ÚNICAS (22/10) ══════════════════════════════════════════
+// Uma só fonte e uma só regra para Calendário, Quadro Geral e Alertas:
+//  • Fonte: lista de períodos (PESS_FER, início/fim). A data de agendamento do
+//    cadastro (dt_agend) só complementa quem NÃO tem nenhum período lançado no ano.
+//  • "Em férias no mês" = período que toca algum dia do mês. Cada motorista
+//    conta UMA vez (nome normalizado) — o cadastro pode ter registros repetidos.
+//  • Vencida = data limite < hoje. Próxima do limite = vence em até 60 dias.
+var PESS_DIAS_ALERTA = 60;
+function pessNomeKey(n){ return String(n||'').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim(); }
+// Motoristas únicos por nome (prefere o registro com placa e não desligado)
+function pessMotUnicos(){
+  var por={};
+  (PESS_MOT||[]).forEach(function(m){
+    var k=pessNomeKey(m&&m.nome); if(!k) return;
+    var a=por[k]; var nota=function(x){ return (x.status!=='DESLIGADO'?2:0)+(x.placa?1:0); };
+    if(!a || nota(m)>nota(a)) por[k]=m;
+  });
+  return Object.keys(por).map(function(k){ return por[k]; });
+}
+function pessFeriasDoMes(ano, mi){
+  var ini=ano+'-'+String(mi+1).padStart(2,'0')+'-01';
+  var fim=ano+'-'+String(mi+1).padStart(2,'0')+'-'+String(new Date(ano,mi+1,0).getDate()).padStart(2,'0');
+  var vistos={}, lista=[], comPeriodoNoAno={};
+  (PESS_FER||[]).forEach(function(f){ var k=pessNomeKey(f.nome); if(k && String(f.inicio||'').slice(0,4)===String(ano)) comPeriodoNoAno[k]=1; });
+  (PESS_FER||[]).forEach(function(f){
+    var a = f.inicio ? f.inicio<=fim : f.mes===mi+1;
+    var b = f.fim ? f.fim>=ini : f.mes===mi+1;
+    if(!(a&&b)) return;
+    var k=pessNomeKey(f.nome); if(!k||vistos[k]) return; vistos[k]=1;
+    lista.push({nome:f.nome, placa:f.placa||'—', cat:f.cat||''});
+  });
+  pessMotUnicos().forEach(function(m){
+    var dt=String(m.dt_agend||m.dt_agendamento||'');
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(dt) || dt<ini || dt>fim) return;
+    var k=pessNomeKey(m.nome); if(!k||vistos[k]||comPeriodoNoAno[k]) return; vistos[k]=1;
+    lista.push({nome:m.nome, placa:m.placa||'—', cat:m.cat||''});
+  });
+  return lista;
+}
+function pessSituacaoFerias(){
+  var hoje=new Date(); hoje.setHours(0,0,0,0);
+  var lim60=new Date(hoje.getTime()+PESS_DIAS_ALERTA*86400000);
+  var venc=[], prox=[];
+  pessMotUnicos().forEach(function(m){
+    if(m.status==='DESLIGADO' || !m.dt_limite) return;
+    var d=new Date(String(m.dt_limite).slice(0,10)+'T00:00:00'); if(isNaN(d)) return;
+    if(d<hoje) venc.push(m); else if(d<=lim60) prox.push(m);
+  });
+  var ord=function(a,b){ return String(a.dt_limite).localeCompare(String(b.dt_limite)); };
+  return {vencidas:venc.sort(ord), proximas:prox.sort(ord)};
+}
+function pessCardAlerta(m, vencida){
+  var cor=vencida?'#b91c1c':'#b45309';
+  return '<div style="background:#fff;border:1px solid var(--gb);border-radius:8px;padding:10px 12px;border-left:3px solid '+cor+'">'
+    +'<div style="font-size:9.5px;font-weight:700;color:var(--txl);text-transform:uppercase">'+(m.cat||'')+'</div>'
+    +'<div style="font-size:11px;font-weight:700;color:var(--txt);margin:3px 0">'+m.nome+'</div>'
+    +'<div style="font-size:10px;color:var(--txl)">Saldo: <b style="color:'+cor+'">'+(m.saldo_venc||0)+' dias</b></div>'
+    +'<div style="font-size:10px;color:'+cor+';font-weight:700">'+(vencida?'⚠️ VENCIDA em ':'Vence em ')+FD(String(m.dt_limite).slice(0,10).replace(/-/g,'/'))+'</div></div>';
+}
+function pessHtmlAlertas(sit, limite){
+  var cards=sit.vencidas.map(function(m){return pessCardAlerta(m,true);}).concat(sit.proximas.map(function(m){return pessCardAlerta(m,false);}));
+  var total=cards.length; if(limite) cards=cards.slice(0,limite);
+  return {total:total, html:'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">'+cards.join('')+'</div>'};
+}
+function pessSomarMeses(dt, n){
+  var s=String(dt||'').slice(0,10); if(!/^\d{4}-\d{2}-\d{2}$/.test(s)) return dt;
+  var p=s.split('-').map(Number), d=new Date(p[0],p[1]-1+n,p[2]);
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+
 function pessRenderQuadro(){
   var hoje = new Date();
   var mesAtual = hoje.getMonth()+1;
@@ -22198,8 +22394,11 @@ function pessRenderQuadro(){
   // pequenas diferenças de formatação (espaço duplo, acentuação etc.) que fariam a
   // comparação exata falhar silenciosamente e o motorista sumir da contagem.
   function normNome(n){ return String(n||'').trim().toUpperCase().replace(/\s+/g,' '); }
+  // (22/10) "Em férias" = quem tem férias em algum dia do mês atual — MESMA
+  // regra do calendário (pessFeriasDoMes), cada motorista contado uma vez.
   var emFeriasAgora = {};
-  (PESS_FER||[]).forEach(function(f){ if(f.mes===mesAtual) emFeriasAgora[normNome(f.nome)]=true; });
+  pessFeriasDoMes(hoje.getFullYear(), hoje.getMonth()).forEach(function(f){ emFeriasAgora[pessNomeKey(f.nome)]=true; });
+  var _motUnicos = pessMotUnicos();
 
   // Frota real (DB_FROTA) cruzada com motorista por placa — mesma fonte usada no
   // modal de detalhamento (pessAbrirDetalheCategoria) e em gpAtualizarResumo. Antes
@@ -22212,9 +22411,9 @@ function pessRenderQuadro(){
 
   var resSel = ['3/4','TRUCK','BITRUCK','LS','4° EIXO','BITREM','RODOTREM','BITRUCK SILO','CARRETA SILO'].map(function(cat){
     var veiculos = (window.DB_FROTA||[]).filter(function(v){ return v.tipo===cat && v.ativo!==false && (v.filial||'MATRIZ')==='MATRIZ'; });
-    var mot = PESS_MOT.filter(function(m){return pessNormCat(m.cat)===cat && m.status!=='DESLIGADO';});
+    var mot = _motUnicos.filter(function(m){return pessNormCat(m.cat)===cat && m.status!=='DESLIGADO';});
     var afast = mot.filter(function(m){return m.status==='AFASTADO';}).length;
-    var fer = mot.filter(function(m){return m.status!=='AFASTADO' && emFeriasAgora[normNome(m.nome)];}).length;
+    var fer = mot.filter(function(m){return m.status!=='AFASTADO' && emFeriasAgora[pessNomeKey(m.nome)];}).length;
     var comMotorista=0;
     veiculos.forEach(function(v){
       var placa = intPlacaNorm(v.id||v.cavalo||'');
@@ -22228,8 +22427,9 @@ function pessRenderQuadro(){
   var total = resSel.reduce(function(a,r){return a+r.frota;},0);
   var ativos = resSel.reduce(function(a,r){return a+r.ativos;},0);
   var afast  = resSel.reduce(function(a,r){return a+r.afastado;},0);
-  var fer    = resSel.reduce(function(a,r){return a+r.ferias;},0);
-  var sv30   = PESS_MOT.filter(function(m){return m.saldo_venc>=30;}).length;
+  var fer    = Object.keys(emFeriasAgora).length; // todos os motoristas de férias no mês (mesmo número do calendário)
+  var _sitF  = pessSituacaoFerias();
+  var sv30   = _sitF.vencidas.length; // (22/10) vencidas = data limite já passou
   var kpiEl = document.getElementById('pess-kpi-row');
   if(kpiEl) kpiEl.innerHTML = [
     {l:'Total Veículos',v:total,cor:'neutro'},
@@ -22277,31 +22477,15 @@ function pessRenderQuadro(){
   // em "8 motoristas", escondendo o restante sem avisar. Por isso "Férias Vencidas: 17"
   // no card e "8 motoristas" no alerta pareciam duas contas diferentes — eram a mesma
   // lista, só que uma mostrava o total real e a outra mostrava só o que cabia na tela.
-  var todosAlertas = PESS_MOT.filter(function(m){
-    if(m.saldo_venc>=30) return true;
-    if(m.dt_limite && new Date(m.dt_limite) < hoje) return true;
-    return false;
-  }).sort(function(a,b){return (b.saldo_venc||0)-(a.saldo_venc||0);});
-  var alertas = todosAlertas.slice(0,8);
-
+  // (22/10) mesma regra da tela de Férias: vencidas (limite já passou) primeiro,
+  // depois as que vencem nos próximos 60 dias. Cada motorista uma vez.
+  var _al = pessHtmlAlertas(_sitF, 8);
   var aEl = document.getElementById('pess-alertas');
-  if(aEl && alertas.length){
-    aEl.innerHTML = '<div style="font-size:11.5px;font-weight:700;color:var(--txm);margin-bottom:8px;text-transform:uppercase;letter-spacing:.02em">⏰ Alertas de Férias — '+todosAlertas.length+' motorista'+(todosAlertas.length!==1?'s':'')+' com saldo vencido ou próximo ao limite'+(todosAlertas.length>8?' (mostrando os 8 mais críticos)':'')+'</div>' +
-      '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">' +
-      alertas.map(function(m){
-        var lim = m.dt_limite ? new Date(m.dt_limite) : null;
-        var venc = lim && lim < hoje;
-        var cor = venc ? '#b91c1c' : '#92400e';
-        return '<div style="background:#fff;border:1px solid var(--gb);border-radius:8px;padding:10px 12px;border-left:3px solid '+cor+'">' +
-          '<div style="font-size:9.5px;font-weight:700;color:var(--txl);text-transform:uppercase">'+m.cat+'</div>' +
-          '<div style="font-size:11px;font-weight:700;color:var(--txt);margin:3px 0">'+m.nome+'</div>' +
-          '<div style="font-size:10px;color:var(--txl)">Saldo: <b style="color:'+cor+'">'+m.saldo_venc+' dias</b></div>' +
-          (m.dt_limite?'<div style="font-size:10px;color:var(--txl)">Limite: '+FD(m.dt_limite.replace(/-/g,'/'))+'</div>':'') +
-        '</div>';
-      }).join('') + '</div>';
-  } else if(aEl){
-    aEl.innerHTML = '';
-  }
+  if(aEl && _al.total){
+    aEl.innerHTML = '<div style="font-size:11.5px;font-weight:700;color:var(--txm);margin-bottom:8px;text-transform:uppercase;letter-spacing:.02em">⏰ Alertas de Férias — '
+      +_sitF.vencidas.length+' vencida'+(_sitF.vencidas.length!==1?'s':'')+' · '+_sitF.proximas.length+' próxima'+(_sitF.proximas.length!==1?'s':'')+' do limite ('+PESS_DIAS_ALERTA+' dias)'
+      +(_al.total>8?' — mostrando as 8 mais urgentes':'')+'</div>'+_al.html;
+  } else if(aEl){ aEl.innerHTML=''; }
 }
 
 function pessRenderMotoristas(){
@@ -22372,36 +22556,7 @@ function pessRenderFerias(){
     // a pessoa aparecia duas vezes no calendário: uma vinda de PESS_FER, outra
     // vinda do complemento por PESS_MOT.dt_agendamento. Nome normalizado é o
     // único campo realmente comum e confiável entre as duas fontes.
-    var inicioMes = ano+'-'+String(mi+1).padStart(2,'0')+'-01';
-    var ultimoDia = new Date(ano, mi+1, 0).getDate();
-    var fimMes = ano+'-'+String(mi+1).padStart(2,'0')+'-'+String(ultimoDia).padStart(2,'0');
-    function chaveNome(nome){ return String(nome||'').trim().toUpperCase(); }
-    var vistos = {};
-    var motMes = PESS_FER.filter(function(f){
-      var iniciaAntesOuNoFim = f.inicio ? f.inicio<=fimMes : f.mes===mi+1;
-      var terminaDepoisOuNoInicio = f.fim ? f.fim>=inicioMes : f.mes===mi+1;
-      var intersecta = iniciaAntesOuNoFim && terminaDepoisOuNoInicio;
-      if(!intersecta) return false;
-      var chave = chaveNome(f.nome);
-      if(!chave || vistos[chave]) return false; // já contado esse motorista neste mês
-      vistos[chave] = true;
-      return true;
-    });
-    // CORREÇÃO (16/09): o campo "Agendamento" da tela Editar Motorista grava
-    // dt_agendamento direto no cadastro (PESS_MOT), mas este calendário só lia
-    // PESS_FER — uma lista SEPARADA de períodos de férias lançados por outro
-    // fluxo. Resultado: marcar um agendamento em Editar Motorista nunca
-    // aparecia aqui. Agora complementa com quem tem dt_agendamento caindo
-    // neste mês e ainda não foi contado via PESS_FER (evita duplicar quem já
-    // está nas duas fontes).
-    PESS_MOT.forEach(function(m){
-      if(!m.dt_agendamento || !/^\d{4}-\d{2}-\d{2}$/.test(m.dt_agendamento)) return;
-      if(m.dt_agendamento < inicioMes || m.dt_agendamento > fimMes) return;
-      var chave = chaveNome(m.nome);
-      if(!chave || vistos[chave]) return;
-      vistos[chave] = true;
-      motMes.push({placa: m.placa||'—', nome: m.nome||'(sem nome)'});
-    });
+    var motMes = pessFeriasDoMes(ano, mi); // (22/10) regra única — períodos lançados; data de agendamento só para quem não tem período no ano
     var cor = motMes.length===0 ? '#f3f4f6' : motMes.length<=2 ? '#dcfce7' : motMes.length<=4 ? '#fef9c3' : '#fee2e2';
     var textC = motMes.length===0 ? '#9ca3af' : '#374151';
     return '<div style="background:'+cor+';border-radius:8px;padding:10px;border:1px solid rgba(0,0,0,.06)">' +
@@ -22417,23 +22572,10 @@ function pessRenderFerias(){
     '</div>';
   }).join('');
 
-  // Alertas de saldo vencido
-  var hoje = new Date();
-  var sv = PESS_MOT.filter(function(m){return m.saldo_venc>0;}).sort(function(a,b){return (b.saldo_venc||0)-(a.saldo_venc||0);});
+  // Alertas — (22/10) mesma regra do Quadro Geral: vencidas + próximas do limite (60 dias)
+  var _sitF2 = pessSituacaoFerias(), _al2 = pessHtmlAlertas(_sitF2, 0);
   var aEl = document.getElementById('pess-ferias-alertas');
-  if(aEl) aEl.innerHTML = '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">' +
-    sv.map(function(m){
-      var lim = m.dt_limite ? new Date(m.dt_limite) : null;
-      var venc = lim && lim < hoje;
-      var cor = m.saldo_venc>=30?'#dc2626':'#d97706';
-      return '<div style="background:#fff;border:1px solid '+(venc?'#fca5a5':'#fde68a')+';border-radius:8px;padding:10px 12px;border-left:3px solid '+cor+'">' +
-        '<div style="font-size:10px;font-weight:700;color:var(--txl)">'+m.cat+'</div>' +
-        '<div style="font-size:11px;font-weight:700;margin:2px 0">'+m.nome+'</div>' +
-        '<div style="font-size:10px">Saldo: <b style="color:'+cor+'">'+m.saldo_venc+' dias</b></div>' +
-        (m.dt_limite?'<div style="font-size:9.5px;color:'+(venc?'#dc2626':'var(--txl)')+'">'+(venc?'⚠️ VENCIDA:':'Limite:')+' '+FD(m.dt_limite.replace(/-/g,'/'))+'</div>':'') +
-      '</div>';
-    }).join('') +
-  '</div>';
+  if(aEl) aEl.innerHTML = '<div style="font-size:11px;color:var(--txl);margin-bottom:6px">'+_sitF2.vencidas.length+' vencida(s) · '+_sitF2.proximas.length+' próxima(s) do limite ('+PESS_DIAS_ALERTA+' dias)</div>'+_al2.html;
 }
 
 function pessRenderTox(){
@@ -22589,32 +22731,25 @@ function pessSyncFromStorage(){
 // o Agendamento de um motorista atualiza o calendário automaticamente, sem
 // precisar manter uma lista separada e sujeita a ficar desatualizada.
 function pessDerivarFeriasDeAgendamento(){
-  var novo = [];
-  PESS_MOT.forEach(function(m){
-    // CORREÇÃO — bug de nomes de campo divergentes: o campo realmente editado
-    // pela tela (coluna "Agendamento" da tabela de Motoristas, modal de edição)
-    // é dt_agend. Esta função só lia dt_agendamento (nome usado nos dados
-    // originais de fábrica) — então qualquer edição feita pela tela nunca
-    // chegava aqui, e o calendário de férias ficava sempre desatualizado em
-    // relação ao que a equipe via/editava na tabela. Agora lê os dois,
-    // priorizando o campo que a tela realmente edita.
-    var dt = m.dt_agend || m.dt_agendamento;
-    if(dt && String(dt).length >= 7){
-      var partes = String(dt).split('-');
-      var ano = parseInt(partes[0],10), mes = parseInt(partes[1],10);
-      if(mes>=1 && mes<=12 && ano>2000){
-        // CORREÇÃO ESTRUTURAL (13/08): registros derivados de um único campo
-        // de data (dt_agend) viram um período do dia 1 ao último dia daquele
-        // mês — aproximação razoável pra dado antigo que nunca teve início/fim
-        // reais, garantindo que continue contando na lógica de vigência.
-        var ultimoDia = new Date(ano, mes, 0).getDate();
-        var inicio = ano+'-'+String(mes).padStart(2,'0')+'-01';
-        var fim = ano+'-'+String(mes).padStart(2,'0')+'-'+String(ultimoDia).padStart(2,'0');
-        novo.push({mot_id:m._id, nome:m.nome, cat:m.cat, mes:mes, inicio:inicio, fim:fim, placa:m.placa});
-      }
-    }
+  // (22/10) Antes APAGAVA a lista de férias e a recriava a partir da data de
+  // agendamento de cada cadastro — perdia início/fim reais e recriava férias de
+  // cada cópia repetida. Agora só garante que quem tem data de agendamento tenha
+  // um período lançado: se já existe um período no mesmo mês, não mexe; se tem um
+  // período aberto em outro mês, MOVE esse período; se não tem nenhum, cria.
+  var hojeStr=new Date().toISOString().slice(0,10);
+  pessMotUnicos().forEach(function(m){
+    var dt=String(m.dt_agend||m.dt_agendamento||'');
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(dt)) return;
+    var k=pessNomeKey(m.nome);
+    var doMot=PESS_FER.filter(function(f){ return pessNomeKey(f.nome)===k; });
+    if(doMot.some(function(f){ return String(f.inicio||'').slice(0,7)===dt.slice(0,7); })) return;
+    var aberto=doMot.find(function(f){ return f.fim>=hojeStr; });
+    var durDias = aberto && aberto.inicio && aberto.fim ? Math.round((new Date(aberto.fim)-new Date(aberto.inicio))/86400000) : 29;
+    var fimD=new Date(dt+'T00:00:00'); fimD.setDate(fimD.getDate()+durDias);
+    var fimS=fimD.getFullYear()+'-'+String(fimD.getMonth()+1).padStart(2,'0')+'-'+String(fimD.getDate()).padStart(2,'0');
+    if(aberto){ aberto.inicio=dt; aberto.fim=fimS; aberto.mes=parseInt(dt.slice(5,7),10); }
+    else PESS_FER.push({mot_id:m._id, nome:m.nome, cat:m.cat, mes:parseInt(dt.slice(5,7),10), inicio:dt, fim:fimS, placa:m.placa});
   });
-  PESS_FER = novo;
 }
 function pessInit(){
   pessSyncFromStorage();
@@ -23190,20 +23325,31 @@ function gpSalvarFerias(){
   // VIGENTE OU FUTURO (fim >= hoje), esse lançamento ATUALIZA esse período —
   // não cria um novo motorista nem soma. Períodos já ENCERRADOS (fim < hoje)
   // são preservados como histórico — nunca sobrescritos silenciosamente.
-  var existing = -1;
-  if(mot && mot._id){
-    existing = PESS_FER.findIndex(function(f){ return f.mot_id===mot._id && f.fim>=hojeStr; });
-  }
+  // (22/10) O período aberto (vigente/futuro) do motorista é reconhecido pelo
+  // código OU pelo NOME — com o cadastro repetido, o período antigo podia estar
+  // ligado a outra cópia e não era encontrado (ex.: Alessandro ficava em
+  // dezembro E outubro). Alterar as férias agora SUBSTITUI o período aberto.
+  var _nk = pessNomeKey(nome);
+  var existing = PESS_FER.findIndex(function(f){ return f.fim>=hojeStr && ((mot && mot._id && f.mot_id===mot._id) || pessNomeKey(f.nome)===_nk); });
   var rec={mot_id: mot?mot._id:null, nome:nome, cat:cat, inicio:inicio, fim:fim, placa:placa,
     mes: parseInt(inicio.split('-')[1],10)}; // "mes" mantido só como campo de exibição legado
+  // Renovação do período (regra RH): ao lançar férias NOVAS o saldo zera e
+  // vencimento/limite avançam 12 meses. Alterar a data de férias já lançadas
+  // não renova de novo.
+  var _jaRenovou = existing>=0 && PESS_FER[existing].renovou;
+  rec.renovou = true;
   if(existing>=0) PESS_FER[existing]=rec;
   else PESS_FER.push(rec);
-  // Mantém dt_agendamento/dt_agend em sincronia (compatibilidade com telas que
-  // ainda leem esse campo único) — usa a data de início do período.
-  if(mot){
-    mot.dt_agendamento = inicio;
-    mot.dt_agend = inicio;
-  }
+  // Mesmo dado em todas as cópias do motorista (até a limpeza do cadastro)
+  PESS_MOT.forEach(function(m){
+    if(pessNomeKey(m.nome)!==_nk) return;
+    m.dt_agendamento = inicio; m.dt_agend = inicio;
+    if(!_jaRenovou){
+      m.saldo_venc = 0;
+      if(m.dt_venc) m.dt_venc = pessSomarMeses(m.dt_venc, 12);
+      if(m.dt_limite) m.dt_limite = pessSomarMeses(m.dt_limite, 12);
+    }
+  });
   // Status do motorista reflete se HOJE está dentro do período — não mais só
   // "bateu com o mês do lançamento".
   if(mot){ mot.status = (inicio<=hojeStr && fim>=hojeStr) ? 'FÉRIAS' : mot.status; }
@@ -35921,9 +36067,12 @@ function authLogout(){
 function authUpdateHeader(user){
   var prof = AUTH_PROFILES[user.profile] || {};
   var el = document.getElementById('auth-user-info');
-  if(el) el.innerHTML = '<span style="font-size:11px;color:var(--txl)">'+user.name+'</span>'
-    +'<span style="font-size:10px;color:var(--txl);background:var(--gbg);padding:2px 7px;border-radius:8px;margin-left:4px">'+prof.label+'</span>'
-    +'<button onclick="authLogout()" style="font-size:10px;margin-left:8px;padding:2px 8px;border:1px solid var(--gb);border-radius:5px;cursor:pointer;background:#fff;color:var(--gd)">Sair</button>';
+  // (21/10) Cabeçalho enxuto: avatar com iniciais, nome, perfil e Sair
+  var _ini = String(user.name||'?').trim().split(/\s+/).filter(Boolean); _ini = ((_ini[0]||'?')[0]+((_ini[1]||'')[0]||'')).toUpperCase();
+  if(el){ el.style.gap='10px'; el.innerHTML = '<span class="hdr-sep"></span>'
+    +'<div class="hdr-user" title="'+user.name+' · '+(prof.label||'')+'"><div class="hdr-avatar">'+_ini+'</div>'
+    +'<div class="hdr-user-txt"><span class="hdr-user-nome">'+user.name+'</span><span class="hdr-user-perfil">'+(prof.label||'')+'</span></div></div>'
+    +'<button class="hdr-btn" onclick="authLogout()" title="Sair do sistema"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 17H4.5A1.5 1.5 0 013 15.5v-11A1.5 1.5 0 014.5 3H8"/><path d="M13 14l4-4-4-4M17 10H8"/></svg><span>Sair</span></button>'; }
 }
 
 // ── Tela de login ─────────────────────────────────────────────
