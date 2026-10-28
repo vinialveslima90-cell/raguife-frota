@@ -2759,6 +2759,108 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
 .auth-hint{font-size:11px;color:var(--txl);text-align:center;margin-top:14px}
 </style>
 
+<style id="dash-v2-css">
+/* ══ DASHBOARDS FRETE TERCEIROS / FRETE FROTA — layout v2 (28/10) ═══════════════
+   Cards compactos, filtros no padrão .filterbar e tabelas gerenciais.
+   Escopo restrito aos dois dashboards — nenhum outro módulo é afetado.
+   Cores: somente as variáveis institucionais já existentes (--gd, --go, --gp …). */
+/* Tokens do "novo padrão visual" que no arquivo original ficaram FORA do :root (a chave fechava
+   antes da lista) e, por isso, nunca valeram — causa do cabeçalho de tabela transparente por
+   cima das linhas e dos ícones em branco. Definidos aqui apenas para os dois dashboards, com os
+   MESMOS valores já previstos no arquivo; os demais módulos não são alterados. */
+#modpanel-frete-terceiros,#modpanel-frete-frota{--bg-card:#ffffff;--bg-chip:#e2ebe5;--bg-active-nav:#dceae1;--brand-primary:#2e7d32;--brand-dark:#1f4d30;--accent-bad:#c12121;--chart-compare:#cbcbcb}
+/* Campos dos formulários de lançamento e do modal de viagem: o reset universal
+   (*{box-sizing:border-box}) do arquivo original não é aplicado (ver nota acima), então inputs
+   com width:100% + padding vazavam da própria coluna. Ajuste restrito a esses formulários. */
+#modal-overlay .form-ctrl,.form-panel .form-ctrl{box-sizing:border-box;max-width:100%}
+#modal-overlay .fg>.form-grp,.form-panel .fg>.form-grp{min-width:0}
+#modpanel-frete-terceiros{gap:12px!important}
+#ft-kpi-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+#ft-kpi-grid .kpi-card{padding:12px 14px 11px}
+#ft-kpi-grid .kpi-lbl{font-size:9.5px;margin-bottom:3px}
+#ft-kpi-grid .kpi-val{font-size:24px;margin-bottom:2px}
+#ft-kpi-grid .kpi-sub{font-size:10.5px}
+#modpanel-frete-terceiros .chart-panel{padding:14px 16px;gap:10px}
+#modpanel-frete-terceiros .chart-wrap canvas{max-height:190px}
+.ft-dash-title{font-size:15px;font-weight:800;color:var(--brand-dark);text-transform:uppercase;letter-spacing:.5px}
+.ft-dash-sub{font-size:11px;color:var(--txl);margin-top:2px}
+#ft-filterbar{padding:10px 16px}
+#ft-filterbar .f-select{max-width:150px}
+.ft-periodo-off{opacity:.45}
+.ft-tag{display:inline-block;padding:1px 8px;border-radius:9px;font-size:9.5px;font-weight:800;letter-spacing:.3px}
+.ft-tag.mp{background:rgba(217,119,6,.14);color:#b45309}
+.ft-tag.pa{background:rgba(2,79,43,.12);color:var(--gd)}
+.ft-tag.nc{background:#eef0ee;color:#666}
+/* tabela comparativa mensal MP × PA */
+.ft-cmp{width:100%;border-collapse:collapse;font-size:11px}
+.ft-cmp th,.ft-cmp td{padding:6px 10px;white-space:nowrap;text-align:right;border-bottom:1px solid #eef0ee}
+.ft-cmp thead th{position:static;cursor:default;font-size:9.5px;letter-spacing:.4px}
+.ft-cmp thead th:hover{background:inherit;color:inherit}
+.ft-cmp thead tr.g1 th{text-align:center;font-size:10.5px;border-bottom:none}
+.ft-cmp .c-mes{text-align:left;font-family:inherit;font-weight:700;color:var(--gd)}
+.ft-cmp .g-mp{background:rgba(217,119,6,.13);color:#92400e}
+.ft-cmp .g-pa{background:rgba(2,79,43,.10);color:var(--gd)}
+.ft-cmp .g-tt{background:#eef0ee;color:#444}
+.ft-cmp td.sep,.ft-cmp th.sep{border-left:2px solid var(--gb)}
+.ft-cmp tbody tr:hover{background:#f8fdf4}
+.ft-cmp tbody tr.sel{background:var(--gp)}
+.ft-cmp tbody td.mut{color:#b6bbb6}
+.ft-cmp tfoot td{font-weight:800;background:var(--gg);border-top:2px solid var(--gb);border-bottom:none}
+.ft-fmt-total{display:flex;align-items:baseline;gap:10px;margin:2px 0 8px}
+.ft-fmt-total b{font-size:24px;font-weight:800;color:var(--gd);letter-spacing:-.4px}
+.ft-fmt-total span{font-size:11px;color:var(--txl)}
+.ft-fmt-row{padding:9px 0;border-top:1px solid #eef0ee}
+.ft-fmt-row .top{display:flex;align-items:center;gap:8px}
+.ft-fmt-row .dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+.ft-fmt-row .nm{font-size:12px;font-weight:700;color:var(--txm);flex:1}
+.ft-fmt-row .vl{font-size:13px;font-weight:800;color:var(--gd)}
+.ft-fmt-row .pc{font-size:11px;font-weight:700;color:var(--txl);min-width:46px;text-align:right}
+.ft-fmt-row .bar{height:6px;background:#eef0ee;border-radius:3px;margin:6px 0 3px;overflow:hidden}
+.ft-fmt-row .bar i{display:block;height:100%;border-radius:3px}
+.ft-fmt-row .meta{font-size:10.5px;color:var(--txl)}
+.ft-fmt-empty{padding:26px 8px;text-align:center;font-size:11.5px;color:var(--txl);font-style:italic}
+#modpanel-frete-terceiros td.ft-acoes,#modpanel-frete-terceiros th.ft-acoes{position:sticky;right:0;box-shadow:-3px 0 4px -2px rgba(0,0,0,.12)}
+#modpanel-frete-terceiros td.ft-acoes{background:var(--wh);z-index:1}
+#modpanel-frete-terceiros th.ft-acoes{z-index:3;background:var(--bg-chip)}
+.ft-act{border:1px solid var(--gb);background:#fff;border-radius:5px;padding:3px 8px;cursor:pointer;font-size:11px;margin:0 2px;color:var(--gd);line-height:1.2}
+.ft-act:hover{border-color:var(--gd);background:var(--gp)}
+.ft-act.del{color:#991b1b;border-color:#fca5a5;background:#fff5f5}
+.ft-act.del:hover{background:#fee2e2;border-color:#dc2626}
+.ft-tag.dup{background:#fef3c7;color:#92400e;margin-left:6px;cursor:help}
+#ft-del-overlay{position:fixed;inset:0;z-index:10050;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:20px}
+#ft-del-overlay .box{background:#fff;border-radius:12px;width:100%;max-width:560px;max-height:90vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.35)}
+#ft-del-overlay .hd{padding:16px 20px;background:#fee2e2;border-bottom:1px solid #fecaca;border-radius:12px 12px 0 0}
+#ft-del-overlay .hd b{display:block;font-size:15px;color:#991b1b}
+#ft-del-overlay .hd span{font-size:11.5px;color:#7f1d1d}
+#ft-del-overlay table{width:100%;border-collapse:collapse;font-size:12px;margin:12px 0}
+#ft-del-overlay td{padding:4px 20px;white-space:normal;color:var(--txm)}
+#ft-del-overlay td:first-child{width:120px;font-family:inherit;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--txl)}
+#ft-del-overlay .av{margin:0 20px 8px;padding:9px 12px;border-radius:8px;font-size:11.5px;line-height:1.45}
+#ft-del-overlay .av.alto{background:#fef2f2;border:1px solid #fca5a5;color:#7f1d1d}
+#ft-del-overlay .av.info{background:var(--gg);border:1px solid var(--gb);color:var(--txm)}
+#ft-del-overlay .ft{display:flex;gap:10px;justify-content:flex-end;padding:14px 20px;border-top:1px solid var(--gb)}
+#ft-del-overlay .ft button{padding:9px 18px;border-radius:7px;font-weight:800;font-size:12px;cursor:pointer;border:1px solid var(--gb);background:#fff;color:var(--txm)}
+#ft-del-overlay .ft button.perigo{background:#dc2626;border-color:#dc2626;color:#fff}
+#modpanel-frete-terceiros .tbl-scroll{max-height:420px}
+#modpanel-frete-terceiros .tbl-scroll thead th{background:var(--bg-chip);box-shadow:0 1px 0 var(--gb)}
+/* ── Frete Frota: células compactas ── */
+#modpanel-frete-frota #kpi-grid{gap:10px}
+#modpanel-frete-frota #kpi-grid .kpi-card{padding:12px 14px 10px}
+#modpanel-frete-frota #kpi-grid .kpi-icon-wrap{width:30px;height:30px;margin-bottom:6px}
+#modpanel-frete-frota #kpi-grid .kpi-icon-wrap svg{width:16px;height:16px}
+#modpanel-frete-frota #kpi-grid .kpi-val{font-size:24px}
+#modpanel-frete-frota #kpi-grid .kpi-breakdown{margin-top:6px;padding-top:6px}
+#modpanel-frete-frota #kpi-grid .kpi-breakdown-row{margin-bottom:2px}
+#modpanel-frete-frota .tempo-strip{gap:10px}
+#modpanel-frete-frota .tempo-card{padding:10px 16px;gap:12px}
+#modpanel-frete-frota .tempo-card::after{display:none}
+#modpanel-frete-frota .tempo-icon-wrap{width:34px;height:34px;border-radius:8px}
+#modpanel-frete-frota .tempo-icon-wrap svg{width:18px;height:18px}
+#modpanel-frete-frota .tempo-lbl{margin-bottom:2px}
+#modpanel-frete-frota .tempo-val{font-size:20px}
+#modpanel-frete-frota .tempo-desc{margin-top:2px;font-size:10.5px}
+#modpanel-frete-frota .chart-panel{padding:14px 16px;gap:10px}
+</style>
 <style id="ft-pagto-print-css">
 @media print {
   body.print-report-modal > *:not(#ft-pagto-modal) { display: none !important; }
@@ -3015,10 +3117,16 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
     <button class="btn-reset" onclick="resetFilters()"><svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 2A5 5 0 102 10"/><polyline points="10,2 10,5 7,5"/></svg>Limpar</button>
   </div>
   <div class="kpi-grid" id="kpi-grid"></div>
-  <div class="tempo-strip" id="tempo-strip"></div>
-  <div class="row-6040">
-    <div class="chart-panel"><div class="chart-hdr"><div><div class="chart-title">Evolução Mensal de Viagens</div><div class="chart-sub">Total · Com Retorno · Vazio — linha = tendência</div></div></div><div class="chart-wrap tall"><canvas id="ch-viagens"></canvas></div></div>
-    <div class="chart-panel"><div class="chart-hdr"><div><div class="chart-title">Aproveitamento da Frota</div><div class="chart-sub">Distribuição de retornos</div></div></div><div class="chart-wrap pie"><canvas id="ch-aprov"></canvas></div></div>
+  <div class="chart-panel">
+    <div class="chart-hdr">
+      <div><div class="chart-title">Evolução Mensal de Viagens</div><div class="chart-sub" id="ch-viagens-sub">—</div></div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap">
+        <button class="chart-toggle-btn active" id="ev-btn-qtd" onclick="setEvolViagensMode('qtd')">Quantidade</button>
+        <button class="chart-toggle-btn" id="ev-btn-com" onclick="setEvolViagensMode('com')">% com retorno</button>
+        <button class="chart-toggle-btn" id="ev-btn-sem" onclick="setEvolViagensMode('sem')">% sem retorno</button>
+      </div>
+    </div>
+    <div class="chart-wrap tall"><canvas id="ch-viagens"></canvas></div>
   </div>
   <div class="chart-panel" style="border:1.5px solid var(--go);box-shadow:0 2px 10px rgba(115,150,48,.15)">
     <div class="chart-hdr">
@@ -3141,20 +3249,25 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
 
 </div>
 
-<div id="modpanel-frete-terceiros" style="display:none;flex-direction:column;gap:16px">
-  <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;background:var(--bg-chip);border-radius:10px;flex-wrap:wrap;gap:12px">
-    <div><div style="font-size:15px;font-weight:800;color:var(--brand-dark);text-transform:uppercase;letter-spacing:.5px">Dashboard Executivo — Frete Terceiro</div>
-    <div style="font-size:11px;color:var(--txl);margin-top:2px" id="ft-header-sub">Carregando…</div></div>
-    <div style="display:flex;gap:8px;align-items:center">
-      <div style="display:flex;align-items:center;gap:6px"><span style="font-size:11px;font-weight:700;color:var(--txl)">ANO</span>
-        <select id="ft-ano" onchange="ftPopulateFilters();ftRender()" style="font-size:12px;padding:6px 10px;font-weight:700;color:var(--gd);background:#fff;border:1px solid var(--gb);border-radius:6px;cursor:pointer"><option value="2026">2026</option><option value="2025">2025</option><option value="2024">2024</option><option value="">Todos</option></select></div>
-      <div style="display:flex;align-items:center;gap:6px"><span style="font-size:11px;font-weight:700;color:var(--txl)">MÊS</span>
-        <select id="ft-mes" onchange="ftRender()" style="font-size:12px;padding:6px 10px;font-weight:700;color:var(--gd);background:#fff;border:1px solid var(--gb);border-radius:6px;cursor:pointer"><option value="">Acumulado</option></select></div>
-      <div style="display:flex;align-items:center;gap:6px"><span style="font-size:11px;font-weight:700;color:var(--txl)">CARGA</span>
-        <select id="ft-tipo" onchange="ftRender()" style="font-size:12px;padding:6px 10px;font-weight:700;color:var(--gd);background:#fff;border:1px solid var(--gb);border-radius:6px;cursor:pointer"><option value="">Total</option><option value="Produto Acabado">Produto Acabado</option><option value="Matéria Prima">Matéria-Prima</option></select></div>
-      <button onclick="ftResetFilters()" style="padding:6px 14px;background:#fff;border:1px solid var(--gb);border-radius:6px;color:var(--brand-dark);cursor:pointer;font-size:11px;font-weight:700">↺ Limpar</button>
-      <button onclick="ftExportCSV()" style="padding:6px 14px;background:#fff;border:1px solid var(--gb);border-radius:6px;color:var(--brand-dark);cursor:pointer;font-size:11px;font-weight:700">⬇ CSV</button>
-    </div>
+<div id="modpanel-frete-terceiros" style="display:none;flex-direction:column;gap:12px">
+  <div style="display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:2px 2px 0">
+    <div><div class="ft-dash-title">Dashboard Executivo — Frete Terceiro</div>
+    <div class="ft-dash-sub" id="ft-header-sub">Carregando…</div></div>
+  </div>
+  <div class="filterbar" id="ft-filterbar">
+    <div class="f-group"><span class="f-label">Ano</span>
+      <select id="ft-ano" class="f-select" onchange="ftPopulateFilters();ftRender()"><option value="2026">2026</option><option value="2025">2025</option><option value="2024">2024</option><option value="">Todos</option></select></div>
+    <div class="f-group"><span class="f-label">Mês</span>
+      <select id="ft-mes" class="f-select" onchange="ftRender()"><option value="">Acumulado</option></select></div>
+    <div class="f-group" title="Período personalizado por mês — quando preenchido, substitui Ano e Mês"><span class="f-label">De</span>
+      <select id="ft-de" class="f-select" onchange="ftRender()"><option value="">—</option></select></div>
+    <div class="f-group" title="Período personalizado por mês — quando preenchido, substitui Ano e Mês"><span class="f-label">Até</span>
+      <select id="ft-ate" class="f-select" onchange="ftRender()"><option value="">—</option></select></div>
+    <div class="f-group"><span class="f-label">Tipo de operação</span>
+      <select id="ft-tipo" class="f-select" onchange="ftRender()"><option value="">Ambos (MP + PA)</option><option value="Matéria Prima">Matéria-Prima (MP)</option><option value="Produto Acabado">Produto Acabado (PA)</option></select></div>
+    <div class="f-sep"></div>
+    <button class="btn-reset" onclick="ftResetFilters()">↺ Limpar</button>
+    <button class="btn-reset" onclick="ftExportCSV()">⬇ CSV</button>
   </div>
   <div id="ft-kpi-grid" class="kpi-grid"></div>
   <div style="display:flex;gap:14px;flex-wrap:wrap">
@@ -3179,32 +3292,6 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
       <div class="chart-wrap"><canvas id="ft-chart-top5" style="max-height:200px"></canvas></div>
     </div>
   </div>
-  <div style="display:flex;gap:14px;flex-wrap:wrap">
-
-    <div class="chart-panel" style="flex:1;min-width:280px">
-      <div class="chart-hdr"><div><div class="chart-title">Custo por Estado (UF)</div><div class="chart-sub">Top 10 estados</div></div></div>
-      <div class="chart-wrap"><canvas id="ft-chart-uf" style="max-height:180px"></canvas></div>
-    </div>
-  </div>
-  <div style="display:flex;gap:14px;flex-wrap:wrap">
-    <div class="chart-panel" style="flex:1.5;min-width:280px">
-      <div class="chart-hdr"><div><div class="chart-title">Histórico Mensal 2026</div><div class="chart-sub">Custo mensal e acumulado</div></div></div>
-      <div class="chart-wrap"><canvas id="ft-chart-hist" style="max-height:160px"></canvas></div>
-    </div>
-    <div class="chart-panel" style="flex:.9;min-width:220px">
-      <div class="chart-hdr"><div><div class="chart-title">Formato de Pagamento</div><div class="chart-sub" id="ft-fmt-sub">Extratta · NF · Outro</div></div>
-        <div style="display:flex;gap:5px">
-          <button class="chart-toggle-btn" data-ft-tipo="" onclick="ftSetTipo('')">Total</button>
-          <button class="chart-toggle-btn" data-ft-tipo="Produto Acabado" onclick="ftSetTipo('Produto Acabado')">P.A.</button>
-          <button class="chart-toggle-btn" data-ft-tipo="Matéria Prima" onclick="ftSetTipo('Matéria Prima')">MP</button>
-        </div></div>
-      <div style="display:grid;grid-template-columns:130px 1fr;gap:12px;align-items:center;padding:8px 16px 16px">
-        <canvas id="ft-chart-fmt" style="max-height:130px"></canvas>
-        <div id="ft-fmt-table" style="display:flex;flex-direction:column;gap:5px"></div>
-      </div>
-    </div>
-  </div>
-
   <!-- INDICADOR PARTICIPAÇÃO + FAT VS CUSTO -->
   <div style="display:flex;gap:14px;flex-wrap:wrap">
     <div class="chart-panel" style="flex:1;min-width:260px">
@@ -3235,22 +3322,53 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
     </div>
   </div>
 
-  <!-- CATEGORIA: FRETES + HISTÓRICO -->
+  <!-- COMPARATIVO MENSAL MP × PA -->
+  <div class="chart-panel" id="ft-cmp-panel">
+    <div class="chart-hdr"><div><div class="chart-title">Comparativo Mensal — Matéria-Prima × Produto Acabado</div><div class="chart-sub" id="ft-cmp-sub">—</div></div></div>
+    <div class="tbl-scroll" style="max-height:none"><div id="ft-cmp-wrap"></div></div>
+    <div id="ft-cmp-foot" style="font-size:10.5px;color:var(--txl)"></div>
+  </div>
+  <!-- MP × PA: HISTÓRICO MENSAL + CATEGORIA -->
   <div style="display:flex;gap:14px;flex-wrap:wrap">
-    <div class="chart-panel" style="flex:1;min-width:240px">
+    <div class="chart-panel" style="flex:1.7;min-width:320px">
       <div class="chart-hdr">
-        <div><div class="chart-title">Fretes Terceiros por Categoria</div><div class="chart-sub">Filtro de mês ativo</div></div>
+        <div><div class="chart-title">Histórico Mensal — MP × PA</div><div class="chart-sub" id="ft-cat-hist-sub">—</div></div>
+        <div style="display:flex;gap:5px">
+          <button class="chart-toggle-btn active" id="ft-ch-ton" onclick="ftCatHistMode('ton',this)">Toneladas</button>
+          <button class="chart-toggle-btn" id="ft-ch-vfr" onclick="ftCatHistMode('vfr',this)">Valor (R$)</button>
+          <button class="chart-toggle-btn" id="ft-ch-viag" onclick="ftCatHistMode('viag',this)">Viagens</button>
+        </div>
+      </div>
+      <div class="chart-wrap"><canvas id="ft-chart-cat-hist" style="max-height:230px"></canvas></div>
+    </div>
+    <div class="chart-panel" style="flex:.8;min-width:240px">
+      <div class="chart-hdr">
+        <div><div class="chart-title">Fretes Terceiros por Categoria</div><div class="chart-sub">Período e tipo do filtro ativo</div></div>
         <div style="display:flex;gap:5px">
           <button class="chart-toggle-btn active" id="ft-cat2-viag" onclick="ftCatMode2('viag',this)">Viagens</button>
           <button class="chart-toggle-btn" id="ft-cat2-ton" onclick="ftCatMode2('ton',this)">Ton</button>
           <button class="chart-toggle-btn" id="ft-cat2-vfr" onclick="ftCatMode2('vfr',this)">R$</button>
         </div>
       </div>
-      <div class="chart-wrap"><canvas id="ft-chart-cat2" style="max-height:190px"></canvas></div>
+      <div class="chart-wrap"><canvas id="ft-chart-cat2" style="max-height:230px"></canvas></div>
     </div>
-    <div class="chart-panel" style="flex:1.2;min-width:260px">
-      <div class="chart-hdr"><div><div class="chart-title">Histórico Mensal por Categoria</div><div class="chart-sub">Evolução de viagens por categoria ao longo dos meses</div></div></div>
-      <div class="chart-wrap"><canvas id="ft-chart-cat-hist" style="max-height:190px"></canvas></div>
+  </div>
+
+  <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:stretch">
+    <div class="chart-panel" style="flex:1.2;min-width:300px">
+      <div class="chart-hdr"><div><div class="chart-title">Custo por Estado (UF)</div><div class="chart-sub">Top 10 estados</div></div></div>
+      <div class="chart-wrap"><canvas id="ft-chart-uf" style="max-height:230px"></canvas></div>
+    </div>
+    <div class="chart-panel ft-fmt-panel" style="flex:1;min-width:300px">
+      <div class="chart-hdr">
+        <div><div class="chart-title">Formato de Pagamento</div><div class="chart-sub" id="ft-fmt-sub">Extratta · NF · Outro</div></div>
+        <div style="display:flex;gap:5px">
+          <button class="chart-toggle-btn" data-ft-tipo="" onclick="ftSetTipo('')">Ambos</button>
+          <button class="chart-toggle-btn" data-ft-tipo="Produto Acabado" onclick="ftSetTipo('Produto Acabado')">PA</button>
+          <button class="chart-toggle-btn" data-ft-tipo="Matéria Prima" onclick="ftSetTipo('Matéria Prima')">MP</button>
+        </div>
+      </div>
+      <div id="ft-fmt-body"></div>
     </div>
   </div>
 
@@ -3281,10 +3399,10 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
 
   <div class="tbl-panel">
     <div class="tbl-hdr"><div class="tbl-title">Registros Detalhados</div>
-      <div class="tbl-actions"><input class="tbl-search" id="ft-srch" placeholder="Buscar cliente, cidade…" oninput="ftRenderTable()"><span id="ft-tbl-count" style="font-size:11px;color:var(--txl)"></span></div>
+      <div class="tbl-actions"><button class="chart-toggle-btn" data-ft-tipo="" onclick="ftSetTipo('')">Ambos</button><button class="chart-toggle-btn" data-ft-tipo="Matéria Prima" onclick="ftSetTipo('Matéria Prima')">MP</button><button class="chart-toggle-btn" data-ft-tipo="Produto Acabado" onclick="ftSetTipo('Produto Acabado')">PA</button><input class="tbl-search" id="ft-srch" placeholder="Buscar cliente, cidade, motorista, placa…" oninput="ftRenderTable()" style="width:230px"><span id="ft-tbl-count" style="font-size:11px;color:var(--txl)"></span></div>
     </div>
     <div class="tbl-scroll"><table><thead><tr>
-      <th>Data</th><th>Conjunto</th><th>Motorista</th><th>Cliente</th><th>Cidade</th><th>UF</th><th>Carga</th><th>Peso(kg)</th><th>R$/Ton</th><th>V.Frete</th><th>NF</th>
+      <th>Data</th><th>Conjunto</th><th>Motorista</th><th>Cliente</th><th>Cidade</th><th>UF</th><th>Tipo</th><th>Peso(kg)</th><th>R$/Ton</th><th>V.Frete</th><th>NF</th><th class="ft-acoes" style="cursor:default;text-align:center">Ações</th>
     </tr></thead><tbody id="ft-tbody"></tbody></table></div>
     <div style="display:flex;justify-content:space-between;padding:8px 16px;border-top:1px solid var(--gb)">
       <span id="ft-tbl-total" style="font-size:12px;font-weight:700;color:var(--gd)"></span>
@@ -8518,6 +8636,79 @@ function ordenarMesesCron(labels){
     return (ordem[pa[0]]||0)-(ordem[pb[0]]||0);
   });
 }
+// ══ (28/10) EVOLUÇÃO MENSAL DE VIAGENS — seletor de indicador ═══════════════════
+// Regra de classificação INALTERADA (a mesma que o gráfico já usava): com retorno =
+// retorno==='Sim'; sem retorno = demais; ficam de fora Bitruck Silo e Carreta Silo
+// (não têm viabilidade operacional de retorno). Percentual = viagens do tipo ÷
+// (com + sem) do mês — portanto % com + % sem = 100%, sem duplicidade.
+// CORREÇÃO visual: as barras "Com Retorno" e "Vazio" eram desenhadas sobrepostas
+// (eixo Y sem empilhar), de modo que a barra visível parecia o total mas o total
+// real (linha) era a soma das duas. Agora empilham de verdade.
+window._evolViagensMode=window._evolViagensMode||'qtd';
+function setEvolViagensMode(mode){
+  window._evolViagensMode=mode;
+  ['qtd','com','sem'].forEach(function(m){ var b=document.getElementById('ev-btn-'+m); if(b) b.className='chart-toggle-btn'+(m===mode?' active':''); });
+  renderEvolViagens();
+}
+function renderEvolViagens(){
+  var src=window._evolViagens; if(!src || typeof Chart==='undefined') return;
+  var cv=document.getElementById('ch-viagens'); if(!cv) return;
+  var ms=src.ms, bm=src.bm, mode=window._evolViagensMode||'qtd';
+  var com=ms.map(function(m){return bm[m].com;}), sem=ms.map(function(m){return bm[m].sem;});
+  var tot=ms.map(function(m,i){return com[i]+sem[i];});
+  var somaCom=com.reduce(function(a,b){return a+b;},0), somaTot=tot.reduce(function(a,b){return a+b;},0);
+  var pctCom=ms.map(function(m,i){return tot[i]>0 ? +(com[i]/tot[i]*100).toFixed(1) : null;});
+  var pctSem=ms.map(function(m,i){return tot[i]>0 ? +(sem[i]/tot[i]*100).toFixed(1) : null;});
+  var mediaCom= somaTot>0 ? +(somaCom/somaTot*100).toFixed(1) : null;
+  var sub=document.getElementById('ch-viagens-sub');
+  var base='base: viagens exceto Bitruck Silo e Carreta Silo';
+  if(sub) sub.textContent = mode==='qtd' ? 'Total · Com Retorno · Vazio (empilhado) · '+base
+                         : (mode==='com' ? '% de viagens com retorno sobre o total do mês · '+base
+                                         : '% de viagens sem retorno (vazias) sobre o total do mês · '+base);
+  DC('ch-viagens');
+  var legend={position:'bottom',labels:{padding:10,usePointStyle:true,pointStyle:'circle',font:{size:10}}};
+  var lblBox={backgroundColor:'rgba(255,255,255,.9)',borderRadius:4,padding:{top:2,bottom:2,left:4,right:4}};
+  if(mode==='qtd'){
+    CHS['ch-viagens']=new Chart(cv.getContext('2d'),{
+      data:{labels:ms,datasets:[
+        {type:'bar',label:'Com Retorno',data:com,backgroundColor:'rgba(2,79,43,.82)',borderRadius:3,borderSkipped:false,stack:'v',order:2,
+          datalabels:{display:function(c){return c.dataset.data[c.dataIndex]>0;},anchor:'center',align:'center',color:'#fff',font:{size:9,weight:'bold'}}},
+        {type:'bar',label:'Vazio',data:sem,backgroundColor:'rgba(115,150,48,.70)',borderRadius:3,borderSkipped:false,stack:'v',order:2,
+          datalabels:{display:function(c){return c.dataset.data[c.dataIndex]>0;},anchor:'center',align:'center',color:'#1c1c1c',font:{size:9,weight:'bold'}}},
+        {type:'line',label:'Total',data:tot,borderColor:'rgba(217,119,6,1)',backgroundColor:'rgba(217,119,6,.1)',borderWidth:2.5,pointRadius:4,
+          pointBackgroundColor:'rgba(217,119,6,1)',fill:false,tension:0.3,order:1,
+          datalabels:Object.assign({display:true,anchor:'end',align:'top',offset:6,borderColor:'rgba(217,119,6,1)',borderWidth:1,color:'rgba(217,119,6,1)',font:{size:9,weight:'bold'},
+            formatter:function(v){return v+' viagens';}},lblBox)}
+      ]},
+      options:{responsive:true,maintainAspectRatio:true,layout:{padding:{top:24}},
+        plugins:{legend:legend,tooltip:{mode:'index',intersect:false}},
+        scales:{x:{stacked:true,grid:{color:GRD}},y:{stacked:true,grid:{color:GRD},beginAtZero:true}}},
+      plugins:[ChartDataLabels]
+    });
+    return;
+  }
+  var dados=(mode==='com')?pctCom:pctSem;
+  var corBar=(mode==='com')?'rgba(2,79,43,.82)':'rgba(115,150,48,.78)';
+  var nome=(mode==='com')?'% com retorno':'% sem retorno';
+  var mediaRef=(mode==='com')?mediaCom:(mediaCom==null?null:+(100-mediaCom).toFixed(1));
+  CHS['ch-viagens']=new Chart(cv.getContext('2d'),{
+    data:{labels:ms,datasets:[
+      {type:'bar',label:nome,data:dados,backgroundColor:corBar,borderRadius:4,borderSkipped:false,order:2,
+        datalabels:{display:function(c){return c.dataset.data[c.dataIndex]!=null;},anchor:'end',align:'top',offset:2,color:'#374151',font:{size:9,weight:'bold'},backgroundColor:'rgba(255,255,255,.88)',borderRadius:3,padding:{top:1,bottom:1,left:3,right:3},
+          formatter:function(v){return N(v,1)+'%';}}},
+      {type:'line',label:'Média do período'+(mediaRef!=null?' ('+N(mediaRef,1)+'%)':''),data:ms.map(function(){return mediaRef;}),borderColor:'rgba(217,119,6,.9)',borderDash:[6,4],
+        borderWidth:2,pointRadius:0,fill:false,order:1,datalabels:{display:false}}
+    ]},
+    options:{responsive:true,maintainAspectRatio:true,layout:{padding:{top:22}},
+      plugins:{legend:legend,tooltip:{callbacks:{label:function(c){
+        if(c.dataset.type==='line') return c.dataset.label;
+        var i=c.dataIndex, n=(mode==='com')?com[i]:sem[i];
+        return nome+': '+N(c.raw,1)+'% ('+n+' de '+tot[i]+' viagens)';}}}},
+      scales:{x:{grid:{color:GRD}},y:{min:0,max:100,grid:{color:GRD},ticks:{callback:function(v){return v+'%';}}}}},
+    plugins:[ChartDataLabels]
+  });
+}
+
 function renderCharts(data){
   // CORREÇÃO CRÍTICA (19/08): essa guarda desistia de vez se o Chart.js ainda
   // não tivesse carregado no exato instante em que a função era chamada (ex:
@@ -8555,50 +8746,11 @@ function renderCharts(data){
     if(r.tipo_ret==='Retorno'||r.tipo_ret==='Outros'||r.tipo_ret==='MP')bm[m].tonRetMP+=(r.peso_ret||0)/1000;
   });
   const ms=ordenarMesesCron(Object.keys(bm));
-  // ch-viagens: evolução mensal — barras empilhadas + linha de total
-  var totViag=ms.map(function(m){return bm[m].com+bm[m].sem;});
-  DC('ch-viagens');CHS['ch-viagens']=new Chart(g('ch-viagens').getContext('2d'),{
-    data:{labels:ms,datasets:[
-      {type:'bar',label:'Com Retorno',data:ms.map(function(m){return bm[m].com;}),
-        backgroundColor:'rgba(2,79,43,.82)',borderRadius:3,borderSkipped:false,stack:'v',order:2,datalabels:{display:false}},
-      {type:'bar',label:'Vazio',data:ms.map(function(m){return bm[m].sem;}),
-        backgroundColor:'rgba(115,150,48,.70)',borderRadius:3,borderSkipped:false,stack:'v',order:2,datalabels:{display:false}},
-      {type:'line',label:'Total',data:totViag,
-        borderColor:'rgba(217,119,6,1)',backgroundColor:'rgba(217,119,6,.1)',
-        borderWidth:2.5,pointRadius:4,pointBackgroundColor:'rgba(217,119,6,1)',
-        fill:false,tension:0.3,order:1,yAxisID:'y',
-        datalabels:{display:true,anchor:'end',align:'top',offset:6,
-          backgroundColor:'rgba(255,255,255,.9)',borderColor:'rgba(217,119,6,1)',borderWidth:1,borderRadius:4,
-          padding:{top:2,bottom:2,left:4,right:4},color:'rgba(217,119,6,1)',font:{size:9,weight:'bold'},
-          formatter:function(v){return v+' viagens';}}}
-    ]},
-    options:{responsive:true,maintainAspectRatio:true,
-      layout:{padding:{top:22}},
-      plugins:{legend:{position:'bottom',labels:{padding:10,usePointStyle:true,pointStyle:'circle',font:{size:10}}},
-        tooltip:{mode:'index',intersect:false}},
-      scales:{
-        x:{stacked:true,grid:{color:GRD}},
-        y:{stacked:false,grid:{color:GRD},beginAtZero:true,ticks:{stepSize:5}}
-      }
-    },
-    plugins:[ChartDataLabels]
-  });
-  // Mesma base/regra do KPI "Aproveit. de Retorno" (entraCalculoRetorno) — os dois
-  // indicadores nunca podem divergir, pois representam a mesma informação.
-  const dataRetChart=data.filter(entraCalculoRetorno);
-  const com=dataRetChart.filter(r=>r.retorno==='Sim').length,sem=dataRetChart.length-com;
-  var aprovItens=[{l:'Com Retorno',v:com,c:'rgba(2,79,43,.88)'},{l:'Vazio',v:sem,c:'rgba(115,150,48,.78)'}].sort(function(a,b){return b.v-a.v;});
-  DC('ch-aprov');CHS['ch-aprov']=new Chart(g('ch-aprov').getContext('2d'),{type:'bar',
-    data:{labels:aprovItens.map(function(x){return x.l;}),datasets:[{data:aprovItens.map(function(x){return x.v;}),backgroundColor:aprovItens.map(function(x){return x.c;}),borderRadius:4,borderSkipped:false,
-      datalabels:{display:true,anchor:'end',align:'right',offset:4,
-        backgroundColor:'rgba(255,255,255,.9)',borderRadius:3,padding:{top:1,bottom:1,left:4,right:4},
-        color:'#374151',font:{size:9,weight:'bold'},
-        formatter:function(v){var tot=(com+sem)||1;return v+' ('+((v/tot)*100).toFixed(1)+'%)';}}}]},
-    options:{responsive:true,maintainAspectRatio:true,indexAxis:'y',
-      layout:{padding:{right:70}},
-      plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){var tot=(com+sem)||1;return ctx.label+': '+ctx.raw+' ('+((ctx.raw/tot)*100).toFixed(1)+'%)';}}}},
-      scales:{x:{beginAtZero:true,grid:{color:GRD}},y:{grid:{display:false}}}
-    },plugins:[ChartDataLabels]});
+  // ch-viagens: evolução mensal com seletor (quantidade / % com retorno / % sem retorno).
+  // (28/10) O gráfico "Aproveitamento da Frota" foi retirado a pedido; o indicador de
+  // aproveitamento segue no KPI e na "Evolução Mensal do Aproveitamento de Frete Retorno".
+  window._evolViagens={ms:ms,bm:bm};
+  renderEvolViagens();
   DC('ch-ton');CHS['ch-ton']=new Chart(g('ch-ton').getContext('2d'),{
     type:'bar',
     data:{labels:ms,datasets:[
@@ -8619,7 +8771,7 @@ function renderCharts(data){
   // Evolução Mensal do Aproveitamento de Frete Retorno — gráfico em destaque.
   // Considera Frete Retorno + Coleta MP como "frete retorno" (conforme regra de negócio).
   // Usa a MESMA base (bm) e a MESMA regra de elegibilidade (entraCalculoRetorno) do
-  // KPI "Aproveit. de Retorno" e do gráfico "Aproveitamento da Frota" — fonte única.
+  // KPI "Aproveit. de Retorno" — fonte única.
   window._retEvolRaw={data:data,bm:bm,ms:ms};
   window._retEvolMode=window._retEvolMode||'pct';
   var _bmR=bm,_msR=ms;
@@ -8795,7 +8947,7 @@ function renderKPIs(data){
   const pagar_ft_terceiros = rec_ft_dedicado_pend; // conta a pagar: frete de terceiros ainda não quitado
   const rec_ft_pend = data.filter(r=>r.is_terceiro&&r.ft_pgto==='pendente').reduce((a,r)=>a+(r.ft_valor||0),0)
     + data.filter(r=>r.is_terceiro&&r.ft_pgto==='parcial').reduce((a,r)=>a+((r.ft_vl_total||r.ft_valor||0)-(r.ft_vl_pago||0)),0)
-    + data.filter(r=>r.tipo_ret&&r.tipo_ret!=='Retorno'&&r.tipo_ret!=='MP'&&r.tipo_ret!=='Outros'&&r.retorno==='Sim'&&r.pagamento!=='Pago').reduce((a,r)=>a+r.vl_total,0);
+    + data.filter(r=>r.tipo_ret&&r.tipo_ret!=='Retorno'&&r.tipo_ret!=='MP'&&r.tipo_ret!=='Outros'&&r.retorno==='Sim').reduce((a,r)=>a+legSaldo(r),0);
   // CORREÇÃO CRÍTICA (24/08): rec_ft_pago só contava viagem terceirizada com
   // ft_pgto==='pago' — cobrança já recebida. Isso deixava a receita gerada por
   // frete terceirizado invisível na Receita Gerada até o pagamento cair,
@@ -8852,8 +9004,8 @@ function renderKPIs(data){
   // CORREÇÃO (regra combinada): a pendência de Frete Retorno também precisa vir de
   // fdRetorno() (mês por dt_desc) — separo do resto (que continua em `data`, mês por
   // dt_carg) pra não misturar as duas referências de data na mesma soma.
-  const pendRetorno = freteExplodirPernas(fdRetorno()).filter(function(r){return r.retorno==='Sim'&&(r.tipo_ret==='Retorno'||r.tipo_ret==='Outros')&&r.pagamento!=='Pago';}).reduce((a,r)=>a+r.vl_total,0);
-  const pendResto = freteExplodirPernas(data).filter(function(r){return r.retorno==='Sim'&&r.tipo_ret!=='MP'&&r.tipo_ret!=='Retorno'&&r.tipo_ret!=='Outros'&&r.pagamento!=='Pago';}).reduce((a,r)=>a+r.vl_total,0);
+  const pendRetorno = freteExplodirPernas(fdRetorno()).filter(function(r){return r.retorno==='Sim'&&(r.tipo_ret==='Retorno'||r.tipo_ret==='Outros');}).reduce((a,r)=>a+legSaldo(r),0);
+  const pendResto = freteExplodirPernas(data).filter(function(r){return r.retorno==='Sim'&&r.tipo_ret!=='MP'&&r.tipo_ret!=='Retorno'&&r.tipo_ret!=='Outros';}).reduce((a,r)=>a+legSaldo(r),0);
   const pend = pendRetorno + pendResto + rec_ft_pend;
   // (16/10) A RECEBER e RECEBIDOS por conta — mesmas fontes e regras de data do
   // card anterior: Frete Retorno por dt_desc (fdRetorno), demais por dt_carg.
@@ -8862,9 +9014,9 @@ function renderKPIs(data){
   const _pendC = {}, _recbC = {};
   const _add = function(o,c,v){ v=parseFloat(v)||0; if(v){ o[_contaN(c)]=(o[_contaN(c)]||0)+v; } };
   freteExplodirPernas(fdRetorno()).filter(function(r){return r.retorno==='Sim'&&(r.tipo_ret==='Retorno'||r.tipo_ret==='Outros');})
-    .forEach(function(r){ _add(r.pagamento==='Pago'?_recbC:_pendC, r.conta, r.vl_total); });
+    .forEach(function(r){ _add(_pendC, r.conta, legSaldo(r)); _add(_recbC, r.conta, legRecebido(r)); });
   freteExplodirPernas(data).filter(function(r){return r.retorno==='Sim'&&r.tipo_ret!=='MP'&&r.tipo_ret!=='Retorno'&&r.tipo_ret!=='Outros';})
-    .forEach(function(r){ _add(r.pagamento==='Pago'?_recbC:_pendC, r.conta, r.vl_total); });
+    .forEach(function(r){ _add(_pendC, r.conta, legSaldo(r)); _add(_recbC, r.conta, legRecebido(r)); });
   data.filter(function(r){return r.is_terceiro;}).forEach(function(r){
     if(r.ft_pgto==='pendente') _add(_pendC, r.ft_conta, r.ft_valor);
     else if(r.ft_pgto==='parcial'){ var _t=(r.ft_vl_total||r.ft_valor||0), _pg=(r.ft_vl_pago||0); _add(_pendC, r.ft_conta, _t-_pg); _add(_recbC, r.ft_conta, _pg); }
@@ -8944,7 +9096,7 @@ function renderKPIs(data){
   const dv=[],de=[],dr=[];
   data.forEach(r=>{const v=DD(r.dt_carg,r.dt_base);if(v!=null&&v<120)dv.push(v);const e=DD(r.dt_carg,r.dt_desc);if(e!=null&&e<120)de.push(e);const d=DD(r.dt_desc,r.dt_base);if(d!=null&&d<120)dr.push(d);});
   const avg=a=>a.length?+(a.reduce((x,y)=>x+y,0)/a.length).toFixed(1):0;
-  g('tempo-strip').innerHTML=`
+  if(g('tempo-strip')) g('tempo-strip').innerHTML=`
     <div class="tempo-card"><div class="tempo-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--brand-primary)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg></div><div class="tempo-body"><div class="tempo-lbl">Duração Média da Viagem</div><div class="tempo-val">${avg(dv)}<span>dias</span></div><div class="tempo-desc">Carregamento → Retorno à Base</div></div></div>
     <div class="tempo-card"><div class="tempo-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--brand-primary)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="3"/><line x1="12" y1="8" x2="12" y2="21"/><path d="M5 21h14"/></svg></div><div class="tempo-body"><div class="tempo-lbl">Dias até Entrega ao Cliente</div><div class="tempo-val">${avg(de)}<span>dias</span></div><div class="tempo-desc">Carregamento → Descarga</div></div></div>
     <div class="tempo-card"><div class="tempo-icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--brand-primary)" stroke-width="2" stroke-linecap="round"><polyline points="1,4 1,10 7,10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg></div><div class="tempo-body"><div class="tempo-lbl">Dias Descarga → Base</div><div class="tempo-val">${avg(dr)}<span>dias</span></div><div class="tempo-desc">Inclui vazio ou com frete</div></div></div>`;
@@ -9006,8 +9158,8 @@ function renderVehicleTable(){
     // Categoria header
     html2+=`<tr style="background:var(--bg-chip)">
       <td colspan="9" style="padding:8px 14px">
-        <span style="font-size:12px;font-weight:800;color:#fff">${cat}</span>
-        <span style="font-size:10px;color:rgba(255,255,255,.7);margin-left:10px">${catRows.length} veículos · ${totViagens} viagens · ${R(totRec)}</span>
+        <span style="font-size:12px;font-weight:800;color:var(--gd)">${cat}</span>
+        <span style="font-size:10px;color:var(--txm);margin-left:10px">${catRows.length} veículos · ${totViagens} viagens · ${R(totRec)}</span>
       </td></tr>`;
     catRows.forEach((v,i)=>{
       const pctStr=v.pct!==null?v.pct+'%':'—';
@@ -9057,7 +9209,7 @@ function renderPayTable(){
   // linha própria, com seu status de pagamento individual (uma pode estar paga e a
   // outra não; misturar as duas numa linha só escondia qual delas ainda está pendente).
   const rows=freteExplodirPernas(data).filter(r=>r.tipo_ret).filter(r=>{if(q&&!r.placa.toLowerCase().includes(q)&&!(r.destino_uf||'').toLowerCase().includes(q))return false;if(st==='Pago'&&r.pagamento!=='Pago')return false;if(st==='Pendente'&&r.pagamento==='Pago')return false;return true;});
-  g('tb-pay').innerHTML=rows.map(r=>{const pago=r.pagamento==='Pago';const[bc,sl]=pago?['b-green','✓ Pago']:r.pagamento?['b-amber','⏳ Pend.']:['b-gray','S/Info'];const pernaTag=r._pernaTotal>1?` <span style="font-size:9px;color:var(--txl)">(perna ${r._pernaIndex}/${r._pernaTotal})</span>`:'';return`<tr><td>${GM(r.dt_carg)||'—'}</td><td>${r.placa}${pernaTag}</td><td><span class="badge ${r.tipo_ret==='MP'?'b-go':'b-gd'}">${r.tipo_ret||'—'}</span></td><td style="font-family:'DM Mono',monospace;font-weight:700">${r.dest_ret_uf||r.destino_uf||'—'}</td><td style="text-align:right">${r.peso_ret?N(r.peso_ret,0):'—'}</td><td style="color:var(--gd);font-weight:600">${R(r.vl_total)}</td><td>${r.pagamento||'—'}</td><td>${r.conta||'—'}</td><td>${FD(r.dt_base)}</td><td><span class="badge ${bc}">${sl}</span></td></tr>`;}).join('');
+  g('tb-pay').innerHTML=rows.map(r=>{const pago=r.pagamento==='Pago';const[bc,sl]=pago?['b-green','✓ Pago']:r.pagamento==='Parcial'?['b-amber','◐ Parcial']:r.pagamento?['b-amber','⏳ Pend.']:['b-gray','S/Info'];const pernaTag=r._pernaTotal>1?` <span style="font-size:9px;color:var(--txl)">(perna ${r._pernaIndex}/${r._pernaTotal})</span>`:'';return`<tr><td>${GM(r.dt_carg)||'—'}</td><td>${r.placa}${pernaTag}</td><td><span class="badge ${r.tipo_ret==='MP'?'b-go':'b-gd'}">${r.tipo_ret||'—'}</span></td><td style="font-family:'DM Mono',monospace;font-weight:700">${r.dest_ret_uf||r.destino_uf||'—'}</td><td style="text-align:right">${r.peso_ret?N(r.peso_ret,0):'—'}</td><td style="color:var(--gd);font-weight:600">${R(r.vl_total)}</td><td>${r.pagamento||'—'}</td><td>${r.conta||'—'}</td><td>${FD(r.dt_base)}</td><td><span class="badge ${bc}">${sl}</span></td></tr>`;}).join('');
   const tot=rows.reduce((a,r)=>a+r.vl_total,0);
   g('pay-count').textContent=`${rows.length} registros`;g('pay-total').textContent=`Total: ${R(tot)}`;
 }
@@ -9516,7 +9668,8 @@ function calcKmLReal(){
    ══════════════════════════════════════════════════════════════════════ */
 function mPernaVazia(){
   return { cidade:'', uf:'', tipo:'', peso:'', produto:'', vton:'', vl_total:'',
-    pagamento:'', conta:'', km_final:'', pedagio_real:'', consumo_real:'' };
+    pagamento:'', conta:'', km_final:'', pedagio_real:'', consumo_real:'',
+    vl_adiant:'', dt_adiant:'', fmt_adiant:'', vl_pgto_final:'', dt_pgto_final:'', fmt_pgto_final:'' };
 }
 // Migra o formato antigo (campos soltos no registro) pra uma perna única — usado só
 // pra abrir viagens antigas, criadas antes de existir múltiplas pernas.
@@ -9544,7 +9697,7 @@ function mRemoverPerna(idx){
 function mColherPernasDaTela(){
   if(!window._pernasRetorno) return;
   window._pernasRetorno.forEach(function(p, i){
-    ['cidade','uf','tipo','peso','produto','vton','vl_total','pagamento','conta','km_final','pedagio_real','consumo_real'].forEach(function(campo){
+    ['cidade','uf','tipo','peso','produto','vton','vl_total','pagamento','conta','km_final','pedagio_real','consumo_real','vl_adiant','dt_adiant','fmt_adiant','vl_pgto_final','dt_pgto_final','fmt_pgto_final'].forEach(function(campo){
       var el = g('m-perna-'+i+'-'+campo);
       if(el) p[campo] = el.value;
     });
@@ -9567,6 +9720,7 @@ function mPernaCampoMudou(idx, campo){
   if((campo==='vl_total' || campo==='peso') && p._vtonDerivado){
     var _v = freteVtonDe(p.vl_total, p.peso); p.vton = _v!=null ? _v : '';
   }
+  if(campo==='vl_adiant' || campo==='vl_pgto_final' || campo==='vl_total'){ mPernaAplicarStatusAuto(p); }
   mRenderPernas();
 }
 function mPernaVtonAoVivo(i){
@@ -9575,6 +9729,49 @@ function mPernaVtonAoVivo(i){
   if(!(t>0)){ vt.value=''; if(hi) hi.textContent=''; return; }
   if(v==null){ vt.value=''; if(hi){ hi.textContent='Informe um peso válido para calcular o R$/t'; hi.style.color='#b45309'; } return; }
   vt.value=v.toFixed(2); if(hi){ hi.textContent=freteFmtTon(v); hi.style.color='var(--gd)'; }
+}
+// Status automático a partir dos valores informados (só quando há valor lançado; sem
+// valor, vale o status escolhido à mão — Pendente/Pago — como antes).
+function mPernaAplicarStatusAuto(p){
+  if(!p || p.tipo==='MP') return;
+  var t=parseFloat(p.vl_total)||0, rec=(parseFloat(p.vl_adiant)||0)+(parseFloat(p.vl_pgto_final)||0);
+  if(rec>0.005){ p.pagamento = (t>0 && rec>=t-0.005) ? 'Pago' : 'Parcial'; }
+  else if(p.pagamento==='Parcial'){ p.pagamento=''; }
+}
+function mFmtOpts(sel){ return '<option value="">Selecione…</option>'+['Extratta','NF','Outro'].map(function(f){ return '<option value="'+f+'"'+(f===sel?' selected':'')+'>'+f+'</option>'; }).join(''); }
+function mPernaFinResumoHtml(t, rec, saldo, st){
+  var cor=st==='Pago'?'#166534':(st==='Parcial'?'#92400e':'#991b1b'), bg=st==='Pago'?'#dcfce7':(st==='Parcial'?'#fef9c3':'#fee2e2');
+  return '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px">'
+    +'<div><div class="form-lbl">Valor total</div><div style="font-weight:800;color:var(--gd)">'+R(t)+'</div></div>'
+    +'<div><div class="form-lbl">Recebido</div><div style="font-weight:800;color:#166534">'+R(rec)+'</div></div>'
+    +'<div><div class="form-lbl">Saldo a receber</div><div style="font-weight:800;color:'+(saldo>0.005?'#991b1b':'#166534')+'">'+R(saldo)+'</div></div>'
+    +'<div><div class="form-lbl">Status</div><div style="display:inline-block;padding:2px 10px;border-radius:6px;font-weight:800;font-size:11px;background:'+bg+';color:'+cor+'">'+st+'</div></div></div>';
+}
+function mPernaFinHtml(p, i){
+  if(p.tipo==='MP') return '';
+  var t=parseFloat(p.vl_total)||0, rec=legRecebido({vl_total:t,pagamento:p.pagamento,vl_adiant:p.vl_adiant,vl_pgto_final:p.vl_pgto_final}), saldo=Math.max(0,t-rec);
+  var st=p.pagamento==='Pago'?'Pago':(rec>0.005?'Parcial':'Pendente');
+  var f=function(campo,rot,tipo,extra){ return '<div class="form-grp"><label class="form-lbl">'+rot+'</label><input type="'+tipo+'" class="form-ctrl" id="m-perna-'+i+'-'+campo+'" '+(extra||'')+' value="'+(p[campo]||'')+'"></div>'; };
+  var fm=function(campo,rot){ return '<div class="form-grp"><label class="form-lbl">'+rot+'</label><select class="form-ctrl" id="m-perna-'+i+'-'+campo+'" onchange="mPernaCampoMudou('+i+',\''+campo+'\')">'+mFmtOpts(p[campo])+'</select></div>'; };
+  var vl=function(campo,rot){ return f(campo,rot,'number','step="0.01" min="0" oninput="mPernaFinAoVivo('+i+')" onblur="mPernaCampoMudou('+i+',\''+campo+'\')"'); };
+  var dt=function(campo,rot){ return f(campo,rot,'date','onchange="mPernaCampoMudou('+i+',\''+campo+'\')"'); };
+  return '<div style="margin-top:10px;padding:10px 12px;background:var(--gg);border:1px solid var(--gb);border-radius:8px">'
+    +'<div style="font-size:10.5px;font-weight:800;color:var(--gd);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Adiantamento e pagamento <span style="font-weight:600;text-transform:none;color:var(--txl)">(opcional — atualiza o saldo a receber)</span></div>'
+    +'<div class="fg g3">'+dt('dt_adiant','Data Adiantamento')+vl('vl_adiant','Valor Adiantamento (R$)')+fm('fmt_adiant','Formato')+'</div>'
+    +'<div class="fg g3" style="margin-top:8px">'+dt('dt_pgto_final','Data Pagamento Final')+vl('vl_pgto_final','Valor Pagamento Final (R$)')+fm('fmt_pgto_final','Formato')+'</div>'
+    +'<div id="m-perna-'+i+'-fin-resumo">'+mPernaFinResumoHtml(t,rec,saldo,st)+'</div>'
+  +'</div>';
+}
+// Atualiza o resumo (total / recebido / saldo / status) enquanto digita, sem redesenhar a tela.
+function mPernaFinAoVivo(i){
+  var el=g('m-perna-'+i+'-fin-resumo'); if(!el) return;
+  var v=function(c){ var e=g('m-perna-'+i+'-'+c); return e ? (parseFloat(e.value)||0) : 0; };
+  var t=v('vl_total'), a=v('vl_adiant'), f=v('vl_pgto_final');
+  var stSel=g('m-perna-'+i+'-pagamento'), manual=stSel?stSel.value:'';
+  var st = (a+f)>0.005 ? ((t>0 && a+f>=t-0.005)?'Pago':'Parcial') : (manual==='Pago'?'Pago':'Pendente');
+  var rec = st==='Pago' ? t : Math.min(t, a+f);
+  el.innerHTML=mPernaFinResumoHtml(t, rec, Math.max(0,t-rec), st);
+  if(stSel && (a+f)>0.005) stSel.value = (st==='Pago'?'Pago':'Parcial');
 }
 function mRenderPernas(){
   var cont = g('m-pernas-container'); if(!cont) return;
@@ -9602,10 +9799,11 @@ function mRenderPernas(){
         +'<div class="form-grp"><label class="form-lbl">Km Inicial desta perna (automático)</label><input type="text" class="form-ctrl" readonly style="background:var(--gg);font-weight:700" value="'+(kmInicial||'—')+(i===0?' (Km Saída da viagem)':' (Km Final da perna '+i+')')+'"></div>'
       +'</div>'
       +'<div class="fg g3" style="margin-top:8px">'
-        +'<div class="form-grp"><label class="form-lbl">Valor Total do Frete (R$) <span class="req">*</span></label><input type="number" class="form-ctrl" id="m-perna-'+i+'-vl_total" step="0.01" min="0" style="font-weight:800" value="'+(p.vl_total||'')+'" oninput="mPernaVtonAoVivo('+i+')" onblur="mPernaCampoMudou('+i+',\'vl_total\')"></div>'
+        +'<div class="form-grp"><label class="form-lbl">Valor Total do Frete (R$) <span class="req">*</span></label><input type="number" class="form-ctrl" id="m-perna-'+i+'-vl_total" step="0.01" min="0" style="font-weight:800" value="'+(p.vl_total||'')+'" oninput="mPernaVtonAoVivo('+i+');mPernaFinAoVivo('+i+')" onblur="mPernaCampoMudou('+i+',\'vl_total\')"></div>'
         +'<div class="form-grp"><label class="form-lbl">R$/t <span style="font-weight:600;text-transform:none;color:var(--txl)">(calculado)</span></label><input type="number" class="form-ctrl" id="m-perna-'+i+'-vton" readonly tabindex="-1" placeholder="—" style="background:var(--gg);font-weight:800" value="'+(p.vton||'')+'"><div id="m-perna-'+i+'-vton-hint" style="font-size:10.5px;font-weight:700;margin-top:3px;min-height:13px;color:var(--gd)">'+(p._vtonDerivado&&parseFloat(p.vton)>0?freteFmtTon(p.vton):'')+'</div></div>'
-        +(p.tipo==='MP' ? '' : '<div class="form-grp"><label class="form-lbl">Status Pagamento</label><select class="form-ctrl" id="m-perna-'+i+'-pagamento" onchange="mPernaCampoMudou('+i+',\'pagamento\')"><option value="">Pendente</option><option value="Pago"'+(p.pagamento==='Pago'?' selected':'')+'>Pago</option></select></div>')
+        +(p.tipo==='MP' ? '' : '<div class="form-grp"><label class="form-lbl">Status Pagamento</label><select class="form-ctrl" id="m-perna-'+i+'-pagamento" onchange="mPernaCampoMudou('+i+',\'pagamento\')"><option value="">Pendente</option><option value="Parcial"'+(p.pagamento==='Parcial'?' selected':'')+'>Parcial</option><option value="Pago"'+(p.pagamento==='Pago'?' selected':'')+'>Pago</option></select></div>')
       +'</div>'
+      +mPernaFinHtml(p,i)
       +'<div class="fg g4" style="margin-top:8px">'
         +(p.tipo==='MP' ? '<div class="form-grp"><label class="form-lbl">Conta / Responsável</label><div style="font-size:11px;color:var(--txl);padding:8px 0">Coleta MP é receita interna — não gera pendência de recebimento nem conta associada.</div></div>' : '<div class="form-grp"><label class="form-lbl">Conta / Responsável</label><select class="form-ctrl" id="m-perna-'+i+'-conta" onchange="mPernaCampoMudou('+i+',\'conta\')"><option value="">Selecione…</option><option value="MB Proni"'+(p.conta==='MB Proni'?' selected':'')+'>MB Proni</option><option value="Ambar Amaral"'+(p.conta==='Ambar Amaral'?' selected':'')+'>Ambar Amaral</option><option value="Carta Frete"'+(p.conta==='Carta Frete'?' selected':'')+'>Carta Frete</option></select></div>')
         +'<div class="form-grp"><label class="form-lbl">Km Final desta perna (hodômetro) <span class="req">*</span></label><input type="number" class="form-ctrl" id="m-perna-'+i+'-km_final" min="0" value="'+(p.km_final||'')+'" onblur="mPernaCampoMudou('+i+',\'km_final\')"></div>'
@@ -9746,6 +9944,11 @@ function saveEtapa2(){
       if(!parseFloat(p.km_final)){
         toast('Preencha o Km Final (hodômetro) do Frete Retorno '+(i+1),'error'); return;
       }
+      if(p.tipo!=='MP'){
+        var _a=parseFloat(p.vl_adiant)||0, _f=parseFloat(p.vl_pgto_final)||0, _t=parseFloat(p.vl_total)||((parseFloat(p.vton)||0)*(parseFloat(p.peso)||0)/1000);
+        if(_a<0||_f<0){ toast('Frete Retorno '+(i+1)+': adiantamento e pagamento não podem ser negativos','error'); return; }
+        if(_a+_f > _t+0.01){ toast('Frete Retorno '+(i+1)+': adiantamento + pagamento ('+R(_a+_f)+') é maior que o valor do frete ('+R(_t)+')','error'); return; }
+      }
     }
     var kmSaidaViagem = parseFloat(r.km_saida)||0;
     var kmAnterior = kmSaidaViagem;
@@ -9763,6 +9966,12 @@ function saveEtapa2(){
       delete p._vtonDerivado;
       p.pedagio_real = p.pedagio_real!=='' && p.pedagio_real!=null ? parseFloat(p.pedagio_real) : null;
       p.consumo_real = p.consumo_real!=='' && p.consumo_real!=null ? parseFloat(p.consumo_real) : null;
+      if(p.tipo==='MP'){ p.vl_adiant=0; p.vl_pgto_final=0; p.dt_adiant=''; p.dt_pgto_final=''; p.fmt_adiant=''; p.fmt_pgto_final=''; }
+      else {
+        p.vl_adiant=parseFloat(p.vl_adiant)||0; p.vl_pgto_final=parseFloat(p.vl_pgto_final)||0;
+        p.dt_adiant=p.dt_adiant||''; p.dt_pgto_final=p.dt_pgto_final||''; p.fmt_adiant=p.fmt_adiant||''; p.fmt_pgto_final=p.fmt_pgto_final||'';
+        mPernaAplicarStatusAuto(p);
+      }
     });
     r.fretes_retorno = pernas;
 
@@ -9777,7 +9986,9 @@ function saveEtapa2(){
     r.km_final = pernas[pernas.length-1].km_final;
     r.vl_ton = pernas[0].vton;
     r.vl_total = pernas.reduce(function(s,p){return s+p.vl_total;},0);
-    r.pagamento = pernas.every(function(p){return p.pagamento==='Pago';}) ? 'Pago' : 'Pendente';
+    r.pagamento = freteStatusConsolidado(pernas);
+    r.vl_adiant = pernas.reduce(function(s,p){return s+(p.tipo==='MP'?0:(parseFloat(p.vl_adiant)||0));},0);
+    r.vl_pgto_final = pernas.reduce(function(s,p){return s+(p.tipo==='MP'?0:(parseFloat(p.vl_pgto_final)||0));},0);
     r.conta = pernas[0].conta;
     r.pedagio_real = pernas.reduce(function(s,p){return s+(p.pedagio_real||0);},0) || null;
     r.consumo_real = pernas.reduce(function(s,p){return s+(p.consumo_real||0);},0) || null;
@@ -9798,7 +10009,7 @@ function saveEtapa2(){
     // Retorno vazio — sem pernas, campos de Frete Retorno ficam zerados/limpos.
     r.fretes_retorno = [];
     r.dest_ret_cidade=''; r.dest_ret_uf=''; r.dest_ret=''; r.tipo_ret=''; r.peso_ret=0;
-    r.produto_ret=''; r.vl_ton=0; r.vl_total=0; r.pagamento=''; r.conta='';
+    r.produto_ret=''; r.vl_ton=0; r.vl_total=0; r.pagamento=''; r.conta=''; r.vl_adiant=0; r.vl_pgto_final=0;
     if(!parseFloat(g('m-km-final').value)){
       toast('Preencha o Km Final (hodômetro) — obrigatório em toda viagem, mesmo com retorno vazio','error');
       return;
@@ -9940,8 +10151,8 @@ function renderPerformanceTable(){
     const avgCat=avg(catRows.map(r=>r.dur_med).filter(v=>v!=null));
     h+=`<tr style="background:var(--bg-chip)">
       <td colspan="6" style="padding:8px 14px">
-        <span style="font-size:12px;font-weight:800;color:#fff">${cat}</span>
-        <span style="font-size:10px;color:rgba(255,255,255,.7);margin-left:10px">Média da categoria: ${avgCat||'—'} dias · ${catRows.length} veículos</span>
+        <span style="font-size:12px;font-weight:800;color:var(--gd)">${cat}</span>
+        <span style="font-size:10px;color:var(--txm);margin-left:10px">Média da categoria: ${avgCat||'—'} dias · ${catRows.length} veículos</span>
       </td></tr>`;
     catRows.forEach((v,i)=>{
       const efic = avgCat&&v.dur_med ? (v.dur_med<=avgCat*0.9?'🟢':v.dur_med<=avgCat*1.1?'🟡':'🔴') : '—';
@@ -12928,6 +13139,27 @@ function freteGrupoDeIda(ida){ return Math.min(40, Math.max(1, Math.ceil(ida/100
 // Use a base original (DB/data) pra tudo que não é especificamente sobre
 // frete retorno, e o resultado desta função só para o que é.
 // ══════════════════════════════════════════════════════════════════════
+// ══ (28/10) FRETE RETORNO — adiantamento / pagamento final por perna ═══════════
+// Campos novos (todos opcionais; registros antigos não são alterados): vl_adiant,
+// dt_adiant, fmt_adiant, vl_pgto_final, dt_pgto_final, fmt_pgto_final.
+// Regra: recebido = adiantamento + pagamento final (limitado ao valor do frete);
+// saldo a receber = valor do frete − recebido. Status "Pago" marcado manualmente
+// continua valendo como TUDO recebido (regra anterior preservada). Sem valores
+// informados, o comportamento é exatamente o de antes (tudo pendente até "Pago").
+function legRecebido(r){
+  var t=parseFloat(r.vl_total)||0;
+  if(r.pagamento==='Pago') return t;
+  var rec=(parseFloat(r.vl_adiant)||0)+(parseFloat(r.vl_pgto_final)||0);
+  return Math.max(0, Math.min(t, rec));
+}
+function legSaldo(r){ return Math.max(0, (parseFloat(r.vl_total)||0) - legRecebido(r)); }
+function freteStatusConsolidado(pernas){
+  var ps=pernas||[];
+  if(ps.length && ps.every(function(p){return p.pagamento==='Pago';})) return 'Pago';
+  var rec=ps.reduce(function(a,p){ return a+(p.tipo==='MP'?0:legRecebido(p)); },0);
+  return rec>0.005 ? 'Parcial' : 'Pendente';
+}
+
 function freteExplodirPernas(data){
   var out = [];
   (data||[]).forEach(function(r){
@@ -12944,6 +13176,8 @@ function freteExplodirPernas(data){
         clone.vl_total          = p.vl_total;
         clone.pagamento         = p.pagamento;
         clone.conta             = p.conta;
+        clone.vl_adiant = p.vl_adiant; clone.dt_adiant = p.dt_adiant; clone.fmt_adiant = p.fmt_adiant;
+        clone.vl_pgto_final = p.vl_pgto_final; clone.dt_pgto_final = p.dt_pgto_final; clone.fmt_pgto_final = p.fmt_pgto_final;
         clone.km_desloc_retorno = (p.km_real!=null) ? p.km_real : r.km_desloc_retorno;
         clone.pedagio_real      = p.pedagio_real;
         clone.consumo_real      = p.consumo_real;
@@ -15331,7 +15565,7 @@ function switchSubTab(sub){
       var stored=localStorage.getItem('raguife_ft_v1');
       var parsed=stored?JSON.parse(stored):[];
       var userRecs=parsed.filter(function(r){return r._user;});
-      DB_FT=JSON.parse(JSON.stringify(SEED_FT)).concat(userRecs);
+      DB_FT=ftMontarDB(parsed);
       if(typeof ftPopulateFilters==='function') ftPopulateFilters();
       if(typeof ftRenderLancTable==='function') ftRenderLancTable();
       if(typeof ftRenderKanban==='function') ftRenderKanban();
@@ -16845,6 +17079,39 @@ const SEED_FT = [{"conj":"FTE-8G89","mot":"THIAGO","dt":"2016-01-08","mes":"01/2
 var DB_FT = [];
 var _ftEvMode='val', _ftTop5Mode='val', _ftPendingRec=null, _ftMesInited=false;
 
+// ══ (28/10) FRETE TERCEIROS — identidade, edição e exclusão seguras ═══════════════
+// Os lançamentos manuais ficavam num array SEM identificador: a exclusão apagava o
+// 1º registro com mesma data+cliente e, num conflito entre computadores, a sincronização
+// (merge por JSON) ressuscitava o excluído e duplicava o editado. Agora cada lançamento
+// tem um _id estável; a exclusão grava uma lápide (FB.tombstone) e a base histórica
+// (embutida no arquivo) pode ser corrigida/ocultada por "marcadores" gravados junto.
+var _ftMarcadoresExcl=[];
+function ftHash(str){ var h=2166136261; for(var i=0;i<str.length;i++){ h^=str.charCodeAt(i); h=Math.imul(h,16777619); } return (h>>>0).toString(36); }
+function ftChaveConteudo(r){ return [r.dt,r.conj,r.mot,r.cli,r.cid,r.uf,r.car,r.peso,r.vton,r.vfr,r.nf].map(function(x){return String(x==null?'':x);}).join('|'); }
+function ftIdDeterministico(prefixo, r, vistos){ var b=prefixo+ftHash(ftChaveConteudo(r)); vistos[b]=(vistos[b]||0)+1; return vistos[b]>1 ? b+'_'+vistos[b] : b; }
+function ftNovoId(){ return 'ft_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8); }
+// Monta DB_FT = base histórica (menos o que foi excluído/substituído) + lançamentos manuais.
+// Registros antigos sem _id ganham um id DETERMINÍSTICO (mesmo conteúdo → mesmo id em
+// qualquer computador; conteúdos idênticos recebem sufixo _2, _3…). Não grava nada sozinho.
+function ftMontarDB(parsed){
+  parsed=Array.isArray(parsed)?parsed:[];
+  var marc=parsed.filter(function(r){return r && r._seedExcl;});
+  var reais=parsed.filter(function(r){return r && r._user && !r._seedExcl;});
+  var ocultar={}; marc.forEach(function(m){ ocultar[m._seedKey]=1; });
+  reais.forEach(function(r){ if(r._seedKey) ocultar[r._seedKey]=1; });
+  var vSeed={}, vId={};
+  var seed=JSON.parse(JSON.stringify(SEED_FT)).filter(function(r){ var k=ftIdDeterministico('seed_',r,vSeed); r._sk=k; return !ocultar[k]; });
+  reais.forEach(function(r){ if(!r._id) r._id=ftIdDeterministico('ft_',r,vId); });
+  _ftMarcadoresExcl=marc;
+  return seed.concat(reais);
+}
+function ftPrepararIdentidade(rec, base){
+  rec._user=true;
+  if(!rec._id) rec._id=ftNovoId();
+  if(base && base._sk) rec._seedKey=base._sk;   // edição de registro histórico: a cópia editada substitui o original
+  delete rec._sk;
+}
+
 function ftInit(){
   var _tp3 = document.getElementById('tab-dashboard');
   if(_tp3 && !_tp3.classList.contains('active')) return;
@@ -16853,13 +17120,13 @@ function ftInit(){
   var stored=localStorage.getItem('raguife_ft_v1');
   var parsed=stored?JSON.parse(stored):[];
   var userRecs=parsed.filter(function(r){return r._user;});
-  DB_FT=JSON.parse(JSON.stringify(SEED_FT)).concat(userRecs);
+  DB_FT=ftMontarDB(parsed);
   ftPopulateFilters();
   ftRender();
 }
 
 function ftSaveToDB(){
-  localStorage.setItem('raguife_ft_v1',JSON.stringify(DB_FT.filter(function(r){return r._user;})));
+  localStorage.setItem('raguife_ft_v1',JSON.stringify(DB_FT.filter(function(r){return r._user;}).concat(_ftMarcadoresExcl)));
 }
 
 function ftPopulateFilters(){
@@ -16887,6 +17154,7 @@ function ftPopulateFilters(){
     // Se mês selecionado não existe no novo ano, resetar para Acumulado
     if(curVal && meses.indexOf(curVal) < 0) mesEl.value = '';
   }
+  ftPopulaPeriodo();
   var clis=[...new Set(DB_FT
     .filter(function(r){ return !anoSel || String(r.ano||'')===String(anoSel); })
     .map(function(r){return r.cli;}))
@@ -16944,12 +17212,75 @@ function ftSetTipo(t){ var e=document.getElementById('ft-tipo'); if(e){ e.value=
 function ftFiltered(){
   var ano = document.getElementById('ft-ano') ? document.getElementById('ft-ano').value : '2026';
   var mes = document.getElementById('ft-mes') ? document.getElementById('ft-mes').value : '';
+  var per = ftPeriodoCustom();
   return DB_FT.filter(function(r){
-    if(ano && r.ano && String(r.ano) !== String(ano)) return false;
-    if(mes && r.mes !== mes) return false;
+    if(per){ if(!ftMesNoPeriodo(ftMesReg(r))) return false; }   // período personalizado (De/Até) substitui Ano/Mês
+    else {
+      if(ano && r.ano && String(r.ano) !== String(ano)) return false;
+      if(mes && r.mes !== mes) return false;
+    }
     if(!ftPassaTipo(r)) return false;
     return true;
   });
+}
+
+// ══ (28/10) DASHBOARD FRETE TERCEIROS v2 — período, comparativo MP × PA ═══════
+// Referência de data do módulo: o MÊS do lançamento (r.mes = MM/AAAA, derivado da
+// data de carregamento r.dt) — a mesma usada pelos KPIs. Nada aqui altera dados.
+var FT_MLBL=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+function ftValSel(id){ var e=document.getElementById(id); return e ? e.value : ''; }
+function ftMesReg(r){ return (r && r.mes) ? r.mes : ((r && r.dt) ? String(r.dt).slice(5,7)+'/'+String(r.dt).slice(0,4) : ''); }
+function ftMesIdx(m){ var p=String(m||'').split('/'); var mm=parseInt(p[0],10), yy=parseInt(p[1],10); return (mm&&yy) ? yy*12+mm : 0; }
+function ftMesLabel(m, comAno){ var p=String(m||'').split('/'); var i=parseInt(p[0],10)-1; if(!(i>=0&&i<=11)) return String(m||''); return FT_MLBL[i]+(comAno?'/'+p[1]:''); }
+// Período personalizado por mês (De/Até). Retorna null quando não preenchido.
+function ftPeriodoCustom(){
+  var a=ftValSel('ft-de'), b=ftValSel('ft-ate');
+  if(!a && !b) return null;
+  var i=a?ftMesIdx(a):0, f=b?ftMesIdx(b):99999;
+  if(i>f){ var t=i; i=f; f=t; }
+  return {ini:i, fim:f, de:a, ate:b};
+}
+function ftMesNoPeriodo(mes){ var p=ftPeriodoCustom(); if(!p) return true; var i=ftMesIdx(mes); return i>=p.ini && i<=p.fim; }
+// Base dos componentes de EVOLUÇÃO (tabela comparativa e histórico MP × PA): segue
+// período (Ano ou De/Até) e tipo de operação, mas NÃO colapsa no MÊS único — o mês
+// selecionado apenas destaca a linha/coluna correspondente.
+function ftEvolRows(){
+  var per=ftPeriodoCustom(), ano=ftValSel('ft-ano');
+  return DB_FT.filter(function(r){
+    if(per){ if(!ftMesNoPeriodo(ftMesReg(r))) return false; }
+    else if(ano && r.ano && String(r.ano)!==String(ano)) return false;
+    return ftPassaTipo(r);
+  });
+}
+// Meses em ordem cronológica, do primeiro ao último com dado (sem buracos)
+function ftMesesEixo(rows){
+  var idxs=rows.map(function(r){return ftMesIdx(ftMesReg(r));}).filter(function(i){return i>0;});
+  if(!idxs.length) return [];
+  var mn=Math.min.apply(null,idxs), mx=Math.max.apply(null,idxs), out=[];
+  // Intervalo curto (até 24 meses): preenche meses sem lançamento com zero, para a
+  // evolução ficar contínua. Intervalo longo (ex.: "Todos os anos"): lista só os
+  // meses com dado, evitando dezenas de linhas/colunas vazias.
+  if((mx-mn+1)>24){
+    var seen={}; idxs.forEach(function(i){ seen[i]=1; });
+    Object.keys(seen).map(Number).sort(function(a,b){return a-b;}).forEach(function(i){ var y=Math.floor((i-1)/12), mm=((i-1)%12)+1; out.push(String(mm).padStart(2,'0')+'/'+y); });
+    return out;
+  }
+  for(var i=mn;i<=mx;i++){ var y=Math.floor((i-1)/12), mm=((i-1)%12)+1; out.push(String(mm).padStart(2,'0')+'/'+y); }
+  return out;
+}
+function ftSyncPeriodoUI(){
+  var on=!!ftPeriodoCustom();
+  ['ft-ano','ft-mes'].forEach(function(id){ var e=document.getElementById(id); if(e&&e.parentNode) e.parentNode.classList.toggle('ft-periodo-off', on); });
+}
+function ftPopulaPeriodo(){
+  var de=document.getElementById('ft-de'), ate=document.getElementById('ft-ate'); if(!de||!ate) return;
+  var vd=de.value, va=ate.value, seen={}, lista=[];
+  DB_FT.forEach(function(r){ var m=ftMesReg(r); if(m && ftMesIdx(m)>0 && !seen[m]){ seen[m]=1; lista.push(m); } });
+  lista.sort(function(a,b){ return ftMesIdx(a)-ftMesIdx(b); });
+  var opts='<option value="">—</option>'+lista.map(function(m){ return '<option value="'+m+'">'+ftMesLabel(m,true)+'</option>'; }).join('');
+  de.innerHTML=opts; ate.innerHTML=opts;
+  if(vd && seen[vd]) de.value=vd;
+  if(va && seen[va]) ate.value=va;
 }
 // Viagens da frota própria: mês/ano vêm da data de carregamento. (Antes os
 // gráficos usavam o campo r.mes, que não existe nas viagens lançadas a partir
@@ -17030,11 +17361,14 @@ function ftRenderRanking(data){
 
 
 function ftRender(){
+  ftSyncPeriodoUI();
   var data=ftFiltered();
   ftRenderKPIs(data);
   ftRenderTable(data);
   ftRenderKanban();
   ftRenderRanking(data);
+  ftRenderCompMesTipo();
+  ftRenderFormatoPgto(data);
   setTimeout(function(){ftRenderCharts(data);buildFtCatChart();ftRenderNewCharts(data);},80);
 }
 
@@ -17078,16 +17412,19 @@ function ftRenderKPIs(data){
         '<div style="display:flex;justify-content:space-between;font-size:11px;cursor:pointer;padding:3px 4px;border-radius:4px" ondblclick="ftOpenPagtoReport(\'ADIANTAMENTO\')" title="Duplo clique para ver detalhes"><span>🟡 Adiantamento</span><b style="color:#92400e">'+adt+'</b></div>'+
         '<div style="display:flex;justify-content:space-between;font-size:11px;cursor:pointer;padding:3px 4px;border-radius:4px" ondblclick="ftOpenPagtoReport(\'SEM_PGTO\')" title="Duplo clique para ver detalhes"><span>🔴 Sem Pagamento</span><b style="color:#991b1b">'+semPg+'</b></div>'+
       '</div>'+
-    '</div>'+
-    ftBuildCatCard(userR);
+    '</div>';
+  // (28/10) Card "Frete Terceirizado por Categoria" (por tipo de veículo) retirado desta
+  // linha a pedido — substituído pelo Comparativo Mensal MP × PA logo abaixo dos KPIs.
   var sub=document.getElementById('ft-header-sub');
-  if(sub){var mesEl=document.getElementById('ft-mes');var mv=mesEl?mesEl.value:'';var _t=ftTipoSel()||'Total';var _a=document.getElementById('ft-ano')?document.getElementById('ft-ano').value:'';sub.textContent=(mv?mv:_a+' · Acumulado')+' · '+_t+' · '+data.length+' viagens · '+R(total);}
+  if(sub){var mesEl=document.getElementById('ft-mes');var mv=mesEl?mesEl.value:'';var _t=ftTipoSel()||'MP + PA';var _a=document.getElementById('ft-ano')?document.getElementById('ft-ano').value:'';var _per=ftPeriodoCustom();
+    var _pt=_per ? ('Período '+(_per.de?ftMesLabel(_per.de,true):'início')+' → '+(_per.ate?ftMesLabel(_per.ate,true):'hoje')) : (mv?mv:(_a?_a+' · Acumulado':'Todos os anos'));
+    sub.textContent=_pt+' · '+_t+' · '+data.length+' viagens · '+R(total);}
 }
 
 function ftRenderCharts(data){
   if(typeof Chart==='undefined'){setTimeout(function(){ftRenderCharts(data);},200);return;}
   if(!data||!data.length){
-    ['ft-chart-evolucao','ft-chart-top5','ft-chart-uf','ft-chart-hist','ft-chart-fmt'].forEach(function(id){ var c=document.getElementById(id); if(c&&c._c){ c._c.destroy(); c._c=null; } });
+    ['ft-chart-evolucao','ft-chart-top5','ft-chart-uf'].forEach(function(id){ var c=document.getElementById(id); if(c&&c._c){ c._c.destroy(); c._c=null; } });
     var ft0=document.getElementById('ft-fmt-table'); if(ft0) ft0.innerHTML='<div style="color:var(--txl);font-style:italic;font-size:11px">Sem fretes no filtro selecionado.</div>';
     return;
   }
@@ -17103,7 +17440,7 @@ function ftRenderCharts(data){
     var allMeses=['01','02','03','04','05','06','07','08','09','10','11','12'].map(function(m){return m+'/'+anoAtual;});
     function getVals(mesArr){
       return mesArr.map(function(m){
-        var md=DB_FT.filter(function(r){return r.mes===m && ftPassaTipo(r);});
+        var md=(ftPeriodoCustom()&&!ftMesNoPeriodo(m))?[]:DB_FT.filter(function(r){return r.mes===m && ftPassaTipo(r);});
         if(_ftEvMode==='val') return md.reduce(function(s,r){return s+r.vfr;},0);
         if(_ftEvMode==='ton') return md.reduce(function(s,r){return s+r.peso/1000;},0);
         return md.length;
@@ -17150,7 +17487,7 @@ function ftRenderCharts(data){
     var cMap={};
     data.forEach(function(r){cMap[r.cli]=(cMap[r.cli]||0)+(_ftTop5Mode==='val'?r.vfr:r.peso/1000);});
     var top5=Object.entries(cMap).sort(function(a,b){return b[1]-a[1];}).slice(0,5);
-    if(top5.length>0) ctx2._c=new Chart(ctx2,{type:'bar',data:{labels:top5.map(function(x){return x[0].length>18?x[0].slice(0,18)+'…':x[0];}),datasets:[{data:top5.map(function(x){return x[1];}),backgroundColor:['rgba(2,79,43,.85)','rgba(115,150,48,.85)','rgba(217,119,6,.85)','rgba(37,99,235,.85)','rgba(124,58,237,.85)'],borderRadius:4,
+    if(top5.length>0) ctx2._c=new Chart(ctx2,{type:'bar',data:{labels:top5.map(function(x){return x[0].length>18?x[0].slice(0,18)+'…':x[0];}),datasets:[{data:top5.map(function(x){return x[1];}),backgroundColor:['rgba(2,79,43,.88)','rgba(2,79,43,.70)','rgba(115,150,48,.88)','rgba(115,150,48,.70)','rgba(143,179,58,.75)'],borderRadius:4,
       datalabels:{display:true,anchor:'end',align:'right',offset:4,
         backgroundColor:'rgba(255,255,255,.9)',borderRadius:3,padding:{top:1,bottom:1,left:4,right:4},
         color:'#374151',font:{size:9,weight:'bold'},
@@ -17174,7 +17511,7 @@ function ftRenderCharts(data){
     var ufMap={};
     data.forEach(function(r){var k=r.uf||r.cid;ufMap[k]=(ufMap[k]||0)+r.vfr;});
     var top10=Object.entries(ufMap).sort(function(a,b){return b[1]-a[1];}).slice(0,10);
-    if(top10.length>0) ctx4._c=new Chart(ctx4,{type:'bar',data:{labels:top10.map(function(x){return x[0];}),datasets:[{data:top10.map(function(x){return x[1];}),backgroundColor:'rgba(124,58,237,.7)',borderRadius:4,
+    if(top10.length>0) ctx4._c=new Chart(ctx4,{type:'bar',data:{labels:top10.map(function(x){return x[0];}),datasets:[{data:top10.map(function(x){return x[1];}),backgroundColor:'rgba(2,79,43,.82)',borderRadius:4,
       datalabels:{display:true,anchor:'end',align:'right',offset:4,
         backgroundColor:'rgba(255,255,255,.9)',borderRadius:3,padding:{top:1,bottom:1,left:4,right:4},
         color:'#374151',font:{size:9,weight:'bold'},formatter:function(v){return 'R$'+N(v/1000,0)+'k';}}}]},options:{indexAxis:'y',responsive:true,layout:{padding:{right:60}},plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,ticks:{font:{size:9},callback:function(v){return 'R$'+N(v/1000,0)+'k';}}},y:{ticks:{font:{size:9}}}}},plugins:[ChartDataLabels]});
@@ -17185,7 +17522,7 @@ function ftRenderCharts(data){
   if(ctx5){
     if(ctx5._c){ctx5._c.destroy();ctx5._c=null;}
     var _hAno = document.getElementById('ft-ano') ? (document.getElementById('ft-ano').value||'2026') : '2026';
-    var hVals=['01','02','03','04','05','06','07','08','09','10','11','12'].map(function(m){return DB_FT.filter(function(r){return r.mes===m+'/'+_hAno && ftPassaTipo(r);}).reduce(function(s,r){return s+r.vfr;},0);});
+    var hVals=['01','02','03','04','05','06','07','08','09','10','11','12'].map(function(m){return DB_FT.filter(function(r){return r.mes===m+'/'+_hAno && ftPassaTipo(r) && ftMesNoPeriodo(r.mes);}).reduce(function(s,r){return s+r.vfr;},0);});
     var hAcc=[];var acc=0; hVals.forEach(function(v){acc+=v;hAcc.push(acc);});
     ctx5._c=new Chart(ctx5,{type:'bar',data:{labels:mLabels,datasets:[
       {label:'Mensal',data:hVals,backgroundColor:'rgba(2,79,43,.6)',borderRadius:4,yAxisID:'y',datalabels:{display:false}},
@@ -17197,47 +17534,63 @@ function ftRenderCharts(data){
     ]},options:{responsive:true,layout:{padding:{top:20}},plugins:{legend:{labels:{font:{size:9}}}},scales:{x:{ticks:{font:{size:9}}},y:{beginAtZero:true,ticks:{font:{size:9},callback:function(v){return 'R$'+N(v/1000,0)+'k';}}},y1:{position:'right',beginAtZero:true,grid:{drawOnChartArea:false},ticks:{font:{size:9},callback:function(v){return 'R$'+N(v/1000,0)+'k';}}}}},plugins:[ChartDataLabels]});
   }
 
-  // Formato pagamento
-  var ctx6=document.getElementById('ft-chart-fmt');
-  if(ctx6){
-    if(ctx6._c){ctx6._c.destroy();ctx6._c=null;}
-    var fmtMap={'Extratta':0,'NF':0,'Outro':0};var fmtCnt={'Extratta':0,'NF':0,'Outro':0};
-    // (07/10) Antes somava o ano inteiro de DB_FT, ignorando ano/mês/carga.
-    data.filter(function(r){return r._user;}).forEach(function(r){
-      if(r.fmt_adt&&fmtMap[r.fmt_adt]!==undefined){fmtMap[r.fmt_adt]+=r.vl_adt||0;fmtCnt[r.fmt_adt]++;}
-      if(r.fmt_pgto&&fmtMap[r.fmt_pgto]!==undefined){fmtMap[r.fmt_pgto]+=r.vl_pgto||0;fmtCnt[r.fmt_pgto]++;}
+}
+
+// (28/10) Formato de Pagamento — painel em barras de progresso (substitui o gráfico em
+// canvas, que ficava com rótulos girados e legenda solta). Soma adiantamentos e
+// pagamentos finais por formato (Extratta · NF · Outro); valor pago sem formato
+// informado aparece à parte, para o total fechar com o que foi realmente pago.
+function ftRenderFormatoPgto(data){
+  var body=document.getElementById('ft-fmt-body'); if(!body) return;
+  if(!data) data=ftFiltered();
+  var t=ftTipoSel();
+  document.querySelectorAll('[data-ft-tipo]').forEach(function(b){ b.className='chart-toggle-btn'+(b.getAttribute('data-ft-tipo')===t?' active':''); });
+  var per=ftPeriodoCustom(), mv=ftValSel('ft-mes'), an=ftValSel('ft-ano');
+  var sub=document.getElementById('ft-fmt-sub');
+  if(sub) sub.textContent='Extratta · NF · Outro — '+(per?'período personalizado':(mv?mv:(an?'Acumulado '+an:'Todos os anos')))+' · '+(t||'MP + PA');
+  var F=['Extratta','NF','Outro'], cor={Extratta:'rgba(2,79,43,.88)',NF:'rgba(115,150,48,.92)',Outro:'rgba(217,119,6,.88)'};
+  var v={Extratta:0,NF:0,Outro:0}, n={Extratta:0,NF:0,Outro:0}, semV=0, semN=0, total=0, nTot=0;
+  data.filter(function(r){return r._user;}).forEach(function(r){
+    [['fmt_adt','vl_adt'],['fmt_pgto','vl_pgto']].forEach(function(p){
+      var val=parseFloat(r[p[1]])||0; if(!(val>0)) return;
+      total+=val; nTot++;
+      var f=r[p[0]];
+      if(f && v[f]!==undefined){ v[f]+=val; n[f]++; } else { semV+=val; semN++; }
     });
-    var fmtClrs=['rgba(2,79,43,.85)','rgba(115,150,48,.85)','rgba(217,119,6,.85)'];
-    var fmtTotal=Object.values(fmtMap).reduce(function(a,b){return a+b;},0);
-    var fmtItens=['Extratta','NF','Outro'].map(function(k,i){return {l:k,v:fmtMap[k],c:fmtClrs[i]};}).sort(function(a,b){return b.v-a.v;});
-    ctx6._c=new Chart(ctx6,{type:'bar',data:{labels:fmtItens.map(function(x){return x.l;}),datasets:[{data:fmtItens.map(function(x){return x.v;}),backgroundColor:fmtItens.map(function(x){return x.c;}),borderRadius:4,borderSkipped:false,
-      datalabels:{display:true,anchor:'end',align:'right',offset:4,
-        backgroundColor:'rgba(255,255,255,.9)',borderRadius:3,padding:{top:1,bottom:1,left:4,right:4},
-        color:'#374151',font:{size:9,weight:'bold'},formatter:function(v){return R(v);}}}]},options:{indexAxis:'y',responsive:true,layout:{padding:{right:80}},plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){return R(ctx.raw);}}}},scales:{x:{beginAtZero:true,ticks:{callback:function(v){return R(v);}}},y:{grid:{display:false}}}},plugins:[ChartDataLabels]});
-    (function(){
-      var mesV=document.getElementById('ft-mes')?document.getElementById('ft-mes').value:'', anoV=document.getElementById('ft-ano')?document.getElementById('ft-ano').value:'';
-      var t=ftTipoSel(); var s=document.getElementById('ft-fmt-sub');
-      if(s) s.textContent='Extratta · NF · Outro — '+(mesV?mesV:('Acumulado '+anoV))+' · '+(t||'Total');
-      document.querySelectorAll('[data-ft-tipo]').forEach(function(b){ b.className='chart-toggle-btn'+(b.getAttribute('data-ft-tipo')===t?' active':''); });
-    })();
-    var ftbl=document.getElementById('ft-fmt-table');
-    if(ftbl){
-      if(fmtTotal===0){ftbl.innerHTML='<div style="color:var(--txl);font-style:italic;font-size:11px">Registre pagamentos em Lançamentos → Frete Terceiros para ver este indicador.</div>';}
-      else{ftbl.innerHTML=['Extratta','NF','Outro'].map(function(fmt,i){var pct=fmtTotal>0?(fmtMap[fmt]/fmtTotal*100).toFixed(1):0;return '<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:'+(i%2===0?'var(--wh)':'var(--gbg)')+';border-radius:6px"><div style="width:10px;height:10px;border-radius:50%;background:'+fmtClrs[i]+';flex-shrink:0"></div><div style="flex:1"><div style="font-size:11px;font-weight:700">'+fmt+'</div></div><div style="text-align:right"><div style="font-size:11.5px;font-weight:800;color:var(--gd)">'+R(fmtMap[fmt])+'</div><div style="font-size:9.5px;color:var(--txl)">'+pct+'%</div></div></div>';}).join('');}
-    }
-  }
+  });
+  if(total<=0){ body.innerHTML='<div class="ft-fmt-empty">Registre pagamentos em Lançamentos → Frete Terceiros para ver este indicador.</div>'; return; }
+  var linhas=F.map(function(f){ return {nm:f,v:v[f],n:n[f],c:cor[f]}; }).sort(function(a,b){return b.v-a.v;});
+  if(semV>0) linhas.push({nm:'Sem formato informado',v:semV,n:semN,c:'#b6bbb6'});
+  body.innerHTML='<div class="ft-fmt-total"><b>'+R(total)+'</b><span>pago em '+nTot+' pagamento(s) (adiantamentos + finais)</span></div>'
+    +linhas.map(function(l){
+      var pc=total>0?l.v/total*100:0;
+      return '<div class="ft-fmt-row"><div class="top"><span class="dot" style="background:'+l.c+'"></span><span class="nm">'+l.nm+'</span><span class="vl">'+(l.v>0?R(l.v):'—')+'</span><span class="pc">'+N(pc,1)+'%</span></div>'
+        +'<div class="bar"><i style="width:'+Math.min(pc,100).toFixed(1)+'%;background:'+l.c+'"></i></div>'
+        +'<div class="meta">'+(l.n>0?l.n+' pagamento(s)':'nenhum pagamento neste formato')+'</div></div>';
+    }).join('');
 }
 
 function ftRenderTable(data){
   if(!data) data=ftFiltered();
-  var q=document.getElementById('ft-srch')?document.getElementById('ft-srch').value.toLowerCase():'';
-  var rows=data.filter(function(r){return !q||r.cli.toLowerCase().includes(q)||r.cid.toLowerCase().includes(q);});
+  var q=(document.getElementById('ft-srch')?document.getElementById('ft-srch').value:'').toLowerCase();
+  var has=function(v){ return String(v==null?'':v).toLowerCase().indexOf(q)>=0; };
+  var rows=data.filter(function(r){ return !q || has(r.cli)||has(r.cid)||has(r.mot)||has(r.conj); });
   var tbody=document.getElementById('ft-tbody'); if(!tbody) return;
-  var total=rows.reduce(function(s,r){return s+r.vfr;},0);
-  tbody.innerHTML=rows.sort(function(a,b){return b.dt.localeCompare(a.dt);}).slice(0,100).map(function(r){
-    return '<tr><td style="font-size:10.5px">'+FD(r.dt)+'</td><td style="font-size:10.5px">'+r.conj+'</td><td>'+r.mot+'</td><td style="font-weight:600">'+r.cli+'</td><td>'+r.cid+'</td><td style="text-align:center;font-weight:700;color:var(--gd)">'+r.uf+'</td><td style="font-size:10px">'+r.car+'</td><td style="text-align:right">'+N(r.peso,0)+'</td><td style="text-align:right">R$'+N(r.vton,2)+'</td><td style="color:#d97706;font-weight:700">'+R(r.vfr)+'</td><td style="font-size:10px;color:var(--txl)">'+r.nf+'</td></tr>';
+  var total=rows.reduce(function(s,r){return s+(parseFloat(r.vfr)||0);},0);
+  var tag=function(r){
+    var t=normCarTipo(r.car), tip=String(r.car||'').replace(/"/g,'');
+    return t==='Matéria Prima' ? '<span class="ft-tag mp" title="'+tip+'">MP</span>'
+         : t==='Produto Acabado' ? '<span class="ft-tag pa" title="'+tip+'">PA</span>'
+         : '<span class="ft-tag nc" title="Tipo de carga não informado">N/C</span>';
+  };
+  var dupN={}; DB_FT.forEach(function(x){ var k=[x.dt,x.conj,x.cli,x.cid].join('|'); dupN[k]=(dupN[k]||0)+1; });
+  tbody.innerHTML=rows.sort(function(a,b){return String(b.dt).localeCompare(String(a.dt));}).slice(0,100).map(function(r){
+    var ix=DB_FT.indexOf(r), dup=dupN[[r.dt,r.conj,r.cli,r.cid].join('|')]>1;
+    var ident=ftEsc(FD(r.dt)+' · '+(r.conj||'s/ placa')+' · '+(r.cli||''));
+    var acoes='<td class="ft-acoes" style="white-space:nowrap;text-align:center"><button class="ft-act" title="Editar a viagem: '+ident+'" onclick="ftEditarRegistro('+ix+')">✏ Editar</button><button class="ft-act del" title="Excluir a viagem: '+ident+'" onclick="ftExcluirRegistro('+ix+')">🗑</button></td>';
+    return '<tr><td style="font-size:10.5px">'+FD(r.dt)+(dup?'<span class="ft-tag dup" title="Há mais de um lançamento com a mesma data, placa, cliente e cidade — verifique se é duplicidade">dup?</span>':'')+'</td><td style="font-size:10.5px">'+(r.conj||'')+'</td><td>'+(r.mot||'')+'</td><td style="font-weight:600">'+(r.cli||'')+'</td><td>'+(r.cid||'')+'</td><td style="text-align:center;font-weight:700;color:var(--gd)">'+(r.uf||'')+'</td><td style="text-align:center">'+tag(r)+'</td><td style="text-align:right">'+N(r.peso,0)+'</td><td style="text-align:right">R$'+N(r.vton,2)+'</td><td style="color:#d97706;font-weight:700">'+R(r.vfr)+'</td><td style="font-size:10px;color:var(--txl)">'+(r.nf||'')+'</td>'+acoes+'</tr>';
   }).join('');
-  var cnt=document.getElementById('ft-tbl-count');if(cnt)cnt.textContent=rows.length+' registros';
+  var cnt=document.getElementById('ft-tbl-count');if(cnt)cnt.textContent=rows.length+' registros'+(rows.length>100?' · exibindo os 100 mais recentes (totais consideram todos)':'');
   var tot=document.getElementById('ft-tbl-total');if(tot)tot.textContent='Total: '+R(total);
 }
 
@@ -17252,7 +17605,7 @@ function ftRenderLancTable(){
     var badge=s==='PAGO'?'<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:5px;font-size:9px;font-weight:800">🟢 100% Pago</span>':s==='ADIANTAMENTO'?'<span style="background:#fef9c3;color:#92400e;padding:2px 8px;border-radius:5px;font-size:9px;font-weight:800">🟡 Adiantamento</span>':'<span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:5px;font-size:9px;font-weight:800">🔴 Sem Pagamento</span>';
     var totalPago=R((r.vl_adt||0)+(r.vl_pgto||0));
     var fmt=(r.fmt_adt||'-')+((r.fmt_pgto&&r.fmt_pgto!==r.fmt_adt)?'/'+r.fmt_pgto:'');
-    return '<tr><td style="font-size:10.5px">'+FD(r.dt)+'</td><td style="font-size:10.5px">'+r.conj+'</td><td style="font-weight:600">'+r.cli+'</td><td>'+r.cid+(r.uf?'/'+r.uf:'')+'</td><td style="text-align:right">'+N(r.peso,0)+'</td><td style="color:#d97706;font-weight:700">'+R(r.vfr)+'</td><td style="font-size:10.5px">'+(r.dt_adt?FD(r.dt_adt)+' / '+R(r.vl_adt):'-')+'</td><td style="font-size:10.5px">'+(r.dt_pgto?FD(r.dt_pgto)+' / '+R(r.vl_pgto):'-')+'</td><td style="font-weight:700;color:var(--gd)">'+totalPago+'</td><td style="font-size:10px">'+fmt+'</td><td>'+badge+'</td><td style="font-size:10.5px">'+r.aprovador+'</td><td style="font-size:10.5px;color:var(--txl)">'+r.nf+'</td><td style="white-space:nowrap;text-align:center"><button onclick="ftEditRecord('+DB_FT.indexOf(r)+')" title="Editar" style="padding:3px 7px;border-radius:4px;border:1px solid var(--gb);background:#fff;color:var(--gd);cursor:pointer;font-size:10px;font-weight:700;margin-right:4px">✏</button><button onclick="ftDelete(\''+r.dt+'\',\''+r.cli+'\')" title="Excluir" style="padding:3px 7px;border-radius:4px;border:1px solid #fca5a5;background:#fff5f5;color:#991b1b;cursor:pointer;font-size:10px;font-weight:700">✕</button></td></tr>';
+    return '<tr><td style="font-size:10.5px">'+FD(r.dt)+'</td><td style="font-size:10.5px">'+r.conj+'</td><td style="font-weight:600">'+r.cli+'</td><td>'+r.cid+(r.uf?'/'+r.uf:'')+'</td><td style="text-align:right">'+N(r.peso,0)+'</td><td style="color:#d97706;font-weight:700">'+R(r.vfr)+'</td><td style="font-size:10.5px">'+(r.dt_adt?FD(r.dt_adt)+' / '+R(r.vl_adt):'-')+'</td><td style="font-size:10.5px">'+(r.dt_pgto?FD(r.dt_pgto)+' / '+R(r.vl_pgto):'-')+'</td><td style="font-weight:700;color:var(--gd)">'+totalPago+'</td><td style="font-size:10px">'+fmt+'</td><td>'+badge+'</td><td style="font-size:10.5px">'+r.aprovador+'</td><td style="font-size:10.5px;color:var(--txl)">'+r.nf+'</td><td style="white-space:nowrap;text-align:center"><button onclick="ftEditRecord('+DB_FT.indexOf(r)+')" title="Editar" style="padding:3px 7px;border-radius:4px;border:1px solid var(--gb);background:#fff;color:var(--gd);cursor:pointer;font-size:10px;font-weight:700;margin-right:4px">✏</button><button onclick="ftExcluirRegistro('+DB_FT.indexOf(r)+')" title="Excluir" style="padding:3px 7px;border-radius:4px;border:1px solid #fca5a5;background:#fff5f5;color:#991b1b;cursor:pointer;font-size:10px;font-weight:700">✕</button></td></tr>';
   }).join('');
 }
 
@@ -17342,6 +17695,7 @@ function ftSaveEtapa1(){
   if(!dt||!cli||!peso||!vton||(!exterior&&(!cid||!uf))){toast('Preencha os campos obrigatórios (*)','error');return;}
   var base=(_ftEditIndex!=null && DB_FT[_ftEditIndex])?DB_FT[_ftEditIndex]:{_user:true,dt_adt:'',vl_adt:0,fmt_adt:'',dt_pgto:'',vl_pgto:0,fmt_pgto:'',aprovador:'',status_pgto:'SEM_PGTO'};
   _ftPendingRec=Object.assign({},base,{conj:document.getElementById('ft-conj').value.trim(),cat:document.getElementById('ft-cat-vei')?document.getElementById('ft-cat-vei').value:'',mot:document.getElementById('ft-mot').value.trim(),dt:dt,mes:dt.slice(5,7)+'/'+dt.slice(0,4),ano:parseInt(dt.slice(0,4)),cli:cli,cid:cid,uf:uf,exterior:exterior,car:document.getElementById('ft-car').value,peso:peso,vton:vton,vfr:parseFloat(document.getElementById('ft-vfr').value)||peso/1000*vton,nf:document.getElementById('ft-nf').value.trim(),obs:document.getElementById('ft-obs').value.trim(),cnt:'RAGUIFE'});
+  ftPrepararIdentidade(_ftPendingRec, base);
   var res=document.getElementById('ft-etapa2-resumo');if(res)res.textContent=cli+' · '+(exterior?'Exterior':cid+'/'+uf)+' · '+R(peso/1000*vton)+' · '+dt;
   ftSwitchEtapa(2);
 }
@@ -17396,12 +17750,80 @@ function ftSaveEtapa2(){
   _ftPendingRec.dt_adt=document.getElementById('ft-dt-adt').value;_ftPendingRec.vl_adt=adt;_ftPendingRec.fmt_adt=document.getElementById('ft-fmt-adt').value;
   _ftPendingRec.dt_pgto=document.getElementById('ft-dt-pgto').value;_ftPendingRec.vl_pgto=pgto;_ftPendingRec.fmt_pgto=document.getElementById('ft-fmt-pgto').value;
   _ftPendingRec.aprovador=aprov;_ftPendingRec.status_pgto=(adt+pgto)===0?'SEM_PGTO':pct>=0.99?'PAGO':'ADIANTAMENTO';
+  var _ftRec=_ftPendingRec, _ftAntes=(_ftEditIndex!=null && DB_FT[_ftEditIndex]) ? JSON.stringify(DB_FT[_ftEditIndex]) : null;
   if(_ftEditIndex!=null && DB_FT[_ftEditIndex]){ DB_FT[_ftEditIndex]=_ftPendingRec; } else { DB_FT.unshift(_ftPendingRec); }
   _ftEditIndex=null;
   ftSaveToDB();ftPopulateFilters();ftRenderLancTable();ftRenderKanban();ftClearForm();_ftPendingRec=null;toast('Lançamento salvo!','success');
+  if(_ftAntes && window.FB_SYNC && FB_SYNC.registrarLog){ try{ FB_SYNC.registrarLog('Frete Terceiros — viagem editada', ftResumoRegistro(_ftRec)+' | antes: '+_ftAntes+' | depois: '+JSON.stringify(_ftRec)); }catch(e){} }
+  try{ ftRender(); }catch(e){ console.warn('[ftSaveEtapa2] ftRender falhou:', e.message); }
 }
 
-function ftDelete(dt,cli){var idx=DB_FT.findIndex(function(r){return r._user&&r.dt===dt&&r.cli===cli;});if(idx>=0){DB_FT.splice(idx,1);ftSaveToDB();ftRenderLancTable();ftRenderKanban();toast('Removido','success');}}
+function ftEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function ftResumoRegistro(r){
+  return FD(r.dt)+' · '+(r.conj||'s/ placa')+' · '+(r.cli||'')+' · '+(r.exterior?'Exterior':(r.cid||'')+(r.uf?'/'+r.uf:''))+' · '+N((parseFloat(r.peso)||0)/1000,1)+' t · '+R(r.vfr||0);
+}
+// Editar: abre o lançamento na Etapa 1 (mesmo formulário do cadastro). Registro da base
+// histórica vira um lançamento manual ao salvar (o original passa a ficar oculto).
+function ftEditarRegistro(i){
+  var r=DB_FT[i]; if(!r){ toast('Registro não encontrado','error'); return; }
+  ftEditRecord(i);
+  setTimeout(function(){ ftSwitchEtapa(1); }, 220);
+}
+// Dependências que a pessoa precisa ver ANTES de confirmar a exclusão.
+function ftDependenciasRegistro(r){
+  var av=[], vfr=parseFloat(r.vfr)||0, adt=parseFloat(r.vl_adt)||0, pg=parseFloat(r.vl_pgto)||0, pago=adt+pg;
+  if(pago>0){
+    var pt=[];
+    if(adt>0) pt.push('adiantamento '+R(adt)+(r.dt_adt?' em '+FD(r.dt_adt):'')+(r.fmt_adt?' ('+r.fmt_adt+')':''));
+    if(pg>0) pt.push('pagamento final '+R(pg)+(r.dt_pgto?' em '+FD(r.dt_pgto):'')+(r.fmt_pgto?' ('+r.fmt_pgto+')':''));
+    av.push({n:'alto',t:'💰 <b>Já há '+R(pago)+' pagos</b> neste lançamento: '+ftEsc(pt.join('; '))+(r.aprovador?' — aprovado por '+ftEsc(r.aprovador):'')+'. Ao excluir, esse histórico de pagamento também é removido (reduz o "Total pago" e o "Formato de Pagamento").'});
+  }
+  av.push({n:'info',t:'📊 O valor de <b>'+R(vfr)+'</b> ('+N((parseFloat(r.peso)||0)/1000,1)+' t) deixa de compor os totais de '+ftEsc(r.mes||'—')+' do Dashboard de Frete Terceiros e o custo de Frete de Terceiros do DRE (Financeiro).'});
+  if(r.status_pgto!=='PAGO' && vfr-pago>0.005) av.push({n:'info',t:'🧾 O saldo a pagar ao transportador ('+R(vfr-pago)+') também deixa de existir.'});
+  if(r.nf) av.push({n:'info',t:'🧾 NF nº <b>'+ftEsc(r.nf)+'</b> vinculada: confira se ela não foi usada em outro controle antes de excluir.'});
+  var irm=DB_FT.filter(function(x){ return x!==r && x.dt===r.dt && x.conj===r.conj && x.cli===r.cli && x.cid===r.cid; });
+  if(irm.length) av.push({n:'info',t:'🔎 Existe(m) <b>'+irm.length+'</b> outro(s) lançamento(s) com a mesma data, placa, cliente e cidade (possível duplicidade). Só <b>este</b> será excluído.'});
+  if(!r._user) av.push({n:'info',t:'📚 Registro da <b>base histórica inicial</b>: será ocultado (a exclusão fica registrada e sincronizada; o arquivo original não é alterado).'});
+  return av;
+}
+function ftExcluirRegistro(i){
+  var r=DB_FT[i]; if(!r){ toast('Registro não encontrado','error'); return; }
+  window._ftDelRef=r;
+  var prev=document.getElementById('ft-del-overlay'); if(prev) prev.remove();
+  var t=normCarTipo(r.car), tipo=t==='Matéria Prima'?'Matéria-Prima (MP)':(t==='Produto Acabado'?'Produto Acabado (PA)':'Não informado');
+  var linhas=[['Data',FD(r.dt)],['Placa',r.conj||'—'],['Motorista',r.mot||'—'],['Cliente',r.cli||'—'],['Destino',r.exterior?'Exterior':((r.cid||'—')+(r.uf?'/'+r.uf:''))],['Tipo de carga',tipo],['Peso',N(parseFloat(r.peso)||0,0)+' kg'],['R$/Ton','R$ '+N(parseFloat(r.vton)||0,2)],['Valor do frete',R(parseFloat(r.vfr)||0)],['NF',r.nf||'—']];
+  var wrap=document.createElement('div'); wrap.id='ft-del-overlay';
+  wrap.onclick=function(e){ if(e.target===wrap) ftFecharConfirmaExclusao(); };
+  wrap.innerHTML='<div class="box"><div class="hd"><b>🗑 Excluir esta viagem?</b><span>Confira o registro abaixo — só ele será excluído.</span></div>'
+    +'<table>'+linhas.map(function(l){ return '<tr><td>'+l[0]+'</td><td><b>'+ftEsc(l[1])+'</b></td></tr>'; }).join('')+'</table>'
+    +ftDependenciasRegistro(r).map(function(a){ return '<div class="av '+a.n+'">'+a.t+'</div>'; }).join('')
+    +'<div class="ft"><button onclick="ftFecharConfirmaExclusao()">Cancelar</button><button class="perigo" onclick="ftConfirmarExclusao()">Excluir definitivamente</button></div></div>';
+  document.body.appendChild(wrap);
+}
+function ftFecharConfirmaExclusao(){ var o=document.getElementById('ft-del-overlay'); if(o) o.remove(); window._ftDelRef=null; }
+function ftConfirmarExclusao(){
+  var r=window._ftDelRef, i=r?DB_FT.indexOf(r):-1;
+  if(i<0){ ftFecharConfirmaExclusao(); toast('Registro não encontrado — nada foi excluído','error'); return; }
+  var resumo=ftResumoRegistro(r), copia=JSON.stringify(r), historico=!r._user, id=r._id||null;
+  if(historico){
+    // base histórica: grava um marcador (não há lápide — o marcador PRECISA sobreviver à sincronização)
+    _ftMarcadoresExcl.push({_user:true,_seedExcl:true,_seedKey:r._sk,_id:'del_'+r._sk,_ts:Date.now(),
+      cli:'— registro histórico excluído —',cid:'',uf:'',car:'',conj:'',mot:'',nf:'',dt:'',mes:'',ano:0,peso:0,vton:0,vfr:0});
+  }
+  DB_FT.splice(i,1);
+  ftSaveToDB();
+  if(!historico && id && window.FB_SYNC && FB_SYNC.tombstone){ try{ FB_SYNC.tombstone('raguife_ft_v1',[id]); }catch(e){ console.warn('[ftExcluir] lápide falhou:', e.message); } }
+  if(window.FB_SYNC && FB_SYNC.registrarLog){ try{ FB_SYNC.registrarLog('Frete Terceiros — viagem excluída', resumo+' | registro: '+copia); }catch(e){} }
+  ftFecharConfirmaExclusao();
+  ftPopulateFilters(); ftRender(); ftRenderLancTable(); ftRenderKanban();
+  toast('Viagem excluída — '+resumo,'success');
+}
+// Legado (botão da tabela de Lançamentos): só age quando existe UM lançamento com essa data+cliente.
+function ftDelete(dt,cli){
+  var ach=DB_FT.filter(function(r){return r._user&&r.dt===dt&&r.cli===cli;});
+  if(ach.length!==1){ toast('Há '+ach.length+' lançamentos com essa data e cliente — use o botão de exclusão da própria linha.','error'); return; }
+  ftExcluirRegistro(DB_FT.indexOf(ach[0]));
+}
 
 // ═══════════════════════════════════════════════════════════════
 // NOVAS FUNÇÕES — Dashboard FT Estratégico
@@ -17440,7 +17862,7 @@ function ftRenderParticipacao(ftData) {
     return MESES_EXCL_PART.indexOf(m) < 0;
   }
   // Se filtro de mês selecionado for Jan-Abr: participação indisponível
-  if(mesFil && !_mesMaioOuMais(mesFil)){
+  if(!ftPeriodoCustom() && mesFil && !_mesMaioOuMais(mesFil)){
     var pEl=document.getElementById('ft-part-pct'); if(pEl){pEl.textContent='N/D';pEl.style.color='#9ca3af';}
     var sEl=document.getElementById('ft-part-sub'); if(sEl)sEl.textContent='Dados indisponíveis para Jan–Abr';
     var bEl=document.getElementById('ft-part-bar'); if(bEl)bEl.style.width='0%';
@@ -17449,7 +17871,7 @@ function ftRenderParticipacao(ftData) {
   }
   // Filtrar ftData: excluir Jan-Abr quando acumulado
   var ftDataFilt = ftData.filter(function(r){
-    if(mesFil) return true; // mês já filtrado acima
+    if(mesFil && !ftPeriodoCustom()) return true; // mês já filtrado acima
     var m = parseInt((r.mes||'').split('/')[0]||0);
     return MESES_EXCL_PART.indexOf(m) < 0;
   });
@@ -17459,11 +17881,14 @@ function ftRenderParticipacao(ftData) {
     var _tipoP = ftTipoSel();
     DB.filter(function(r){
       if(!r || r._excluida) return false;
-      var mr = ftMesViagem(r);
-      if(anoFil && mr.split('/')[1] !== String(anoFil)) return false;
-      if(mesFil && mr !== mesFil) return false;
-      // Excluir Jan-Abr no acumulado
-      if(!mesFil){ var m=parseInt((mr||'').split('/')[0]||0); if(MESES_EXCL_PART.indexOf(m)>=0) return false; }
+      var mr = ftMesViagem(r), _perP = ftPeriodoCustom();
+      if(_perP){ if(!ftMesNoPeriodo(mr)) return false; }
+      else {
+        if(anoFil && mr.split('/')[1] !== String(anoFil)) return false;
+        if(mesFil && mr !== mesFil) return false;
+      }
+      // Excluir Jan-Abr no acumulado (e no período personalizado)
+      if(!mesFil || _perP){ var m=parseInt((mr||'').split('/')[0]||0); if(MESES_EXCL_PART.indexOf(m)>=0) return false; }
       return true;
     }).forEach(function(r){ tonPro += ftTonPropria(r, _tipoP); });
   }
@@ -17519,39 +17944,91 @@ function ftRenderCat2(ftData) {
   });
 }
 
-function ftRenderCatHist(ftData) {
+// (28/10) Histórico mensal MP × PA — colunas agrupadas, meses em ordem cronológica,
+// indicador selecionável (toneladas / valor contratado / viagens). Usa a mesma
+// classificação normCarTipo() dos demais componentes (MP × PA) e a base de evolução
+// (período + tipo; sem colapsar no mês único). Antes: classificava por embalagem
+// (normCar), usava só o mês filtrado e as duas séries ficavam cinza.
+var _ftCatHistMode='ton';
+function ftCatHistMode(m){
+  _ftCatHistMode=m;
+  ['ton','vfr','viag'].forEach(function(k){ var b=document.getElementById('ft-ch-'+k); if(b) b.className='chart-toggle-btn'+(k===m?' active':''); });
+  ftRenderCatHist();
+}
+function ftRenderCatHist(){
   if(typeof Chart==='undefined') return;
-  var allM=['01','02','03','04','05','06','07','08','09','10','11','12'];
-  var mLbl=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-  var catSet={};
-  ftData.forEach(function(r){
-    var c = normCar(r.car);
-    catSet[c]=true;
-  });
-  var cats = Object.keys(catSet).sort();
-  var catPaletaH={'Big Bag':'rgba(2,79,43,.85)','Sacaria':'rgba(217,119,6,.82)','Granel':'rgba(37,99,235,.82)'};
-  var datasets = cats.map(function(cat,i){
-    return {
-      label:cat,
-      data:allM.map(function(m){
-        return ftData.filter(function(r){
-          return normCar(r.car)===cat&&(r.mes||'').startsWith(m+'/');
-        }).length;
-      }),
-      backgroundColor:catPaletaH[cat]||'rgba(100,100,100,.7)',borderRadius:3,borderSkipped:false
-    };
-  });
-  var ctx = document.getElementById('ft-chart-cat-hist'); if(!ctx) return;
+  var ctx=document.getElementById('ft-chart-cat-hist'); if(!ctx) return;
   if(ctx._c){ctx._c.destroy();ctx._c=null;}
-  ctx._c = new Chart(ctx.getContext('2d'),{
+  var rows=ftEvolRows(), meses=ftMesesEixo(rows), mode=_ftCatHistMode;
+  var subEl=document.getElementById('ft-cat-hist-sub');
+  var nomeInd=mode==='ton'?'Toneladas transportadas':(mode==='vfr'?'Valor contratado (R$)':'Viagens contratadas');
+  if(!meses.length){ if(subEl) subEl.textContent='Sem fretes no período selecionado.'; return; }
+  var S={MP:meses.map(function(){return 0;}), PA:meses.map(function(){return 0;})};
+  rows.forEach(function(r){
+    var t=normCarTipo(r.car), k=(t==='Matéria Prima')?'MP':(t==='Produto Acabado'?'PA':null); if(!k) return;
+    var i=meses.indexOf(ftMesReg(r)); if(i<0) return;
+    S[k][i]+= mode==='ton' ? (parseFloat(r.peso)||0)/1000 : (mode==='vfr' ? (parseFloat(r.vfr)||0) : 1);
+  });
+  var per=ftPeriodoCustom(), mesSel=per?'':ftValSel('ft-mes'), selIdx=mesSel?meses.indexOf(mesSel):-1;
+  var multiAno=(new Set(meses.map(function(m){return m.split('/')[1];}))).size>1;
+  var labels=meses.map(function(m){return ftMesLabel(m,multiAno);});
+  if(subEl) subEl.textContent=nomeInd+' · '+ftMesLabel(meses[0],true)+' a '+ftMesLabel(meses[meses.length-1],true)+' · '+(ftTipoSel()||'MP + PA')+(selIdx>=0?' · mês do filtro em destaque':'');
+  var fmtShort= mode==='vfr' ? function(v){return 'R$'+N(v/1000,0)+'k';} : (mode==='ton' ? function(v){return N(v,0)+'t';} : function(v){return String(v);});
+  var fmtFull = mode==='vfr' ? function(v){return R(v);} : (mode==='ton' ? function(v){return N(v,1)+' t';} : function(v){return v+(v===1?' viagem':' viagens');});
+  var cor=function(rgb){ return meses.map(function(_,i){ return 'rgba('+rgb+','+(selIdx<0||i===selIdx?'.88':'.45')+')'; }); };
+  var mk=function(label,data,rgb){ return {label:label,data:data,backgroundColor:cor(rgb),borderRadius:3,borderSkipped:false,
+    datalabels:{display:function(c){return c.dataset.data[c.dataIndex]>0;},anchor:'end',align:'top',offset:1,color:'#374151',font:{size:8.5,weight:'bold'},formatter:fmtShort}}; };
+  ctx._c=new Chart(ctx.getContext('2d'),{
     type:'bar',
-    data:{labels:mLbl,datasets:datasets},
-    options:{responsive:true,maintainAspectRatio:true,
-      plugins:{legend:{position:'bottom',labels:{padding:8,usePointStyle:true,pointStyle:'circle',font:{size:9}}},datalabels:{display:false}},
-      scales:{x:{stacked:true,grid:{color:'rgba(0,0,0,.05)'}},y:{stacked:true,grid:{color:'rgba(0,0,0,.05)'},beginAtZero:true}}
-    },
+    data:{labels:labels,datasets:[ mk('Matéria-Prima (MP)',S.MP,'217,119,6'), mk('Produto Acabado (PA)',S.PA,'2,79,43') ]},
+    options:{responsive:true,maintainAspectRatio:true,layout:{padding:{top:16}},
+      plugins:{legend:{position:'bottom',labels:{padding:10,usePointStyle:true,pointStyle:'rect',font:{size:10}}},
+        tooltip:{mode:'index',intersect:false,callbacks:{label:function(c){return c.dataset.label+': '+fmtFull(c.raw);}}}},
+      scales:{x:{grid:{display:false}},y:{beginAtZero:true,grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:9},callback:function(v){return fmtShort(v);}}}}},
     plugins:[ChartDataLabels]
   });
+}
+
+// (28/10) Comparativo mensal MP × PA — tabela gerencial. Totais = soma das linhas
+// exibidas (inclui lançamentos sem tipo de carga na coluna Total, com aviso abaixo).
+function ftRenderCompMesTipo(){
+  var wrap=document.getElementById('ft-cmp-wrap'); if(!wrap) return;
+  var subEl=document.getElementById('ft-cmp-sub'), footEl=document.getElementById('ft-cmp-foot');
+  var rows=ftEvolRows(), meses=ftMesesEixo(rows);
+  if(!meses.length){
+    wrap.innerHTML='<div style="padding:18px;text-align:center;color:var(--txl);font-style:italic;font-size:12px">Sem fretes no período selecionado.</div>';
+    if(subEl) subEl.textContent='—'; if(footEl) footEl.textContent=''; return;
+  }
+  var Z=function(){return {n:0,t:0,v:0};}, G=['MP','PA','NC','TT'];
+  var A={}; meses.forEach(function(m){ A[m]={}; G.forEach(function(g){A[m][g]=Z();}); });
+  rows.forEach(function(r){
+    var m=ftMesReg(r); if(!A[m]) return;
+    var tp=normCarTipo(r.car), k=(tp==='Matéria Prima')?'MP':(tp==='Produto Acabado'?'PA':'NC');
+    var t=(parseFloat(r.peso)||0)/1000, v=(parseFloat(r.vfr)||0);
+    [k,'TT'].forEach(function(x){ A[m][x].n++; A[m][x].t+=t; A[m][x].v+=v; });
+  });
+  var T={}; G.forEach(function(g){T[g]=Z();});
+  meses.forEach(function(m){ G.forEach(function(g){ T[g].n+=A[m][g].n; T[g].t+=A[m][g].t; T[g].v+=A[m][g].v; }); });
+  var per=ftPeriodoCustom(), mesSel=per?'':ftValSel('ft-mes');
+  var multiAno=(new Set(meses.map(function(m){return m.split('/')[1];}))).size>1;
+  var gc=function(o,grp,sep){
+    var cls=(sep?' sep':'');
+    if(!o.n) return '<td class="mut'+cls+'">—</td><td class="mut">—</td><td class="mut">—</td><td class="mut">—</td>';
+    return '<td class="'+cls.trim()+'">'+o.n+'</td><td>'+N(o.t,1)+' t</td><td>'+R(o.v)+'</td><td>'+(o.t>0?'R$ '+N(o.v/o.t,2):'—')+'</td>';
+  };
+  var head='<thead><tr class="g1"><th rowspan="2" class="c-mes" style="text-align:left;background:var(--bg-chip)">Mês</th>'
+    +'<th colspan="4" class="g-mp sep">Matéria-Prima (MP)</th><th colspan="4" class="g-pa sep">Produto Acabado (PA)</th><th colspan="4" class="g-tt sep">Total</th></tr><tr>'
+    +['mp','pa','tt'].map(function(c){return ['Viagens','Toneladas','Valor (R$)','R$/t'].map(function(h,i){return '<th class="g-'+c+(i===0?' sep':'')+'">'+h+'</th>';}).join('');}).join('')
+    +'</tr></thead>';
+  var body='<tbody>'+meses.map(function(m){
+    return '<tr'+(m===mesSel?' class="sel"':'')+'><td class="c-mes">'+ftMesLabel(m,multiAno||true)+'</td>'+gc(A[m].MP,'mp',true)+gc(A[m].PA,'pa',true)+gc(A[m].TT,'tt',true)+'</tr>';
+  }).join('')+'</tbody>';
+  var foot='<tfoot><tr><td class="c-mes">Total do período</td>'+gc(T.MP,'mp',true)+gc(T.PA,'pa',true)+gc(T.TT,'tt',true)+'</tr></tfoot>';
+  wrap.innerHTML='<table class="ft-cmp">'+head+body+foot+'</table>';
+  if(subEl) subEl.textContent='Período '+ftMesLabel(meses[0],true)+' a '+ftMesLabel(meses[meses.length-1],true)+' · '+(ftTipoSel()||'MP + PA')+(mesSel?' · linha destacada = mês do filtro':'')+' · R$/t = valor ÷ toneladas (média ponderada)';
+  if(footEl) footEl.innerHTML = T.NC.n>0
+    ? '⚠ '+T.NC.n+' lançamento(s) sem tipo de carga informado ('+R(T.NC.v)+' · '+N(T.NC.t,1)+' t) — contam apenas na coluna Total.'
+    : '';
 }
 
 function ftRenderFatCusto(ftData) {
@@ -17562,6 +18039,7 @@ function ftRenderFatCusto(ftData) {
   var fatRef={1:2653912,2:2375723,3:2661221,4:2810421};
   var anoFil = document.getElementById('ft-ano') ? parseInt(document.getElementById('ft-ano').value||2026) : 2026;
   var fat = allM.map(function(m){
+    if(!ftMesNoPeriodo(m+'/'+anoFil)) return 0;
     var mi = parseInt(m);
     // Prioridade: dados reais de referência; fallback: calcular do DB
     var _tipoF = ftTipoSel();
@@ -17577,6 +18055,7 @@ function ftRenderFatCusto(ftData) {
   });
   // Custo Frete Terceiro por mês (do SEED_FT)
   var custo = allM.map(function(m){
+    if(!ftMesNoPeriodo(m+'/'+anoFil)) return 0;
     return DB_FT.filter(function(r){return (r.mes||'').startsWith(m+'/'+anoFil) && ftPassaTipo(r);})
                 .reduce(function(a,r){return a+(r.vfr||0);},0);
   });
@@ -17629,7 +18108,7 @@ function ftClearForm(){
   if(typeof ftToggleExterior==='function') ftToggleExterior();
 }
 
-function ftResetFilters(){var now=new Date();var cur=String(now.getMonth()+1).padStart(2,'0')+'/'+now.getFullYear();var el=document.getElementById('ft-mes');if(el)el.value=cur;var tp=document.getElementById('ft-tipo');if(tp)tp.value='';ftRender();}
+function ftResetFilters(){var now=new Date();var cur=String(now.getMonth()+1).padStart(2,'0')+'/'+now.getFullYear();var el=document.getElementById('ft-mes');if(el)el.value=cur;var tp=document.getElementById('ft-tipo');if(tp)tp.value='';['ft-de','ft-ate'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});ftRender();}
 
 function ftToggleEv(mode,btn){_ftEvMode=mode;document.querySelectorAll('#ft-ev-val,#ft-ev-ton,#ft-ev-viag').forEach(function(b){b.classList.remove('active');});if(btn)btn.classList.add('active');ftRenderCharts(ftFiltered());}
 function ftToggleTop5(mode,btn){_ftTop5Mode=mode;document.querySelectorAll('#ft-t5-val,#ft-t5-ton').forEach(function(b){b.classList.remove('active');});if(btn)btn.classList.add('active');ftRenderCharts(ftFiltered());}
@@ -18344,7 +18823,7 @@ function recBuildRows(tab){
         dest_cidade:r.ft_destino||'', dest_uf:r.ft_destino_uf||'',
         tipo:'Terceirizado',
         peso:r.ft_peso||0, vton:r.ft_vton||0, vl_total:r.ft_valor||0,
-        conta:r.ft_conta||'', pagamento: stMap[r.ft_pgto]||'Pendente',
+        conta:r.ft_conta||'', pagamento: stMap[r.ft_pgto]||'Pendente', vl_pgto_final:parseFloat(r.ft_vl_pago)||0,
         obs:r.obs||''
       });
     });
@@ -18361,7 +18840,7 @@ function recBuildRows(tab){
             origem_cidade:r.origem_cidade||'', origem_uf:r.origem_uf||'',
             dest_cidade:p.cidade||'', dest_uf:p.uf||'',
             tipo:p.tipo, peso:p.peso||0, vton:p.vton||0, vl_total:p.vl_total||0,
-            conta:p.conta||'', pagamento:p.pagamento||'', obs:r.obs||'',
+            conta:p.conta||'', pagamento:p.pagamento||'', vl_adiant:p.vl_adiant||0, vl_pgto_final:p.vl_pgto_final||0, obs:r.obs||'',
             _pernaIndex:i+1,_pernaTotal:r.fretes_retorno.length});
         });
       } else if(recIsOutroTipo(r.tipo_ret)){
@@ -18370,7 +18849,7 @@ function recBuildRows(tab){
           origem_cidade:r.origem_cidade||'', origem_uf:r.origem_uf||'',
           dest_cidade:r.dest_ret_cidade||r.destino_cidade||'', dest_uf:r.dest_ret_uf||r.destino_uf||'',
           tipo:r.tipo_ret, peso:r.peso_ret||0, vton:r.vl_ton||0, vl_total:r.vl_total||0,
-          conta:r.conta||'', pagamento:r.pagamento||'', obs:r.obs||''});
+          conta:r.conta||'', pagamento:r.pagamento||'', vl_adiant:r.vl_adiant||0, vl_pgto_final:r.vl_pgto_final||0, obs:r.obs||''});
       }
     });
     // CORREÇÃO (28/09): o módulo dedicado "Frete Terceiros" (base DB_FT) não
@@ -18399,7 +18878,7 @@ function recBuildRows(tab){
             origem_cidade:r.origem_cidade||'', origem_uf:r.origem_uf||'',
             dest_cidade:p.cidade||'', dest_uf:p.uf||'',
             tipo:p.tipo, peso:p.peso||0, vton:p.vton||0, vl_total:p.vl_total||0,
-            conta:p.conta||'', pagamento:p.pagamento||'', obs:r.obs||'',
+            conta:p.conta||'', pagamento:p.pagamento||'', vl_adiant:p.vl_adiant||0, vl_pgto_final:p.vl_pgto_final||0, obs:r.obs||'',
             _pernaIndex:i+1,_pernaTotal:r.fretes_retorno.length});
         });
       } else if(r.tipo_ret===tab){
@@ -18408,7 +18887,7 @@ function recBuildRows(tab){
           origem_cidade:r.origem_cidade||'', origem_uf:r.origem_uf||'',
           dest_cidade:r.dest_ret_cidade||r.destino_cidade||'', dest_uf:r.dest_ret_uf||r.destino_uf||'',
           tipo:r.tipo_ret, peso:r.peso_ret||0, vton:r.vl_ton||0, vl_total:r.vl_total||0,
-          conta:r.conta||'', pagamento:r.pagamento||'', obs:r.obs||''});
+          conta:r.conta||'', pagamento:r.pagamento||'', vl_adiant:r.vl_adiant||0, vl_pgto_final:r.vl_pgto_final||0, obs:r.obs||''});
       }
     });
   }
@@ -18459,7 +18938,7 @@ function recRender(){
   tbody.innerHTML=rows.map(function(r,i){
     var pago = r.pagamento==='Pago';
     var isMp = tab==='MP';
-    var pagoTxt = isMp ? '<span style="color:var(--txl)">— gerencial</span>' : (pago?'🟢 Pago':(r.pagamento==='Parcial'?'🟡 Parcial':'🔴 Pendente'));
+    var pagoTxt = isMp ? '<span style="color:var(--txl)">— gerencial</span>' : (pago?'🟢 Pago':(r.pagamento==='Parcial'?'🟡 Parcial'+(legRecebido(r)>0?'<div style="font-size:9.5px;color:var(--txl)">recebido '+R(legRecebido(r))+' · saldo '+R(legSaldo(r))+'</div>':''):'🔴 Pendente'));
     var pernaTag = r._pernaTotal>1?' <span style="font-size:9px;color:var(--txl)">(perna '+r._pernaIndex+'/'+r._pernaTotal+')</span>':'';
     // Linhas do módulo dedicado "Frete Terceiros" (DB_FT) não são editáveis por aqui —
     // têm campos próprios (NF, adiantamento, aprovador) que só existem no módulo dedicado.
@@ -18491,7 +18970,7 @@ function recRender(){
   }).join('');
 
   var tR=rows.reduce(function(a,r){return a+(r.vl_total||0);},0);
-  var tRecebido=rows.filter(function(r){return r.pagamento==='Pago';}).reduce(function(a,r){return a+(r.vl_total||0);},0);
+  var tRecebido=rows.reduce(function(a,r){return a+legRecebido(r);},0);
   var tPendente=tR-tRecebido;
   // Coleta MP não tem Recebido/Pendente — é receita gerencial (custo já embutido no
   // valor da MP), nunca vira conta a pagar/receber.
@@ -18546,7 +19025,7 @@ function recEditSave(){
     var p = dbRow.fretes_retorno[row._pernaIdx];
     p.pagamento = novoStatus;
     p.conta = novaConta;
-    dbRow.pagamento = dbRow.fretes_retorno.every(function(pp){return pp.pagamento==='Pago';}) ? 'Pago' : 'Pendente';
+    dbRow.pagamento = freteStatusConsolidado(dbRow.fretes_retorno);
     dbRow.conta = dbRow.fretes_retorno[0].conta;
   } else {
     dbRow.pagamento = novoStatus;
