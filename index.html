@@ -6175,6 +6175,7 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
     <div class="f-group"><span class="f-label">Categoria</span><input type="text" class="f-select" id="kb-cat" list="kb-cat-list" placeholder="Todas" autocomplete="off" onchange="renderKanban()" onblur="validarFiltroKbCat()"><datalist id="kb-cat-list"></datalist></div>
     <div class="f-group"><span class="f-label">Nº NF</span><input type="text" class="f-select" id="kb-nf" placeholder="🔎 Buscar NF…" autocomplete="off" oninput="kbBuscarNF()" style="width:130px"></div>
     <div class="f-group"><span class="f-label">Placa</span><input type="text" class="f-select" id="kb-placa" list="kb-placa-list" placeholder="Todas" autocomplete="off" onchange="renderKanban()" onblur="validarFiltroKbPlaca()"><datalist id="kb-placa-list"></datalist></div>
+    <div class="f-group"><label style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:#991b1b;cursor:pointer;white-space:nowrap" title="Viagens concluídas sem o valor do frete de entrega de Produto Acabado"><input type="checkbox" id="kb-sem-pa" onchange="renderKanban()" style="accent-color:#024f2b;width:14px;height:14px;margin:0"> Só concluídas sem frete PA</label></div>
     <div class="f-sep"></div>
     <button class="btn-reset" onclick="resetKbFilters()"><svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 2A5 5 0 102 10"/><polyline points="10,2 10,5 7,5"/></svg>Limpar</button>
     <!-- Ferramentas de manutenção/limpeza de duplicatas — reativadas em 10/09
@@ -6203,7 +6204,7 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
   <div style="background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:11px 16px;display:flex;gap:24px;flex-wrap:wrap;font-size:11px;align-items:center">
   <span style="font-weight:700;color:#444;text-transform:uppercase;letter-spacing:.5px;font-size:10px">Legenda:</span>
   <span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:3px;background:#22c55e;flex-shrink:0"></span><div><strong style="color:#14532d">Concluídas</strong> — Etapa 1 (saída) + Etapa 2 (descarga/retorno) preenchidas</div></span>
-  <span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:3px;background:#f59e0b;flex-shrink:0"></span><div><strong style="color:#713f12">Em Andamento</strong> — Etapa 1 ok, aguardando data de descarga e retorno</div></span>
+  <span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:3px;background:#f59e0b;flex-shrink:0"></span><div><strong style="color:#713f12">Em Andamento</strong> — Etapa 1 ok, aguardando data de descarga e retorno, ou com frete retorno pendente de fechamento</div></span>
   <span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:3px;background:#ef4444;flex-shrink:0"></span><div><strong style="color:#7f1d1d">Incompletas</strong> — Etapa 1 incompleta (dados de saída faltando)</div></span>
 </div>
 <div id="kb-nf-res" style="display:none"></div>
@@ -8236,6 +8237,7 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
 
       <div id="m-ret-block">
         <div class="form-div">Frete Retorno / Coleta MP <span style="font-weight:400;font-size:11px;color:var(--txl)">— pode ter mais de uma perna; o Km de cada uma encadeia automaticamente na anterior</span></div>
+        <div style="font-size:11px;color:#4b5563;background:#f7f8f4;border:1px solid #e3e7da;border-radius:6px;padding:8px 12px;margin:4px 0 10px;line-height:1.5">Lance cada frete retorno assim que for negociado: só <b>Cidade e UF</b> <span class="req">*</span> são obrigatórios para registrar, com o botão <b>“Salvar fretes retorno (sem concluir)”</b>. Os campos marcados <b style="color:#92400e">(exigido p/ fechar)</b>, inclusive o <b>valor do frete</b>, podem ficar em branco agora e são exigidos só para <b>fechar</b> a perna. Uma nova perna só abre depois que a anterior estiver fechada, e a viagem só é concluída com todas as pernas fechadas.</div>
         <div id="m-pernas-container"></div>
         <datalist id="m-produto-list"></datalist>
         <datalist id="m-cidade-retorno-list"></datalist>
@@ -8289,9 +8291,10 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
 
       <div class="form-actions">
         <button class="btn-warn" onclick="closeModal()">Fechar</button>
+        <button class="btn-sec" id="m-btn-salvar-pernas" onclick="saveEtapa2(true)" title="Grava os fretes retorno lançados até agora, mesmo incompletos. A viagem continua Em Andamento.">💾 Salvar fretes retorno (sem concluir)</button>
         <button class="btn-prim" onclick="saveEtapa2()">
           <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,7 6,11 12,3"/></svg>
-          Salvar Etapa 2
+          Salvar e concluir viagem
         </button>
       </div>
     </div>
@@ -8634,6 +8637,50 @@ const GML=dt=>{if(!dt)return'';const p=String(dt).slice(0,10).split('-');if(p.le
 // VERMELHO  → Etapa 1 incompleta (dados de saída faltando)
 // AMARELO   → Etapa 1 OK, Etapa 2 não preenchida (em trânsito)
 // VERDE     → Etapa 1 + Etapa 2 completas (viagem encerrada)
+// ══ (03/11) STATUS DE CADA PERNA DE FRETE RETORNO ═══════════════════════════
+// Cada perna é lançada assim que o frete é negociado (basta Cidade e UF) e só
+// fica "Fechada" quando tem os mesmos campos que a Etapa 2 sempre exigiu:
+// cidade, UF, tipo, peso, valor (R$/t ou total), produto e Km Final.
+//  · Em aberto              → registrada, carga ainda não entregue (sem Km Final)
+//  · Aguardando informações → Km Final informado (perna entregue), falta algum campo
+//  · Fechada                → todos os campos de fechamento preenchidos
+// O status é sempre CALCULADO a partir dos dados (nunca digitado), então não
+// fica desatualizado e não exige migração da base.
+var PERNA_ST_LABEL = {aberta:'Em aberto', aguardando:'Aguardando informações', fechada:'Fechada'};
+function pernaFaltando(p){
+  p = p || {};
+  var n = function(v){ var x = parseFloat(v); return isFinite(x) ? x : 0; };
+  var f = [];
+  if(!String(p.cidade||'').trim()) f.push('Cidade');
+  if(!p.uf) f.push('UF');
+  if(!p.tipo) f.push('Tipo');
+  if(!(n(p.peso)>0)) f.push('Peso');
+  if(!(n(p.vton)>0 || n(p.vl_total)>0)) f.push('Valor do frete');
+  if(!String(p.produto||'').trim()) f.push('Produto');
+  if(!(n(p.km_final)>0)) f.push('Km Final');
+  return f;
+}
+function pernaStatus(p){
+  if(!pernaFaltando(p).length) return 'fechada';
+  return (parseFloat(p && p.km_final) > 0) ? 'aguardando' : 'aberta';
+}
+function viagemPernasPendentes(r){
+  if(!r || r.retorno!=='Sim' || !Array.isArray(r.fretes_retorno)) return [];
+  var out = [];
+  r.fretes_retorno.forEach(function(p, i){
+    var st = pernaStatus(p);
+    if(st!=='fechada') out.push({i:i, p:p, st:st, falta:pernaFaltando(p)});
+  });
+  return out;
+}
+// (03/11) Viagem CONCLUÍDA sem o valor do frete de entrega de PA (vl_ent).
+// Fora da regra: Coleta MP (não tem frete de entrega), Frota Terceirizada
+// (valor fica em ft_valor e não é PA) e viagens excluídas.
+function viagemSemFretePA(r){
+  if(!r || r._excluida || r.is_coleta_mp || r.is_terceiro) return false;
+  if(tripStatus(r)!=='verde') return false;
+  return !(parseFloat(r.vl_ent) > 0);
+}
 function tripFields(r){
   // Etapa 1: dados do carregamento (saída)
   const e1={
@@ -8646,9 +8693,13 @@ function tripFields(r){
   };
   const e1ok = Object.values(e1).every(Boolean);
   // Etapa 2: dados da descarga e retorno
-  const retornoOk = r.retorno==='Não' ||
-    (r.retorno==='Sim' && !!r.dest_ret_cidade && !!r.dest_ret_uf &&
-     !!r.tipo_ret && r.peso_ret>0 && r.vl_ton>0);
+  // (03/11) Viagem com pernas (fretes_retorno[]): o retorno só está ok quando TODAS
+  // as pernas estão Fechadas. Registros antigos sem pernas seguem a regra anterior.
+  const _temPernas = r.retorno==='Sim' && Array.isArray(r.fretes_retorno) && r.fretes_retorno.length>0;
+  const retornoOk = r.retorno==='Não' || (_temPernas
+    ? r.fretes_retorno.every(function(p){ return pernaStatus(p)==='fechada'; })
+    : (r.retorno==='Sim' && !!r.dest_ret_cidade && !!r.dest_ret_uf &&
+       !!r.tipo_ret && r.peso_ret>0 && r.vl_ton>0));
   const e2={
     dt_desc:   !!r.dt_desc,
     dt_base:   !!r.dt_base,
@@ -9425,6 +9476,10 @@ function renderKanban(){
   var kbPanel = document.getElementById('subpanel-frete-retorno');
   if(kbPanel && kbPanel.style.display === 'none') return;
   const km=g('kb-mes').value,kc=g('kb-cat').value,kp=g('kb-placa').value;
+  // (03/11) Filtro "Só concluídas sem frete PA": mostra só as concluídas sem valor
+  // de frete de PA, no mês escolhido (ou em todos os meses, se o filtro de mês
+  // estiver em "Todos") — para a conferência pegar também meses anteriores.
+  const kSemPA = !!(g('kb-sem-pa') && g('kb-sem-pa').checked);
   // Concluídas: respeita o filtro de mês (reflete o desempenho do período analisado).
   // Se o filtro estiver em "Todos" (km vazio), usa o mês atual como padrão — mostrar
   // as 1000+ concluídas históricas de uma vez não é útil nem foi o comportamento
@@ -9444,6 +9499,11 @@ function renderKanban(){
     // também precisa respeitar o filtro de mês abaixo — senão elas vazam para
     // "Concluídas" mesmo quando o mês filtrado não bate com a data delas.
     if(s!=='verde' && r.dt_carg && r.dt_carg<'2026-07-01') s='verde';
+    if(kSemPA){
+      if(s!=='verde' || !viagemSemFretePA(r)) return;
+      if(km && GM(r.dt_carg)!==km) return;
+      cols.verde.push(r); return;
+    }
     if(s==='verde'){
       if(kmConcluidas&&GM(r.dt_carg)!==kmConcluidas)return; // concluídas só do mês selecionado (ou do mês atual, se "Todos")
     }
@@ -9453,7 +9513,7 @@ function renderKanban(){
   Object.keys(cols).forEach(col=>{cols[col].sort((a,b)=>(b.dt_carg||'').localeCompare(a.dt_carg||''));});
   ['verde','amarelo','vermelho'].forEach(col=>{
     g(`kb-count-${col}`).textContent=cols[col].length;
-    g(`kb-${col}`).innerHTML=cols[col].length===0?'<div class="empty-col">Nenhuma viagem</div>':cols[col].map(r=>renderKanbanCard(r,col)).join('');
+    g(`kb-${col}`).innerHTML=cols[col].length===0?'<div class="empty-col">'+(kSemPA&&col!=='verde'?'Filtro “Só concluídas sem frete PA” ativo':'Nenhuma viagem')+'</div>':cols[col].map(r=>renderKanbanCard(r,col)).join('');
   });
   const tot=cols.verde.length+cols.amarelo.length+cols.vermelho.length;
   const sumBar=g('kanban-summary');
@@ -9461,7 +9521,72 @@ function renderKanban(){
     const v=cols.verde.length,am=cols.amarelo.length,vm=cols.vermelho.length;
     sumBar.innerHTML=`<span style="color:#166534;font-weight:700">✅ ${v} concluída${v!==1?'s':''}</span><span style="color:#92400e;font-weight:700">⏳ ${am} em andamento</span><span style="color:#991b1b;font-weight:700">🔴 ${vm} incompleta${vm!==1?'s':''}</span><span style="margin-left:auto;color:#888">Total: ${tot} viagens</span>`;
   }
+  // (03/11) Pendências que pedem ação: pernas de retorno abertas e concluídas sem frete PA.
+  if(sumBar){
+    var nPend = cols.amarelo.filter(function(x){ return viagemPernasPendentes(x).length>0; }).length;
+    var nSemPA = cols.verde.filter(viagemSemFretePA).length;
+    if(tot===0) sumBar.innerHTML='';
+    if(nPend) sumBar.innerHTML += '<span style="color:#991b1b;font-weight:700">🔶 '+nPend+' com frete retorno pendente de fechamento</span>';
+    if(nSemPA) sumBar.innerHTML += kSemPA
+      ? '<span style="color:#991b1b;font-weight:700">💲 '+nSemPA+' concluída'+(nSemPA!==1?'s':'')+' sem frete PA'+(km?'':' (todos os meses)')+'</span>'
+      : '<span style="color:#991b1b;font-weight:700;cursor:pointer;text-decoration:underline" onclick="kbToggleSemPA(true)" title="Mostrar só essas">💲 '+nSemPA+' concluída'+(nSemPA!==1?'s':'')+' sem frete PA</span>';
+  }
 }
+// ══ (03/11) REGULARIZAÇÃO DO FRETE PA ═══════════════════════════════════════
+// Janela curta para informar só o valor do frete de entrega (vl_ent) de uma
+// viagem concluída sem ele. Não passa pela validação completa da Etapa 1 (muitas
+// viagens antigas não têm Km Saída/Motorista e o salvamento seria recusado).
+// Grava o R$/t (vton_ent), registra no Log de Alterações e atualiza tudo.
+function kbEsc(x){ return String(x==null?'':x).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+function kbFecharPA(){ var o=g('kb-pa-ovl'); if(o) o.remove(); }
+function kbPAPrev(idx){
+  var r=DB[idx], el=g('kb-pa-prev'), v=parseFloat((g('kb-pa-valor')||{}).value);
+  if(!el||!r) return;
+  var vt = (v>0 && typeof freteVtonDe==='function') ? freteVtonDe(v, r.peso_ent) : null;
+  el.textContent = v>0 ? (vt!=null ? 'R$/t: '+R(vt) : 'Sem peso de entrega — R$/t não calculado') : '';
+}
+function kbInformarFretePA(idx){
+  var r=DB[idx]; if(!r) return;
+  kbFecharPA();
+  var d=document.createElement('div'); d.id='kb-pa-ovl';
+  d.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:10050;display:flex;align-items:center;justify-content:center;padding:16px';
+  d.onclick=function(e){ if(e.target===d) kbFecharPA(); };
+  var btn='padding:8px 14px;border-radius:6px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:Inter,sans-serif;';
+  d.innerHTML='<div style="background:#fff;border-radius:10px;max-width:440px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.25);overflow:hidden;font-family:Inter,sans-serif">'
+    +'<div style="background:#024f2b;color:#fff;padding:12px 18px;font-weight:800;font-size:13px">💲 Informar frete PA</div>'
+    +'<div style="padding:16px 18px;font-size:12px;color:#374151;line-height:1.5">'
+      +'<div style="margin-bottom:12px"><span style="font-family:\'DM Mono\',monospace;font-weight:800;color:#024f2b">'+kbEsc(r.placa)+'</span> · '+FD(r.dt_carg)+' → <b>'+kbEsc((r.destino_cidade||'')+'/'+(r.destino_uf||''))+'</b>'
+        +'<br>'+(r.cliente?'Cliente: '+kbEsc(r.cliente)+' · ':'')+'Peso de entrega: '+(r.peso_ent>0?N(r.peso_ent,0)+' kg':'—')+(r.nf?' · NF '+kbEsc(r.nf):'')+'</div>'
+      +'<label for="kb-pa-valor" style="display:block;font-size:10.5px;font-weight:800;color:#024f2b;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">Valor do frete de entrega (R$)</label>'
+      +'<input type="number" id="kb-pa-valor" step="0.01" min="0" style="width:100%;box-sizing:border-box;padding:9px 10px;border:1px solid #cbd5c0;border-radius:6px;font-size:14px;font-weight:800" oninput="kbPAPrev('+idx+')" onkeydown="if(event.key===\'Enter\')kbSalvarPA('+idx+')">'
+      +'<div id="kb-pa-prev" style="margin-top:6px;font-size:11px;color:#6b7280;min-height:15px"></div>'
+      +'<div style="margin-top:8px;font-size:10.5px;color:#6b7280">A receita entra no mês do carregamento ('+GM(r.dt_carg)+'), como as demais entregas.</div>'
+    +'</div>'
+    +'<div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;padding:10px 18px;border-top:1px solid #eee;background:#fafaf8">'
+      +'<button style="'+btn+'background:#fff;border:1px solid #d1d5db;color:#374151" onclick="kbFecharPA()">Cancelar</button>'
+      +'<button style="'+btn+'background:#fff;border:1px solid #024f2b;color:#024f2b" onclick="kbFecharPA();openModal('+idx+')">Abrir viagem completa</button>'
+      +'<button style="'+btn+'background:#024f2b;border:1px solid #024f2b;color:#fff" onclick="kbSalvarPA('+idx+')">Salvar</button>'
+    +'</div></div>';
+  document.body.appendChild(d);
+  setTimeout(function(){ var i=g('kb-pa-valor'); if(i) i.focus(); }, 30);
+}
+function kbSalvarPA(idx){
+  var r=DB[idx]; if(!r){ kbFecharPA(); return; }
+  var v=parseFloat((g('kb-pa-valor')||{}).value);
+  if(!(v>0)){ toast('Informe um valor de frete maior que zero','error'); return; }
+  if(parseFloat(r.vl_ent)>0){ kbFecharPA(); toast('Esta viagem já tem frete PA ('+R(parseFloat(r.vl_ent))+'). Para alterar, abra a viagem.','error'); renderKanban(); return; }
+  var antes = r.vl_ent;
+  r.vl_ent = Math.round(v*100)/100;
+  var vt = (typeof freteVtonDe==='function') ? freteVtonDe(r.vl_ent, r.peso_ent) : null;
+  if(vt!=null) r.vton_ent = vt;
+  save();
+  try{ if(typeof FB!=='undefined' && FB.registrarLog) FB.registrarLog('Frete PA informado (regularização)', (r.placa||'')+' · carg. '+FD(r.dt_carg)+' · '+(r.destino_cidade||'')+'/'+(r.destino_uf||'')+' · R$ '+r.vl_ent.toFixed(2)+' (antes: '+(antes?antes:'sem valor')+')'); }catch(e){}
+  kbFecharPA();
+  if(typeof finRefreshSeVisivel==='function') finRefreshSeVisivel();
+  renderAll(); renderKanban(); renderRecs();
+  toast('✅ Frete PA de '+r.placa+' informado: '+R(r.vl_ent)+'. Pendência removida.','success');
+}
+function kbToggleSemPA(v){ var el=g('kb-sem-pa'); if(el){ el.checked=!!v; } renderKanban(); }
 function renderKanbanCard(r, col){
   const idx = DB.indexOf(r);
   const {e1, e2, e1ok, e2ok} = tripFields(r);
@@ -9481,7 +9606,9 @@ function renderKanbanCard(r, col){
   if(!e2.dt_desc) falta2.push('Data Descarga');
   if(!e2.dt_base) falta2.push('Data Chegada Base');
   if(!e2.retorno_ok){
-    if(r.retorno==='Sim'){
+    if(r.retorno==='Sim' && Array.isArray(r.fretes_retorno) && r.fretes_retorno.length){
+      // (03/11) pendências por perna — mostradas em bloco próprio (pernasBlock)
+    } else if(r.retorno==='Sim'){
       if(!r.dest_ret_cidade) falta2.push('Cidade Retorno');
       if(!r.dest_ret_uf)     falta2.push('UF Retorno');
       if(!r.tipo_ret)        falta2.push('Tipo Retorno');
@@ -9492,25 +9619,41 @@ function renderKanbanCard(r, col){
     }
   }
 
+  // (03/11) Pernas de frete retorno ainda não fechadas e concluída sem frete PA
+  var pendPernas = viagemPernasPendentes(r);
+  var semPA = col==='verde' && viagemSemFretePA(r);
+  var pernasBlock = !pendPernas.length ? '' :
+    '<div class="kc-pend kc-pend-red"><span class="kc-pend-title">🔶 Frete retorno pendente de fechamento</span>'
+    + pendPernas.map(function(x){
+        return '<div style="font-size:11px;color:#7f1d1d;line-height:1.4"><b>Frete Retorno '+(x.i+1)+'</b>'
+          +(x.p.cidade ? ' · '+x.p.cidade+(x.p.uf?'/'+x.p.uf:'') : '')+' — '+PERNA_ST_LABEL[x.st]
+          +'<div style="color:#991b1b;font-size:10.5px">Falta: '+x.falta.join(', ')+'</div></div>';
+      }).join('')
+    + '</div>';
   var pendBlock = '';
   if(col==='vermelho'){
     pendBlock = '<div class="kc-pend kc-pend-red"><span class="kc-pend-title">Etapa 1 incompleta — preencha:</span><div class="kc-pend-tags">'+falta1.map(function(f){return '<span class="kc-pend-tag">'+f+'</span>';}).join('')+'</div></div>';
   } else if(col==='amarelo'){
-    pendBlock = '<div class="kc-pend kc-pend-amber"><span class="kc-pend-title">Etapa 2 pendente — preencha:</span><div class="kc-pend-tags">'+falta2.map(function(f){return '<span class="kc-pend-tag">'+f+'</span>';}).join('')+'</div></div>';
+    if(falta2.length) pendBlock = '<div class="kc-pend kc-pend-amber"><span class="kc-pend-title">Etapa 2 pendente — preencha:</span><div class="kc-pend-tags">'+falta2.map(function(f){return '<span class="kc-pend-tag">'+f+'</span>';}).join('')+'</div></div>';
   } else {
     var retInfo = r.retorno==='Sim'
       ? ('Retorno: '+(r.dest_ret_cidade||'')+'/'+( r.dest_ret_uf||'')+' · '+(r.tipo_ret||'')+' · '+R(r.vl_total))
       : 'Retorno vazio';
-    pendBlock = '<div class="kc-pend kc-pend-green"><span class="kc-pend-title">Viagem encerrada</span><span class="kc-pend-info">'+retInfo+'</span></div>';
+    pendBlock = semPA
+      ? '<div class="kc-pend kc-pend-red"><span class="kc-pend-title">💲 Concluída sem valor do frete PA</span><span class="kc-pend-info" style="color:#7f1d1d">'+retInfo+'</span></div>'
+      : '<div class="kc-pend kc-pend-green"><span class="kc-pend-title">Viagem encerrada</span><span class="kc-pend-info">'+retInfo+'</span></div>';
   }
+  pendBlock += pernasBlock;
 
   var diasTag = dv!=null
     ? '<span class="kc-tag kc-tag-dias">'+dv+'d viagem</span>'
     : (r.dt_carg ? '<span class="kc-tag kc-tag-transit">Em trânsito</span>' : '');
 
   var btnAcao = col!=='verde'
-    ? '<button class="btn-completar" onclick="event.stopPropagation();openModal('+idx+')">'+(col==='vermelho'?'✏ Corrigir Etapa 1':'+ Completar Etapa 2')+'</button>'
-    : '<span class="kc-concluida-tag">✅ Concluída</span>';
+    ? '<button class="btn-completar" onclick="event.stopPropagation();openModal('+idx+')">'+(col==='vermelho'?'✏ Corrigir Etapa 1':(pendPernas.length && !falta2.length ? '🔶 Fechar frete retorno' : '+ Completar Etapa 2'))+'</button>'
+    : (semPA
+        ? '<button class="btn-completar" style="background:#dc2626" onclick="event.stopPropagation();kbInformarFretePA('+idx+')">💲 Informar frete PA</button>'
+        : '<span class="kc-concluida-tag">✅ Concluída</span>');
 
   return '<div class="kanban-card kc-col-'+col+'" onclick="openModal('+idx+')">'
     +'<div class="kc-head">'
@@ -9518,6 +9661,8 @@ function renderKanbanCard(r, col){
         +'<span class="kc-placa-txt">'+r.placa+'</span>'
         +'<span class="kc-badge-cat">'+r.categoria+'</span>'
         +(r.is_terceiro ? '<span style="font-size:9px;font-weight:800;padding:2px 7px;border-radius:9px;background:#ede9fe;color:#5b21b6">🚚 TERCEIRIZADO</span>' : '')
+        +(pendPernas.length ? '<span style="font-size:9px;font-weight:800;padding:2px 7px;border-radius:9px;background:#fee2e2;color:#991b1b" title="Frete retorno pendente de fechamento">🔶 RETORNO PENDENTE</span>' : '')
+        +(semPA ? '<span style="font-size:9px;font-weight:800;padding:2px 7px;border-radius:9px;background:#fee2e2;color:#991b1b" title="Concluída sem valor do frete de PA">💲 SEM FRETE PA</span>' : '')
       +'</div>'
       +'<span class="kc-status-pill kc-pill-'+col+'">'
         +(col==='verde'?'✅ Concluída':col==='amarelo'?'🚚 Em trânsito':'⚠️ Incompleta')
@@ -9729,11 +9874,16 @@ function openModal(idx){
   // ── Status banner ───────────────────────────────────────
   const st = tripStatus(r);
   const banner = g('modal-status-banner');
-  const bCfg = {
+  let bCfg = {
     verde:    {bg:'#f0fdf4', border:'#22c55e', color:'#166534', txt:'✅  Viagem CONCLUÍDA — edite abaixo se precisar corrigir algo.'},
     amarelo:  {bg:'#fffbeb', border:'#f59e0b', color:'#713f12', txt:'🚚  EM ANDAMENTO — Etapa 1 ok. Preencha a Etapa 2 para concluir a viagem.'},
     vermelho: {bg:'#fff5f5', border:'#ef4444', color:'#991b1b', txt:'⚠️  INCOMPLETA — corrija os dados da Etapa 1 (saída) e salve. A viagem irá para Em Andamento.'},
   }[st];
+  var _ppBanner = viagemPernasPendentes(r);
+  if(st==='amarelo' && _ppBanner.length){
+    bCfg = {bg:'#fff5f5', border:'#ef4444', color:'#991b1b',
+      txt:'🔶  FRETE RETORNO PENDENTE — '+_ppBanner.map(function(x){ return 'Frete Retorno '+(x.i+1)+(x.p.cidade?' ('+x.p.cidade+(x.p.uf?'/'+x.p.uf:'')+')':'')+': '+PERNA_ST_LABEL[x.st]; }).join(' · ')+'. A viagem só pode ser concluída com todas as pernas fechadas.'};
+  }
   banner.style.cssText = 'background:'+bCfg.bg+';border-bottom:3px solid '+bCfg.border+';color:'+bCfg.color+';padding:11px 24px;font-size:12px;font-weight:600;display:block';
   banner.textContent = bCfg.txt;
 
@@ -9781,6 +9931,7 @@ function toggleModalRet(){
   var titSemRet = g('m-custos-sem-retorno-titulo'), boxSemRet = g('m-custos-sem-retorno');
   if(titSemRet) titSemRet.style.display = has?'none':'block';
   if(boxSemRet) boxSemRet.style.display = has?'none':'block';
+  var _btnPernas = g('m-btn-salvar-pernas'); if(_btnPernas) _btnPernas.style.display = has?'':'none';
   if(has){ if(typeof mRenderPernas==='function') mRenderPernas(); }
 }
 function calcModalDias(dtc){
@@ -9835,7 +9986,8 @@ function calcKmLReal(){
    é lido/gravado em r.fretes_retorno (array) no registro.
    ══════════════════════════════════════════════════════════════════════ */
 function mPernaVazia(){
-  return { cidade:'', uf:'', tipo:'', peso:'', produto:'', vton:'', vl_total:'',
+  // (03/11) criado_em: data em que a perna foi lançada (histórico da perna).
+  return { criado_em:new Date().toISOString().slice(0,10), cidade:'', uf:'', tipo:'', peso:'', produto:'', vton:'', vl_total:'',
     pagamento:'', conta:'', km_final:'', pedagio_real:'', consumo_real:'',
     vl_adiant:'', dt_adiant:'', fmt_adiant:'', vl_pgto_final:'', dt_pgto_final:'', fmt_pgto_final:'' };
 }
@@ -9852,8 +10004,31 @@ function mMigrarPernaAntiga(r){
 }
 function mAdicionarPerna(){
   window._pernasRetorno = window._pernasRetorno || [];
+  // (03/11) Uma nova perna só abre depois que a anterior estiver Fechada.
+  mColherPernasDaTela();
+  var _n = window._pernasRetorno.length;
+  if(_n){
+    var _ult = window._pernasRetorno[_n-1];
+    if(pernaStatus(_ult)!=='fechada'){
+      mDestacarPerna(_n-1);
+      toast('Feche o Frete Retorno '+_n+' antes de abrir o próximo — falta: '+pernaFaltando(_ult).join(', '),'error');
+      return;
+    }
+  }
   window._pernasRetorno.push(mPernaVazia());
   mRenderPernas();
+}
+function mDestacarPerna(i){
+  var el = g('m-perna-'+i+'-box'); if(!el) return;
+  try{ el.scrollIntoView({behavior:'smooth', block:'center'}); }catch(e){}
+  el.style.outline = '2px solid #dc2626'; el.style.outlineOffset = '2px';
+  setTimeout(function(){ el.style.outline = ''; el.style.outlineOffset = ''; }, 3500);
+}
+function mPernaStatusPill(p){
+  var st = pernaStatus(p), falta = pernaFaltando(p);
+  var c = {aberta:['#fef9c3','#713f12'], aguardando:['#fee2e2','#991b1b'], fechada:['#dcfce7','#166534']}[st];
+  return '<span style="display:inline-block;margin-left:8px;padding:2px 9px;border-radius:9px;font-size:10px;font-weight:800;background:'+c[0]+';color:'+c[1]+'">'+PERNA_ST_LABEL[st]+'</span>'
+    + (falta.length ? '<span style="margin-left:8px;font-size:10.5px;font-weight:600;color:#6b7280">para fechar falta: '+falta.join(', ')+'</span>' : '');
 }
 function mRemoverPerna(idx){
   if(window._pernasRetorno.length<=1){ toast('Precisa ter pelo menos uma perna — pra remover tudo, mude "Teve Retorno?" para Não.','error'); return; }
@@ -9960,30 +10135,30 @@ function mRenderPernas(){
     var kmInicial = i===0 ? kmSaidaViagem : (parseFloat(window._pernasRetorno[i-1].km_final)||0);
     var kmFinalAtual = parseFloat(p.km_final)||0;
     var kmRealPerna = (kmInicial && kmFinalAtual && kmFinalAtual>kmInicial) ? (kmFinalAtual-kmInicial) : null;
-    return '<div class="rec-panel" style="padding:14px 16px;margin-bottom:12px;border-left:3px solid var(--gd)">'
+    return '<div class="rec-panel" id="m-perna-'+i+'-box" style="padding:14px 16px;margin-bottom:12px;border-left:3px solid '+(pernaStatus(p)==='fechada'?'var(--gd)':'#f59e0b')+'">'
       +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'
-        +'<div style="font-weight:700;color:var(--gd);font-size:12px">Frete Retorno '+(i+1)+'</div>'
+        +'<div style="font-weight:700;color:var(--gd);font-size:12px">Frete Retorno '+(i+1)+mPernaStatusPill(p)+'</div>'
         +(window._pernasRetorno.length>1 ? '<button type="button" class="btn-danger-sm" onclick="mRemoverPerna('+i+')">Remover</button>' : '')
       +'</div>'
       +'<div class="fg g4">'
         +'<div class="form-grp"><label class="form-lbl">Cidade Retorno <span class="req">*</span></label><input type="text" class="form-ctrl" id="m-perna-'+i+'-cidade" list="m-cidade-retorno-list" value="'+(p.cidade||'')+'" oninput="this.value=this.value.toUpperCase()" onblur="mPernaCidadeMudou('+i+')"></div>'
         +'<div class="form-grp"><label class="form-lbl">UF Retorno <span class="req">*</span></label><select class="form-ctrl" id="m-perna-'+i+'-uf" onchange="mPernaCampoMudou('+i+',\'uf\')">'+mUfOptions(p.uf)+'</select></div>'
-        +'<div class="form-grp"><label class="form-lbl">Tipo <span class="req">*</span></label><select class="form-ctrl" id="m-perna-'+i+'-tipo" onchange="mPernaCampoMudou('+i+',\'tipo\')"><option value="">—</option><option value="Retorno"'+(p.tipo==='Retorno'?' selected':'')+'>Frete Retorno</option><option value="MP"'+(p.tipo==='MP'?' selected':'')+'>Coleta MP</option><option value="Outros"'+(p.tipo==='Outros'?' selected':'')+'>Outros</option></select></div>'
-        +'<div class="form-grp"><label class="form-lbl">Peso Retorno (kg) <span class="req">*</span></label><input type="number" class="form-ctrl" id="m-perna-'+i+'-peso" min="0" value="'+(p.peso||'')+'" onblur="corrigirPesoMilhar(this);mPernaCampoMudou('+i+',\'peso\')"></div>'
+        +'<div class="form-grp"><label class="form-lbl">Tipo <span class="req-fech" title="Opcional no lançamento — exigido só para fechar a perna" style="font-weight:600;text-transform:none;letter-spacing:0;color:#92400e;font-size:9.5px">(exigido p/ fechar)</span></label><select class="form-ctrl" id="m-perna-'+i+'-tipo" onchange="mPernaCampoMudou('+i+',\'tipo\')"><option value="">—</option><option value="Retorno"'+(p.tipo==='Retorno'?' selected':'')+'>Frete Retorno</option><option value="MP"'+(p.tipo==='MP'?' selected':'')+'>Coleta MP</option><option value="Outros"'+(p.tipo==='Outros'?' selected':'')+'>Outros</option></select></div>'
+        +'<div class="form-grp"><label class="form-lbl">Peso Retorno (kg) <span class="req-fech" title="Opcional no lançamento — exigido só para fechar a perna" style="font-weight:600;text-transform:none;letter-spacing:0;color:#92400e;font-size:9.5px">(exigido p/ fechar)</span></label><input type="number" class="form-ctrl" id="m-perna-'+i+'-peso" min="0" value="'+(p.peso||'')+'" onblur="corrigirPesoMilhar(this);mPernaCampoMudou('+i+',\'peso\')"></div>'
       +'</div>'
       +'<div class="fg g2" style="margin-top:8px">'
-        +'<div class="form-grp"><label class="form-lbl">Produto Transportado <span class="req">*</span></label><input type="text" class="form-ctrl" id="m-perna-'+i+'-produto" list="m-produto-list" value="'+(p.produto||'')+'" oninput="this.value=this.value.toUpperCase()" onblur="mPernaCampoMudou('+i+',\'produto\')"></div>'
+        +'<div class="form-grp"><label class="form-lbl">Produto Transportado <span class="req-fech" title="Opcional no lançamento — exigido só para fechar a perna" style="font-weight:600;text-transform:none;letter-spacing:0;color:#92400e;font-size:9.5px">(exigido p/ fechar)</span></label><input type="text" class="form-ctrl" id="m-perna-'+i+'-produto" list="m-produto-list" value="'+(p.produto||'')+'" oninput="this.value=this.value.toUpperCase()" onblur="mPernaCampoMudou('+i+',\'produto\')"></div>'
         +'<div class="form-grp"><label class="form-lbl">Km Inicial desta perna (automático)</label><input type="text" class="form-ctrl" readonly style="background:var(--gg);font-weight:700" value="'+(kmInicial||'—')+(i===0?' (Km Saída da viagem)':' (Km Final da perna '+i+')')+'"></div>'
       +'</div>'
       +'<div class="fg g3" style="margin-top:8px">'
-        +'<div class="form-grp"><label class="form-lbl">Valor Total do Frete (R$) <span class="req">*</span></label><input type="number" class="form-ctrl" id="m-perna-'+i+'-vl_total" step="0.01" min="0" style="font-weight:800" value="'+(p.vl_total||'')+'" oninput="mPernaVtonAoVivo('+i+');mPernaFinAoVivo('+i+')" onblur="mPernaCampoMudou('+i+',\'vl_total\')"></div>'
+        +'<div class="form-grp"><label class="form-lbl">Valor Total do Frete (R$) <span class="req-fech" title="Opcional no lançamento — exigido só para fechar a perna" style="font-weight:600;text-transform:none;letter-spacing:0;color:#92400e;font-size:9.5px">(exigido p/ fechar)</span></label><input type="number" class="form-ctrl" id="m-perna-'+i+'-vl_total" step="0.01" min="0" placeholder="Pode ficar em branco até fechar" style="font-weight:800" value="'+(p.vl_total||'')+'" oninput="mPernaVtonAoVivo('+i+');mPernaFinAoVivo('+i+')" onblur="mPernaCampoMudou('+i+',\'vl_total\')"></div>'
         +'<div class="form-grp"><label class="form-lbl">R$/t <span style="font-weight:600;text-transform:none;color:var(--txl)">(calculado)</span></label><input type="number" class="form-ctrl" id="m-perna-'+i+'-vton" readonly tabindex="-1" placeholder="—" style="background:var(--gg);font-weight:800" value="'+(p.vton||'')+'"><div id="m-perna-'+i+'-vton-hint" style="font-size:10.5px;font-weight:700;margin-top:3px;min-height:13px;color:var(--gd)">'+(p._vtonDerivado&&parseFloat(p.vton)>0?freteFmtTon(p.vton):'')+'</div></div>'
         +(p.tipo==='MP' ? '' : '<div class="form-grp"><label class="form-lbl">Status Pagamento</label><select class="form-ctrl" id="m-perna-'+i+'-pagamento" onchange="mPernaCampoMudou('+i+',\'pagamento\')"><option value="">Pendente</option><option value="Parcial"'+(p.pagamento==='Parcial'?' selected':'')+'>Parcial</option><option value="Pago"'+(p.pagamento==='Pago'?' selected':'')+'>Pago</option></select></div>')
       +'</div>'
       +mPernaFinHtml(p,i)
       +'<div class="fg g4" style="margin-top:8px">'
         +(p.tipo==='MP' ? '<div class="form-grp"><label class="form-lbl">Conta / Responsável</label><div style="font-size:11px;color:var(--txl);padding:8px 0">Coleta MP é receita interna — não gera pendência de recebimento nem conta associada.</div></div>' : '<div class="form-grp"><label class="form-lbl">Conta / Responsável</label><select class="form-ctrl" id="m-perna-'+i+'-conta" onchange="mPernaCampoMudou('+i+',\'conta\')"><option value="">Selecione…</option><option value="MB Proni"'+(p.conta==='MB Proni'?' selected':'')+'>MB Proni</option><option value="Ambar Amaral"'+(p.conta==='Ambar Amaral'?' selected':'')+'>Ambar Amaral</option><option value="Carta Frete"'+(p.conta==='Carta Frete'?' selected':'')+'>Carta Frete</option></select></div>')
-        +'<div class="form-grp"><label class="form-lbl">Km Final desta perna (hodômetro) <span class="req">*</span></label><input type="number" class="form-ctrl" id="m-perna-'+i+'-km_final" min="0" value="'+(p.km_final||'')+'" onblur="mPernaCampoMudou('+i+',\'km_final\')"></div>'
+        +'<div class="form-grp"><label class="form-lbl">Km Final desta perna (hodômetro) <span class="req-fech" title="Opcional no lançamento — exigido só para fechar a perna" style="font-weight:600;text-transform:none;letter-spacing:0;color:#92400e;font-size:9.5px">(exigido p/ fechar)</span></label><input type="number" class="form-ctrl" id="m-perna-'+i+'-km_final" min="0" value="'+(p.km_final||'')+'" onblur="mPernaCampoMudou('+i+',\'km_final\')"></div>'
         +'<div class="form-grp"><label class="form-lbl">Pedágio Real Pago (R$)</label><input type="number" class="form-ctrl" id="m-perna-'+i+'-pedagio_real" step="0.01" min="0" value="'+(p.pedagio_real||'')+'" onblur="mPernaCampoMudou('+i+',\'pedagio_real\')"></div>'
         +'<div class="form-grp"><label class="form-lbl">Consumo desta perna (Litros)</label><input type="number" class="form-ctrl" id="m-perna-'+i+'-consumo_real" step="0.1" min="0" value="'+(p.consumo_real||'')+'" onblur="mPernaCampoMudou('+i+',\'consumo_real\')"></div>'
       +'</div>'
@@ -10082,13 +10257,121 @@ function saveEtapa1Modal(){
   openModal(modalIdx);
 }
 
-function saveEtapa2(){
+// ══ (03/11) Consolidação das pernas de Frete Retorno no registro da viagem ══════
+// Usada ao concluir a viagem (todas as pernas completas: resultado idêntico ao de
+// antes) e ao salvar pernas parciais. Os campos "achatados" (vl_total, peso_ret,
+// tipo_ret...) somam todas as pernas — perna aberta com valor informado já entra
+// (decisão do usuário em 03/11); perna sem valor soma zero.
+function mConsolidarPernas(r, pernas){
+  var kmAnterior = parseFloat(r.km_saida)||0;
+  var hoje = new Date().toISOString().slice(0,10);
+  pernas.forEach(function(p){
+    p.km_inicial = kmAnterior;
+    p.km_final = parseFloat(p.km_final)||0;
+    p.km_real = p.km_final ? (p.km_final - p.km_inicial) : null;
+    if(p.km_final) kmAnterior = p.km_final;
+    p.cidade = String(p.cidade||'').toUpperCase();
+    p.produto = String(p.produto||'').toUpperCase().trim();
+    p.peso = parseFloat(p.peso)||0;
+    p.vton = parseFloat(p.vton)||0;
+    p.vl_total = parseFloat(p.vl_total) || (p.vton*p.peso/1000) || 0;
+    if(p._vtonDerivado){ var _vp = freteVtonDe(p.vl_total, p.peso); if(_vp!=null) p.vton = _vp; }
+    delete p._vtonDerivado;
+    p.pedagio_real = p.pedagio_real!=='' && p.pedagio_real!=null ? parseFloat(p.pedagio_real) : null;
+    p.consumo_real = p.consumo_real!=='' && p.consumo_real!=null ? parseFloat(p.consumo_real) : null;
+    if(p.tipo==='MP'){ p.vl_adiant=0; p.vl_pgto_final=0; p.dt_adiant=''; p.dt_pgto_final=''; p.fmt_adiant=''; p.fmt_pgto_final=''; }
+    else {
+      p.vl_adiant=parseFloat(p.vl_adiant)||0; p.vl_pgto_final=parseFloat(p.vl_pgto_final)||0;
+      p.dt_adiant=p.dt_adiant||''; p.dt_pgto_final=p.dt_pgto_final||''; p.fmt_adiant=p.fmt_adiant||''; p.fmt_pgto_final=p.fmt_pgto_final||'';
+      mPernaAplicarStatusAuto(p);
+    }
+    // Histórico da perna: só para pernas lançadas no fluxo novo (têm criado_em).
+    if(p.criado_em){
+      if(pernaStatus(p)==='fechada'){ if(!p.fechado_em) p.fechado_em = hoje; }
+      else delete p.fechado_em;
+    }
+  });
+  r.fretes_retorno = pernas;
+
+  // Campos "achatados" mantidos por compatibilidade com telas/relatórios antigos:
+  // somam/consolidam todas as pernas (não representam mais uma perna só).
+  var ult = pernas[pernas.length-1];
+  r.dest_ret_cidade = ult.cidade;
+  r.dest_ret_uf = ult.uf;
+  r.dest_ret = r.dest_ret_cidade+(r.dest_ret_uf?'-'+r.dest_ret_uf:'');
+  r.tipo_ret = pernas[0].tipo || ((pernas.filter(function(p){return p.tipo;})[0]||{}).tipo) || '';
+  r.peso_ret = pernas.reduce(function(s,p){return s+p.peso;},0);
+  r.produto_ret = pernas.map(function(p){return p.produto;}).filter(Boolean).join(' + ');
+  var _comKm = pernas.filter(function(p){ return p.km_final>0; });
+  r.km_final = _comKm.length ? _comKm[_comKm.length-1].km_final : 0;
+  r.vl_ton = pernas[0].vton;
+  r.vl_total = pernas.reduce(function(s,p){return s+p.vl_total;},0);
+  r.pagamento = freteStatusConsolidado(pernas);
+  r.vl_adiant = pernas.reduce(function(s,p){return s+(p.tipo==='MP'?0:(parseFloat(p.vl_adiant)||0));},0);
+  r.vl_pgto_final = pernas.reduce(function(s,p){return s+(p.tipo==='MP'?0:(parseFloat(p.vl_pgto_final)||0));},0);
+  r.conta = pernas[0].conta;
+  r.pedagio_real = pernas.reduce(function(s,p){return s+(p.pedagio_real||0);},0) || null;
+  r.consumo_real = pernas.reduce(function(s,p){return s+(p.consumo_real||0);},0) || null;
+  r.km_desloc_retorno = (function(){
+    if(!r.km_final || !r.km_saida) return null;
+    var kmTotalReal = r.km_final - (parseFloat(r.km_saida)||0);
+    var kmPadrao = (typeof freteIdaFromGrupo==='function' ? freteIdaFromGrupo(r.km_grupo||0) : (r.km_grupo||0)*100) * 2;
+    return kmTotalReal - kmPadrao;
+  })();
+}
+
+// ══ (03/11) Salvar fretes retorno SEM concluir a viagem ═══════════════════════
+// Grava as pernas como estão (mínimo: Cidade e UF), sem exigir datas de descarga,
+// Km Final, peso ou valor. Não grava Data Descarga/Chegada Base (essas concluem a
+// viagem). Com valor informado, o Tipo passa a ser exigido, porque é ele que
+// classifica a receita (Retorno/Outros → frete retorno; MP → coleta MP).
+function saveEtapa2SoPernas(){
+  var r = DB[modalIdx]; if(!r) return;
+  if(g('m-ret').value!=='Sim'){ toast('Para lançar frete retorno, marque “Teve Retorno? = Sim”','error'); return; }
+  mColherPernasDaTela();
+  var pernas = window._pernasRetorno || [];
+  if(!pernas.length){ toast('Adicione pelo menos um Frete Retorno','error'); return; }
+  for(var i=0;i<pernas.length;i++){
+    var p = pernas[i], rot = 'Frete Retorno '+(i+1);
+    if(!String(p.cidade||'').trim() || !p.uf){ mDestacarPerna(i); toast(rot+': informe ao menos Cidade e UF para registrar a perna','error'); return; }
+    var _t = parseFloat(p.vl_total) || ((parseFloat(p.vton)||0)*(parseFloat(p.peso)||0)/1000) || 0;
+    if((parseFloat(p.vl_total)>0 || parseFloat(p.vton)>0) && !p.tipo){ mDestacarPerna(i); toast(rot+': com valor informado, escolha o Tipo (Retorno / MP / Outros) — é ele que classifica a receita','error'); return; }
+    if(i<pernas.length-1 && pernaStatus(p)!=='fechada'){ mDestacarPerna(i); toast(rot+' precisa estar fechado antes do Frete Retorno '+(i+2)+' — falta: '+pernaFaltando(p).join(', '),'error'); return; }
+    if(p.tipo!=='MP'){
+      var _a=parseFloat(p.vl_adiant)||0, _f=parseFloat(p.vl_pgto_final)||0;
+      if(_a<0||_f<0){ toast(rot+': adiantamento e pagamento não podem ser negativos','error'); return; }
+      if(!mDataValida(p.dt_adiant)){ toast(rot+': data do adiantamento inválida — informe dia, mês e ano completos (ex.: 22/10/2026)','error'); return; }
+      if(!mDataValida(p.dt_pgto_final)){ toast(rot+': data do pagamento final inválida — informe dia, mês e ano completos (ex.: 22/10/2026)','error'); return; }
+      if((_a+_f)>0 && !(_t>0)){ mDestacarPerna(i); toast(rot+': para lançar adiantamento ou pagamento, informe antes o valor do frete','error'); return; }
+      if(_a+_f > _t+0.01){ toast(rot+': adiantamento + pagamento ('+R(_a+_f)+') é maior que o valor do frete ('+R(_t)+')','error'); return; }
+    }
+  }
+  r.retorno = 'Sim';
+  r.obs = g('m-obs').value;
+  mConsolidarPernas(r, pernas);
+  pernas.forEach(function(p){
+    if(p.produto && typeof freteRegistrarProdutoRetorno==='function'){ try{ freteRegistrarProdutoRetorno(p.produto); }catch(e){} }
+    if(p.cidade && typeof freteRegistrarCidadeRetorno==='function'){ try{ freteRegistrarCidadeRetorno(p.cidade, p.uf); }catch(e){} }
+  });
+  save();
+  if(typeof finRefreshSeVisivel==='function') finRefreshSeVisivel();
+  var pend = viagemPernasPendentes(r).length, st = tripStatus(r);
+  g('modal-overlay').classList.add('hidden');
+  modalIdx=-1;
+  renderAll(); renderKanban(); renderRecs();
+  toast('💾 Fretes retorno salvos — '+(pend
+    ? pend+' perna'+(pend!==1?'s':'')+' pendente'+(pend!==1?'s':'')+' de fechamento; a viagem continua Em Andamento.'
+    : (st==='verde' ? 'viagem concluída.' : 'todas as pernas fechadas. Preencha as datas e clique em “Salvar e concluir viagem”.')), 'success');
+}
+
+function saveEtapa2(soPernas){
   if(modalIdx<0)return;
   // Mesma trava contra clique duplo do saveEtapa1 — aqui evita duplicar uma
   // perna de Frete Retorno se o botão for clicado duas vezes rápido.
   if(window._saveEtapa2EmAndamento) return;
   window._saveEtapa2EmAndamento = true;
   setTimeout(function(){ window._saveEtapa2EmAndamento = false; }, 2000);
+  if(soPernas===true) return saveEtapa2SoPernas();
   const r=DB[modalIdx];
   const dtd=g('m-dtd').value,dtb=g('m-dtb').value,ret=g('m-ret').value;
   if(!dtd||!dtb){toast('Preencha Data Descarga e Data Chegada Base','error');return;}
@@ -10113,8 +10396,11 @@ function saveEtapa2(){
     if(!pernas.length){ toast('Adicione pelo menos um Frete Retorno','error'); return; }
     for(var i=0;i<pernas.length;i++){
       var p = pernas[i];
-      if(!p.cidade || !p.uf || !p.tipo || !parseFloat(p.peso) || !(parseFloat(p.vton) || parseFloat(p.vl_total))){
-        toast('Preencha todos os campos obrigatórios do Frete Retorno '+(i+1),'error'); return;
+      var _falta = pernaFaltando(p);
+      if(_falta.length){
+        // (03/11) Não conclui com perna pendente — diz exatamente qual e o que falta.
+        mDestacarPerna(i);
+        toast('Não é possível concluir: o Frete Retorno '+(i+1)+(p.cidade?' ('+String(p.cidade).toUpperCase()+(p.uf?'/'+p.uf:'')+')':'')+' está '+PERNA_ST_LABEL[pernaStatus(p)].toLowerCase()+' — falta: '+_falta.join(', ')+'. Feche a perna ou use “Salvar fretes retorno (sem concluir)”.','error'); return;
       }
       if(!p.produto || !String(p.produto).trim()){
         toast('Preencha o Produto Transportado do Frete Retorno '+(i+1),'error'); return;
@@ -10130,54 +10416,7 @@ function saveEtapa2(){
         if(_a+_f > _t+0.01){ toast('Frete Retorno '+(i+1)+': adiantamento + pagamento ('+R(_a+_f)+') é maior que o valor do frete ('+R(_t)+')','error'); return; }
       }
     }
-    var kmSaidaViagem = parseFloat(r.km_saida)||0;
-    var kmAnterior = kmSaidaViagem;
-    pernas.forEach(function(p, i){
-      p.km_inicial = kmAnterior;
-      p.km_final = parseFloat(p.km_final)||0;
-      p.km_real = p.km_final - p.km_inicial;
-      kmAnterior = p.km_final;
-      p.cidade = String(p.cidade).toUpperCase();
-      p.produto = String(p.produto).toUpperCase().trim();
-      p.peso = parseFloat(p.peso)||0;
-      p.vton = parseFloat(p.vton)||0;
-      p.vl_total = parseFloat(p.vl_total) || (p.vton*p.peso/1000) || 0;
-      if(p._vtonDerivado){ var _vp = freteVtonDe(p.vl_total, p.peso); if(_vp!=null) p.vton = _vp; }
-      delete p._vtonDerivado;
-      p.pedagio_real = p.pedagio_real!=='' && p.pedagio_real!=null ? parseFloat(p.pedagio_real) : null;
-      p.consumo_real = p.consumo_real!=='' && p.consumo_real!=null ? parseFloat(p.consumo_real) : null;
-      if(p.tipo==='MP'){ p.vl_adiant=0; p.vl_pgto_final=0; p.dt_adiant=''; p.dt_pgto_final=''; p.fmt_adiant=''; p.fmt_pgto_final=''; }
-      else {
-        p.vl_adiant=parseFloat(p.vl_adiant)||0; p.vl_pgto_final=parseFloat(p.vl_pgto_final)||0;
-        p.dt_adiant=p.dt_adiant||''; p.dt_pgto_final=p.dt_pgto_final||''; p.fmt_adiant=p.fmt_adiant||''; p.fmt_pgto_final=p.fmt_pgto_final||'';
-        mPernaAplicarStatusAuto(p);
-      }
-    });
-    r.fretes_retorno = pernas;
-
-    // Campos "achatados" mantidos por compatibilidade com telas/relatórios antigos:
-    // somam/consolidam todas as pernas (não representam mais uma perna só).
-    r.dest_ret_cidade = pernas[pernas.length-1].cidade;
-    r.dest_ret_uf = pernas[pernas.length-1].uf;
-    r.dest_ret = r.dest_ret_cidade+(r.dest_ret_uf?'-'+r.dest_ret_uf:'');
-    r.tipo_ret = pernas[0].tipo;
-    r.peso_ret = pernas.reduce(function(s,p){return s+p.peso;},0);
-    r.produto_ret = pernas.map(function(p){return p.produto;}).join(' + ');
-    r.km_final = pernas[pernas.length-1].km_final;
-    r.vl_ton = pernas[0].vton;
-    r.vl_total = pernas.reduce(function(s,p){return s+p.vl_total;},0);
-    r.pagamento = freteStatusConsolidado(pernas);
-    r.vl_adiant = pernas.reduce(function(s,p){return s+(p.tipo==='MP'?0:(parseFloat(p.vl_adiant)||0));},0);
-    r.vl_pgto_final = pernas.reduce(function(s,p){return s+(p.tipo==='MP'?0:(parseFloat(p.vl_pgto_final)||0));},0);
-    r.conta = pernas[0].conta;
-    r.pedagio_real = pernas.reduce(function(s,p){return s+(p.pedagio_real||0);},0) || null;
-    r.consumo_real = pernas.reduce(function(s,p){return s+(p.consumo_real||0);},0) || null;
-    r.km_desloc_retorno = (function(){
-      if(!r.km_final || !r.km_saida) return null;
-      var kmTotalReal = r.km_final - (parseFloat(r.km_saida)||0);
-      var kmPadrao = (typeof freteIdaFromGrupo==='function' ? freteIdaFromGrupo(r.km_grupo||0) : (r.km_grupo||0)*100) * 2;
-      return kmTotalReal - kmPadrao;
-    })();
+    mConsolidarPernas(r, pernas);
 
     // Aprendizado automático + histórico de produtos e cidades, por perna.
     pernas.forEach(function(p){
@@ -10213,7 +10452,8 @@ function saveEtapa2(){
     amarelo: '🚚 Salvo! Viagem em andamento.',
     vermelho: '⚠️ Salvo, mas ainda há dados faltando na Etapa 1.'
   }[newStatus] || 'Salvo com sucesso!';
-  toast(statusMsg, newStatus==='verde'?'success':'success');
+  var _avisoPA = (newStatus==='verde' && viagemSemFretePA(r)) ? ' ⚠ Sem valor do frete PA: a viagem fica sinalizada em Concluídas até o valor ser informado.' : '';
+  toast(statusMsg+_avisoPA, newStatus==='verde'?'success':'success');
 }
 
 function renderRecs(){
@@ -10289,7 +10529,7 @@ const resetFilters=()=>{
   updatePlacaOptions(''); // reset placa options to all
   renderAll();
 };
-const resetKbFilters=()=>{['kb-mes','kb-cat','kb-placa'].forEach(id=>g(id).value='');renderKanban();};
+const resetKbFilters=()=>{['kb-mes','kb-cat','kb-placa'].forEach(id=>g(id).value='');if(g('kb-sem-pa'))g('kb-sem-pa').checked=false;renderKanban();};
 // ── Debounce: evita múltiplas renderizações em sequência ────
 var _renderAllTimer = null;
 // ── Performance Operacional de Viagens ──────────────────────
@@ -13348,11 +13588,16 @@ function freteStatusConsolidado(pernas){
   return rec>0.005 ? 'Parcial' : 'Pendente';
 }
 
+// (03/11) Perna ainda não fechada e SEM valor não entra nas apurações de retorno
+// (receita, peso, pendências de pagamento, indicadores): não há o que apurar até o
+// valor ser informado. Com valor, entra normalmente. Pernas fechadas: sem mudança.
+function pernaSemValorAberta(p){ return !!p && !(parseFloat(p.vl_total)>0) && pernaStatus(p)!=='fechada'; }
 function freteExplodirPernas(data){
   var out = [];
   (data||[]).forEach(function(r){
-    if(r.fretes_retorno && r.fretes_retorno.length > 1){
+    if(r.fretes_retorno && (r.fretes_retorno.length > 1 || r.fretes_retorno.some(pernaSemValorAberta))){
       r.fretes_retorno.forEach(function(p, i){
+        if(pernaSemValorAberta(p)) return;
         var clone = Object.assign({}, r);
         clone.dest_ret_cidade   = p.cidade;
         clone.dest_ret_uf       = p.uf;
@@ -19571,6 +19816,7 @@ function recBuildRows(tab){
       if(r.fretes_retorno && r.fretes_retorno.length){
         r.fretes_retorno.forEach(function(p,i){
           if(!recIsOutroTipo(p.tipo)) return;
+          if(pernaSemValorAberta(p)) return; // (03/11) sem valor ainda: nada a receber
           out.push({_dbRow:r,_pernaIdx:i,_kind:'perna',
             dt_carg:r.dt_carg, placa:r.placa, categoria:r.categoria,
             origem_cidade:r.origem_cidade||'', origem_uf:r.origem_uf||'',
@@ -19609,6 +19855,7 @@ function recBuildRows(tab){
       if(r.fretes_retorno && r.fretes_retorno.length){
         r.fretes_retorno.forEach(function(p,i){
           if(p.tipo!==tab) return;
+          if(pernaSemValorAberta(p)) return; // (03/11) sem valor ainda: nada a receber
           out.push({_dbRow:r,_pernaIdx:i,_kind:'perna',
             dt_carg:dtRef, placa:r.placa, categoria:r.categoria,
             origem_cidade:r.origem_cidade||'', origem_uf:r.origem_uf||'',
