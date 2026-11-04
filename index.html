@@ -7602,6 +7602,7 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
 
     <!-- ═══ VISÃO: TABELA EXECUTIVA ═══ -->
     <div id="fin-view-tabela">
+      <div id="fin-hod-alerta"></div>
       <div class="fg g4" id="fin-kpis" style="gap:12px;margin-bottom:16px"></div>
       <div class="rec-panel">
         <div class="tbl-scroll"><table id="fin-tabela">
@@ -8269,7 +8270,8 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
         <div class="form-grp">
           <label class="form-lbl">Km Final (hodômetro) <span class="req">*</span></label>
           <input type="number" class="form-ctrl" id="m-km-final" min="0" placeholder="Ex: 2680" oninput="calcKmDeslocRetorno();calcKmLReal()">
-          <div style="font-size:11px;color:var(--txl);margin-top:4px">Sempre preencha, mesmo em retorno vazio — é a base do Km real da viagem.</div>
+          <div style="font-size:11px;color:var(--txl);margin-top:4px">Leitura do hodômetro na chegada (não os km rodados). Sempre preencha, mesmo em retorno vazio.</div>
+          <div id="m-km-final-dica" style="font-size:11px;margin-top:3px;line-height:1.4"></div>
         </div>
         <div class="form-grp">
           <label class="form-lbl">Pedágio Real Pago (R$)</label>
@@ -9963,7 +9965,19 @@ function calcModalVl(){
   if(t&&k){g('m-vl').value=(t*k/1000).toFixed(2);}
 }
 // Km Total Real da Viagem − Km Padrão (Ida + Volta do Grupo) = Km de Deslocamento do Frete Retorno
+// (04/11) Dica ao vivo sob o Km Final: mostra os km rodados ou avisa que o valor
+// digitado não é uma leitura de hodômetro válida.
+function calcKmFinalDica(){
+  var el = g('m-km-final-dica'); if(!el) return;
+  var r = modalIdx>=0 ? DB[modalIdx] : null; if(!r){ el.textContent=''; return; }
+  var kf = parseFloat(g('m-km-final').value)||0;
+  var ks = parseFloat(g('me1-km-saida') && g('me1-km-saida').value!=='' ? g('me1-km-saida').value : r.km_saida)||0;
+  if(!kf || !ks){ el.style.color='var(--txl)'; el.innerHTML = ks ? 'Km Saída desta viagem: <b>'+N(ks,0)+'</b> — informe a leitura do hodômetro na chegada.' : ''; return; }
+  if(kf<=ks){ el.style.color='#dc2626'; el.innerHTML='⚠ Menor que o Km Saída (<b>'+N(ks,0)+'</b>). Aqui vai a <b>leitura do hodômetro</b> na chegada, não os km rodados.'; return; }
+  el.style.color='#166534'; el.innerHTML='Km rodados nesta viagem: <b>'+N(kf-ks,0)+' km</b> ('+N(ks,0)+' → '+N(kf,0)+')';
+}
 function calcKmDeslocRetorno(){
+  if(typeof calcKmFinalDica==='function') calcKmFinalDica();
   const out = g('m-km-desloc-ret');
   if(!out) return;
   if(modalIdx<0){ out.value=''; return; }
@@ -10034,6 +10048,21 @@ function mAdicionarPerna(){
   }
   window._pernasRetorno.push(mPernaVazia());
   mRenderPernas();
+}
+// (04/11) Cada perna: Km Final (hodômetro) precisa ser maior que o Km Inicial
+// dela (Km Saída da viagem na 1ª, Km Final da anterior nas demais).
+var HOD_REGRA_DESDE = '2026-11-01';
+function hodRegraNovaVale(r){ return !!r && String(r.dt_carg||'') >= HOD_REGRA_DESDE; }
+function mPernasErroHodometro(pernas, kmSaida){
+  var ant = parseFloat(kmSaida)||0;
+  for(var i=0;i<pernas.length;i++){
+    var kf = parseFloat(pernas[i].km_final)||0;
+    if(kf && ant && kf<=ant){
+      return {i:i, msg:'Frete Retorno '+(i+1)+': Km Final ('+N(kf,0)+') precisa ser MAIOR que o Km Inicial da perna ('+N(ant,0)+'). Informe a leitura do hodômetro, não os km rodados.'};
+    }
+    if(kf) ant = kf;
+  }
+  return null;
 }
 function mDestacarPerna(i){
   var el = g('m-perna-'+i+'-box'); if(!el) return;
@@ -10363,6 +10392,8 @@ function saveEtapa2SoPernas(){
       if(_a+_f > _t+0.01){ toast(rot+': adiantamento + pagamento ('+R(_a+_f)+') é maior que o valor do frete ('+R(_t)+')','error'); return; }
     }
   }
+  var _errKmP = hodRegraNovaVale(r) ? mPernasErroHodometro(pernas, parseFloat(r.km_saida)||0) : null;
+  if(_errKmP){ mDestacarPerna(_errKmP.i); toast(_errKmP.msg,'error'); return; }
   r.retorno = 'Sim';
   r.obs = g('m-obs').value;
   mConsolidarPernas(r, pernas);
@@ -10402,6 +10433,23 @@ function saveEtapa2(soPernas){
     return;
   }
   r.motorista = motoristaAtual.toUpperCase();
+
+  // (04/11) Km Final tem de ser a leitura do hodômetro, maior que o Km Saída.
+  // Validado ANTES de mexer no registro, para não deixar alteração pela metade.
+  var _kmSaidaV = parseFloat(g('me1-km-saida') && g('me1-km-saida').value!=='' ? g('me1-km-saida').value : r.km_saida)||0;
+  if(!hodRegraNovaVale(r)){
+    // Viagens até 31/10/2026: sem bloqueio (correção pela tela "Corrigir hodômetro").
+  } else if(ret!=='Sim'){
+    var _kmFinV = parseFloat(g('m-km-final').value)||0;
+    if(_kmFinV && _kmSaidaV && _kmFinV<=_kmSaidaV){
+      toast('Km Final ('+N(_kmFinV,0)+') precisa ser MAIOR que o Km Saída ('+N(_kmSaidaV,0)+'). Informe a leitura do hodômetro na chegada (ex.: '+N(_kmSaidaV+Math.max(1,(parseFloat(r.km)||0)*2),0)+'), não os km rodados.','error');
+      var _el=g('m-km-final'); if(_el){ _el.classList.add('err'); _el.focus(); }
+      return;
+    }
+  } else {
+    var _errKm = mPernasErroHodometro(window._pernasRetorno||[], _kmSaidaV);
+    if(_errKm){ mDestacarPerna(_errKm.i); toast(_errKm.msg,'error'); return; }
+  }
 
   r.dt_desc=dtd; r.dt_base=dtb; r.retorno=ret; r.obs=g('m-obs').value;
 
@@ -14344,6 +14392,12 @@ function custoRealCalcularViagem(r){
   // pelo Km padrão do grupo — com ou sem deslocamento de retorno, dependendo do caso.
   var kmReal = null, kmFonte = null;
   var hodSuspeito = null;
+  // (04/11) Km Final é a LEITURA do hodômetro na chegada (ex.: 813.006), não os km
+  // rodados. Quando vem menor ou igual ao Km Saída (ex.: Km Final 50 com Km Saída
+  // 812.956), a diferença não existe e o cálculo cai na estimativa do grupo — antes
+  // isso acontecia em silêncio e a tela mostrava, p.ex., 200 km sem dizer de onde.
+  var hodInvalido = (parseFloat(r.km_saida)>0 && parseFloat(r.km_final)>0 && parseFloat(r.km_final)<=parseFloat(r.km_saida))
+    ? {saida:parseFloat(r.km_saida), final:parseFloat(r.km_final)} : null;
   if(r.km_saida!=null && r.km_final!=null && r.km_final>r.km_saida){
     kmReal = r.km_final - r.km_saida; kmFonte = 'hodômetro (Km Final − Km Saída)';
   } else if(r.km!=null && r.km_desloc_retorno!=null && grupoNum!=null){
@@ -14482,7 +14536,7 @@ function custoRealCalcularViagem(r){
     placa:r.placa, categoria:r.categoria, destino:r.destino_cidade+'/'+r.destino_uf,
     kmReal:kmReal, kmFonte:kmFonte, dias:dias,
     itens:itens, custoTotal:custoTotal, temPendencia:temPendencia,
-    variavelFonte:variavelFonte, fixoIndisponivel:fixoIndisponivel, hodometroSuspeito:hodSuspeito,
+    variavelFonte:variavelFonte, fixoIndisponivel:fixoIndisponivel, hodometroSuspeito:hodSuspeito, hodometroInvalido:hodInvalido,
     incompleto:(variavelFonte==='indisponivel' || fixoIndisponivel || !!hodSuspeito), motivosCusto:motivosCusto,
     receitaRetorno: parseFloat(r.vl_total)||0,
     // Padronização: a receita "realizada" passa a ser calculada como Tabela de Frete
@@ -15134,6 +15188,138 @@ function finAplicarKmLocalidade(){
 }
 
 function finToggleFiltroCusto(v){ window._finFiltroCusto = (window._finFiltroCusto===v) ? '' : v; finRenderTabela(); }
+// ══ (04/11) CORRIGIR HODÔMETRO — viagens lançadas antes da regra nova ══════════
+// Muitas viagens tiveram os KM RODADOS digitados no campo Km Final (hodômetro).
+// Ex.: Km Saída 812.956 e Km Final 50 → a viagem rodou 50 km, então o Km Final
+// correto é 812.956 + 50 = 813.006 e Km rodados = Final − Saída = 50.
+// Km Saída gravado com ponto de milhar (538.517 → 538517) também é corrigido.
+// Nada é aplicado sem confirmação; os valores originais ficam guardados no registro
+// (_hod_original) e cada correção vai para o Log de Alterações.
+var HODC = {linhas:[]};
+function hodKmSaidaCorrigido(ks){
+  ks = parseFloat(ks)||0;
+  if(ks>0 && ks<10000 && Math.round(ks)!==ks){ var x = Math.round(ks*1000); if(Math.abs(x/1000-ks)<1e-9) return x; }
+  return ks;
+}
+function hodListar(){
+  var lista = [];
+  (typeof DB!=='undefined'?DB:[]).forEach(function(r, idx){
+    if(r._excluida) return;
+    if(hodRegraNovaVale(r)) return;
+    var ks = parseFloat(r.km_saida)||0, kf = parseFloat(r.km_final)||0;
+    if(!(ks>0 && kf>0)) return;
+    var ksC = hodKmSaidaCorrigido(ks);
+    if(kf>ks && ksC===ks) return;              // hodômetro coerente
+    lista.push(idx);
+  });
+  return lista;
+}
+function hodProximaSaida(r){
+  var prox = (typeof DB!=='undefined'?DB:[]).filter(function(y){
+    return !y._excluida && y!==r && y.placa===r.placa && String(y.dt_carg||'') >= String(r.dt_carg||'') && (parseFloat(y.km_saida)||0)>1000
+      && (String(y.dt_carg)>String(r.dt_carg) || DB.indexOf(y)>DB.indexOf(r));
+  }).sort(function(a,b){ return String(a.dt_carg).localeCompare(String(b.dt_carg)) || DB.indexOf(a)-DB.indexOf(b); })[0];
+  return prox ? hodKmSaidaCorrigido(prox.km_saida) : null;
+}
+function hodMontar(){
+  HODC.linhas = hodListar().map(function(idx){
+    var r = DB[idx], ks = parseFloat(r.km_saida)||0, kf = parseFloat(r.km_final)||0;
+    var ksC = hodKmSaidaCorrigido(ks);
+    var kfC = kf>ksC ? kf : ksC + kf;            // valor digitado = km rodados
+    var pernas = Array.isArray(r.fretes_retorno) && r.fretes_retorno.length>0;
+    return {idx:idx, ksOrig:ks, kfOrig:kf, ks:ksC, kf:kfC, prox:hodProximaSaida(r), pernas:pernas, aplicada:false, incluir:true};
+  });
+  HODC.linhas.forEach(hodValidar);
+}
+function hodValidar(l){
+  var r = DB[l.idx], av = [], er = [];
+  if(l.pernas) er.push('Viagem com frete retorno em pernas — corrija o Km Final de cada perna na própria viagem');
+  if(!(l.kf>l.ks)) er.push('Km Final precisa ser maior que o Km Saída');
+  if(l.ks!==l.ksOrig) av.push('Km Saída com ponto de milhar: '+N(l.ksOrig,3)+' → '+N(l.ks,0));
+  if(l.prox!=null && l.kf>l.prox) er.push('Km Final passa da saída seguinte desta placa ('+N(l.prox,0)+') — confira');
+  if(l.prox!=null && l.prox-l.ks>5000) av.push('Saída seguinte bem maior ('+N(l.prox,0)+') — Km Saída pode ter dígito faltando');
+  var esp = (parseFloat(r.km)||0)*2;
+  var rod = l.kf-l.ks;
+  if(esp>0 && rod>0 && (rod>esp*2.5+50)) av.push('Km rodados bem acima do previsto ('+N(esp,0)+' km ida e volta)');
+  l.erros = er; l.avisos = av;
+  if(er.length) l.incluir = false;
+}
+function hodAbrir(){
+  hodMontar();
+  if(!HODC.linhas.length){ toast('Nenhuma viagem com hodômetro inconsistente 👍','success'); return; }
+  hodRender();
+}
+function hodFechar(){ var o=g('hod-ovl'); if(o) o.remove(); if(typeof finRenderTabela==='function') try{ finRenderTabela(); }catch(e){} }
+function hodRender(){
+  var o = g('hod-ovl');
+  if(!o){ o=document.createElement('div'); o.id='hod-ovl'; o.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:10040;display:flex;align-items:center;justify-content:center;padding:14px'; document.body.appendChild(o); }
+  var L = HODC.linhas;
+  var th='padding:8px;text-align:left;font-size:10px;font-weight:800;color:#024f2b;text-transform:uppercase;letter-spacing:.3px;white-space:nowrap;background:#f0f5ec;position:sticky;top:0;z-index:1';
+  var td='padding:7px 8px;font-size:11.5px;color:#1f2937;white-space:nowrap;border-top:1px solid #eef0ea;vertical-align:top';
+  var inp='width:96px;padding:5px 6px;border:1px solid #cbd5c0;border-radius:5px;font-size:12px;font-weight:700;text-align:right';
+  var sel = L.filter(function(l){ return l.incluir && !l.aplicada && !l.erros.length; });
+  var nConf = L.filter(function(l){ return !l.aplicada && l.erros.length; }).length;
+  var corpo = L.map(function(l, i){
+    var r = DB[l.idx], rod = l.kf-l.ks;
+    var st = l.aplicada ? ['✅ Corrigida','#dcfce7','#166534'] : (l.erros.length ? ['Conferir','#fee2e2','#991b1b'] : (l.avisos.length ? ['Pronta*','#fef9c3','#713f12'] : ['Pronta','#dbeafe','#1e40af']));
+    var pend = l.erros.map(function(x){ return '<div style="color:#991b1b">✖ '+x+'</div>'; }).join('') + l.avisos.map(function(x){ return '<div style="color:#6b7280">• '+x+'</div>'; }).join('');
+    return '<tr style="background:'+(l.aplicada?'#f7fdf9':'#fff')+'">'
+      +'<td style="'+td+'"><input type="checkbox" '+(l.incluir&&!l.aplicada&&!l.erros.length?'checked':'')+(l.aplicada||l.erros.length?' disabled':'')+' onchange="HODC.linhas['+i+'].incluir=this.checked;hodRender()" style="width:15px;height:15px;accent-color:#024f2b"></td>'
+      +'<td style="'+td+'"><span style="display:inline-block;padding:2px 8px;border-radius:9px;font-size:10px;font-weight:800;background:'+st[1]+';color:'+st[2]+'">'+st[0]+'</span></td>'
+      +'<td style="'+td+';font-family:\'DM Mono\',monospace;font-weight:800;color:#024f2b">'+r.placa+'</td>'
+      +'<td style="'+td+'">'+FD(r.dt_carg)+'</td>'
+      +'<td style="'+td+'">'+(r.destino_cidade||'—')+'/'+(r.destino_uf||'')+'<div style="font-size:10px;color:#6b7280">Km exato: '+(parseFloat(r.km)>0?N(r.km,0)+' km':'—')+'</div></td>'
+      +'<td style="'+td+';text-align:right;color:#6b7280">'+N(l.ksOrig, l.ksOrig%1?3:0)+'<br>'+N(l.kfOrig,0)+'</td>'
+      +'<td style="'+td+';text-align:right">'+(l.aplicada?N(l.ks,0):'<input type="number" style="'+inp+'" value="'+l.ks+'" onchange="HODC.linhas['+i+'].ks=parseFloat(this.value)||0;hodValidar(HODC.linhas['+i+']);HODC.linhas['+i+'].incluir=!HODC.linhas['+i+'].erros.length;hodRender()">')+'</td>'
+      +'<td style="'+td+';text-align:right">'+(l.aplicada?N(l.kf,0):'<input type="number" style="'+inp+'" value="'+l.kf+'" onchange="HODC.linhas['+i+'].kf=parseFloat(this.value)||0;hodValidar(HODC.linhas['+i+']);HODC.linhas['+i+'].incluir=!HODC.linhas['+i+'].erros.length;hodRender()">')+'</td>'
+      +'<td style="'+td+';text-align:right;font-weight:800;color:'+(rod>0?'#166534':'#991b1b')+'">'+(rod>0?N(rod,0)+' km':'—')+'</td>'
+      +'<td style="'+td+';text-align:right;color:#6b7280">'+(l.prox!=null?N(l.prox,0):'—')+'</td>'
+      +'<td style="'+td+';white-space:normal;min-width:200px;font-size:10.5px;line-height:1.45">'+(pend||'<span style="color:#166534">Sem pendências</span>')+'</td>'
+      +'<td style="'+td+'">'+(l.aplicada?'':(l.pernas?'<button type="button" onclick="hodFechar();openModal('+l.idx+')" style="padding:5px 9px;border-radius:5px;border:1px solid #024f2b;background:#fff;color:#024f2b;font-size:10.5px;font-weight:700;cursor:pointer">Abrir viagem</button>'
+          :'<button type="button" '+(l.erros.length?'disabled':'')+' onclick="hodAplicar(['+i+'])" style="padding:5px 9px;border-radius:5px;border:1px solid #024f2b;background:'+(l.erros.length?'#e5e7eb':'#024f2b')+';color:'+(l.erros.length?'#9ca3af':'#fff')+';font-size:10.5px;font-weight:700;cursor:'+(l.erros.length?'not-allowed':'pointer')+'">Aplicar</button>'))+'</td>'
+      +'</tr>';
+  }).join('');
+  o.innerHTML = '<div style="background:#fff;border-radius:10px;width:100%;max-width:1280px;max-height:94vh;display:flex;flex-direction:column;box-shadow:0 12px 44px rgba(0,0,0,.28);overflow:hidden;font-family:Inter,sans-serif">'
+    +'<div style="background:#024f2b;color:#fff;padding:13px 20px;display:flex;align-items:center;gap:12px"><div style="flex:1"><div style="font-size:14px;font-weight:800">🔧 Corrigir hodômetro — viagens até 31/10/2026</div>'
+    +'<div style="font-size:11px;opacity:.85">'+L.length+' viagem(ns) com Km Final menor que o Km Saída (ou Km Saída com ponto de milhar)</div></div>'
+    +'<button type="button" onclick="hodFechar()" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:6px;width:30px;height:30px;font-size:15px;cursor:pointer">✕</button></div>'
+    +'<div style="padding:10px 20px;background:#fafaf8;border-bottom:1px solid #eef0ea;font-size:11.5px;color:#374151;line-height:1.5">O valor digitado em <b>Km Final</b> foi tratado como os <b>km rodados</b>: Km Final corrigido = Km Saída + valor digitado, e Km rodados = Final − Saída. Confira, ajuste o que precisar e aplique. Linhas em <b style="color:#991b1b">Conferir</b> têm conflito e precisam do valor certo antes. Os valores originais ficam guardados.</div>'
+    +'<div style="overflow:auto;flex:1"><table style="width:100%;border-collapse:collapse"><thead><tr>'
+    +['','Status','Placa','Carreg.','Destino','Gravado hoje<br><span style=\"font-weight:600;text-transform:none\">saída / final</span>','Km Saída','Km Final','Km rodados','Próx. saída','Pendências',''].map(function(h){ return '<th style="'+th+'">'+h+'</th>'; }).join('')
+    +'</tr></thead><tbody>'+corpo+'</tbody></table></div>'
+    +'<div style="padding:12px 20px;border-top:1px solid #eef0ea;display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#fafaf8">'
+    +'<div style="font-size:12px;color:#374151"><b>'+sel.length+'</b> selecionada(s)'+(nConf?' · <b style="color:#991b1b">'+nConf+'</b> para conferir':'')+'</div><div style="flex:1"></div>'
+    +'<button type="button" onclick="hodFechar()" style="padding:9px 16px;border-radius:6px;border:1px solid #d1d5db;background:#fff;color:#374151;font-size:12px;font-weight:700;cursor:pointer">Fechar</button>'
+    +'<button type="button" '+(sel.length?'':'disabled')+' onclick="hodAplicarSelecionadas()" style="padding:9px 18px;border-radius:6px;border:none;background:'+(sel.length?'#024f2b':'#9ca3af')+';color:#fff;font-size:12px;font-weight:800;cursor:'+(sel.length?'pointer':'not-allowed')+'">✓ Aplicar '+sel.length+' correção(ões)</button>'
+    +'</div></div>';
+}
+function hodAplicarSelecionadas(){
+  var idx=[]; HODC.linhas.forEach(function(l,i){ if(l.incluir && !l.aplicada && !l.erros.length && !l.pernas) idx.push(i); });
+  hodAplicar(idx);
+}
+function hodAplicar(ids){
+  var feitas = 0, quando = new Date().toISOString(), log = [];
+  ids.forEach(function(i){
+    var l = HODC.linhas[i]; if(!l || l.aplicada || l.pernas) return;
+    hodValidar(l); if(l.erros.length) return;
+    var r = DB[l.idx]; if(!r) return;
+    if(!r._hod_original) r._hod_original = {km_saida:r.km_saida, km_final:r.km_final, em:quando};
+    r.km_saida = l.ks; r.km_final = l.kf;
+    if(r.retorno==='Sim'){
+      var kmPadrao = (typeof freteIdaFromGrupo==='function' ? freteIdaFromGrupo(r.km_grupo||0) : (r.km_grupo||0)*100) * 2;
+      r.km_desloc_retorno = (r.km_final - r.km_saida) - kmPadrao;
+    } else r.km_desloc_retorno = null;
+    l.aplicada = true; feitas++;
+    log.push(r.placa+' '+FD(r.dt_carg)+': saída '+l.ksOrig+'→'+l.ks+', final '+l.kfOrig+'→'+l.kf+' ('+N(l.kf-l.ks,0)+' km)');
+  });
+  if(!feitas){ toast('Nada aplicado — confira as pendências','error'); return; }
+  save();
+  try{ if(typeof FB!=='undefined' && FB.registrarLog) FB.registrarLog('Correção de hodômetro ('+feitas+' viagem(ns))', log.join(' | ')); }catch(e){}
+  if(typeof finRefreshSeVisivel==='function') finRefreshSeVisivel();
+  try{ renderAll(); renderKanban(); }catch(e){}
+  toast('✅ '+feitas+' viagem(ns) corrigida(s) — Km rodados agora = Km Final − Km Saída','success');
+  hodRender();
+}
 function finRenderTabela(){
   finPopularFiltros();
   var _per=finPeriodoSel('fin-f-mes'), fAno=_per.ano, fMes=_per.mes, fStatus=g('fin-f-status').value, fCat=g('fin-f-cat')?g('fin-f-cat').value:'';
@@ -15160,6 +15346,13 @@ function finRenderTabela(){
   var margemMedia = receitaCompl>0 ? lucroSoma/receitaCompl*100 : null;
   var nEst = _todosPeriodo.filter(function(x){ return !x.custo.incompleto && x.custo.variavelFonte!=='real'; }).length;
   var nConf = _todosPeriodo.filter(function(x){ return x.custo.incompleto; }).length;
+  var _hodEl = g('fin-hod-alerta');
+  if(_hodEl){
+    var _nHod = hodListar().length;
+    _hodEl.innerHTML = _nHod ? '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:10px 14px;margin-bottom:12px">'
+      +'<div style="flex:1;min-width:220px;font-size:12px;color:#7f1d1d"><b>🔧 '+_nHod+' viagem(ns) com hodômetro inconsistente</b> — o Km Final foi digitado como km rodados (menor que o Km Saída), então o km e o custo variável dessas viagens estão estimados.</div>'
+      +'<button type="button" onclick="hodAbrir()" style="padding:8px 14px;border-radius:6px;border:none;background:#dc2626;color:#fff;font-size:11.5px;font-weight:800;cursor:pointer">Corrigir agora</button></div>' : '';
+  }
   var kpiEl = g('fin-kpis');
   if(kpiEl){
     kpiEl.style.gridTemplateColumns='repeat(auto-fit,minmax(170px,1fr))';
@@ -15203,6 +15396,19 @@ function finRenderTabela(){
 // ── Monta o HTML do comparativo Previsto x Realizado — usado no modal (clique na
 // linha) e na aba "Análise de Rentabilidade" (tela cheia). Uma função só, um só lugar
 // pra manter/corrigir layout — nunca duas versões divergentes do mesmo relatório.
+// (04/11) Origem do Km realizado — hodômetro ou estimativa — e o motivo quando o
+// hodômetro informado não pôde ser usado. Só exibição: não muda nenhum cálculo.
+function finBadgeKm(c){
+  if(!c) return '';
+  var fonte = String(c.kmFonte||'');
+  if(c.hodometroInvalido){
+    return ' <span style="color:#dc2626;font-size:10px;font-weight:700" title="Km Final é a leitura do hodômetro na chegada, não os km rodados">⚠ hodômetro inválido: Km Final '
+      + N(c.hodometroInvalido.final,0)+' ≤ Km Saída '+N(c.hodometroInvalido.saida,0)+(c.kmReal!=null?' — usando estimativa do grupo':'')+'</span>';
+  }
+  if(fonte.indexOf('hodômetro')===0) return ' <span style="color:#16a34a;font-size:10px">● hodômetro</span>';
+  if(fonte) return ' <span style="color:#b45309;font-size:10px" title="'+fonte.replace(/"/g,'&quot;')+'">≈ estimado (grupo de km)</span>';
+  return '';
+}
 function finMontarComparativoHtml(x){
   var r = x.r, p = x.previsto, z = x.realizado;
 
@@ -15213,7 +15419,7 @@ function finMontarComparativoHtml(x){
     {lbl:'Receita de Frete Retorno',    prev:p.receitaRetorno, real:z.receitaRetorno, tipo:'R$'},
     {lbl:'Receita Total',               prev:p.receita,        real:z.receita,        tipo:'R$', forte:true},
     {lbl:'Peso Carregado',              prev:p.peso,           real:z.peso,           tipo:'kg'},
-    {lbl:'Km da Viagem',                prev:p.km,             real:z.km,             tipo:'km'},
+    {lbl:'Km da Viagem',                prev:p.km,             real:z.km,             tipo:'km', badge: finBadgeKm(x.custo)},
     {lbl:'Consumo de Combustível',      prev:p.litros,         real:z.litros,         tipo:'L'},
     {lbl:'Tempo de Viagem',             prev:p.dias,           real:z.dias,           tipo:'dias'},
     {lbl:'Diárias',                     prev:null,             real:null,             tipo:'R$', pendente:true},
@@ -15283,7 +15489,7 @@ function finMontarComparativoHtml(x){
   if(x.custo.incompleto){
     avisoCusto = '<div style="background:#fef2f2;border:1px solid #fca5a5;color:#7f1d1d;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12px"><b>⚠ Custo a conferir</b> — '+(x.custo.motivosCusto||[]).join('; ')+'. Lucro e margem NÃO são calculados até preencher as informações faltantes (Km do destino / Km Saída e Km Final / categoria configurada).</div>';
   } else if(x.custo.variavelFonte==='estimado'){
-    avisoCusto = '<div style="background:#fffbeb;border:1px solid #fcd34d;color:#78350f;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12px"><b>≈ Custo variável ESTIMADO</b> — esta viagem não tem hodômetro (Km Saída e Km Final) nem consumo real registrados; o custo, o lucro e a margem usam o custo variável de <b>referência</b> do Precifica, provisoriamente. Preencha os dados reais na viagem para apurar o custo real.</div>';
+    avisoCusto = '<div style="background:#fffbeb;border:1px solid #fcd34d;color:#78350f;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12px"><b>≈ Custo variável ESTIMADO</b> — '+(x.custo.hodometroInvalido ? 'o Km Final informado ('+N(x.custo.hodometroInvalido.final,0)+') é menor que o Km Saída ('+N(x.custo.hodometroInvalido.saida,0)+'), então não dá para medir os km rodados pelo hodômetro' : 'esta viagem não tem hodômetro (Km Saída e Km Final) nem consumo real registrados')+'; o custo, o lucro e a margem usam o custo variável de <b>referência</b> do Precifica, provisoriamente. Preencha os dados reais na viagem para apurar o custo real.</div>';
   }
   return avisoCusto + topDesviosHtml
     + '<div class="fg g2" style="gap:20px;margin-bottom:18px">'
