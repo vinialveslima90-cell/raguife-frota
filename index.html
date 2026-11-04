@@ -57,6 +57,9 @@ if(location.protocol!=='file:'){
   // KM, Gestão de Pessoas, Frete/Precificação)
   var SYNC_KEYS_EXACT = [
     'raguife_mnt_hist','raguife_mnt_hist_mes_v1','raguife_mnt_forns_v2','raguife_manut_forns_v1','raguife_mnt_marcas_v1',
+    // (03/11) Custos por Equipamento (PDF "Custos de Manutenção"): antes ficavam só no
+    // navegador que importou — cada computador via um gráfico diferente.
+    'raguife_mnt_placas_v1',
     'raguife_cx_lanc_v1',
     'raguife_mnt_leve_lanc_v1','raguife_mnt_leve_veic_v1',
     'raguife_v3',
@@ -1814,7 +1817,8 @@ if(location.protocol!=='file:'){
       'raguife_manut_forns_v1':    [{panel:'manut-dash', fn:'manutRender'}],
       'raguife_mnt_marcas_v1':     [{panel:'manut-dash', fn:'manutRender'}],
       'raguife_mnt_leve_lanc_v1':  [{panel:'manut-dash', fn:'manutRender'}],
-      'raguife_mnt_leve_veic_v1':  [{panel:'manut-dash', fn:'manutRender'}]
+      'raguife_mnt_leve_veic_v1':  [{panel:'manut-dash', fn:'manutRender'}],
+      'raguife_mnt_placas_v1':     [{panel:'manut-dash', fn:'manutRender'}]
     },
     _notifyUpdate:function(key){
       // Atualização silenciosa e segura: se o dado que chegou da nuvem alimenta um
@@ -5859,6 +5863,19 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
               <div style="font-size:10px;color:var(--txl)">Caminhão saiu só para coletar matéria-prima — não é Frete Retorno</div>
             </div>
           </label>
+        </div>
+        <!-- (04/11) Importar planilha de Coletas de MP — só aparece com "Coleta de MP?" marcado -->
+        <div class="form-grp" id="fi-mp-imp-grp" style="display:none;grid-column:span 2;align-items:flex-end;padding-bottom:2px">
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 14px;background:#eff6ff;border:1px dashed #93c5fd;border-radius:8px;width:100%;box-sizing:border-box">
+            <div style="font-size:20px;line-height:1">📥</div>
+            <div style="flex:1;min-width:180px">
+              <div style="font-size:12px;font-weight:800;color:#1e40af">Várias coletas? Importe a planilha</div>
+              <div style="font-size:10px;color:#1e3a8a">Lê o .xlsx, monta cada coleta e mostra tudo para conferência antes de gravar.</div>
+            </div>
+            <button type="button" onclick="mpImpEscolherArquivo()" style="padding:8px 14px;background:#1e40af;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap">Importar planilha</button>
+            <button type="button" onclick="mpImpBaixarModelo()" style="padding:8px 10px;background:#fff;color:#1e40af;border:1px solid #93c5fd;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap" title="Planilha modelo com as colunas esperadas">Modelo</button>
+            <input type="file" id="fi-mp-imp-file" accept=".xlsx,.xls,.csv" style="display:none" onchange="mpImpLerArquivo(this)">
+          </div>
         </div>
       </div>
 
@@ -10792,6 +10809,385 @@ function renderAll(){
   }, 80);
 }
 
+// ══ (04/11) COLETA DE MP — registro único (lançamento manual e importação) ══════
+// Mesma estrutura que o lançamento manual sempre gravou: viagem já concluída
+// (Etapa 1 + 2), origem Santa Fé do Sul, coleta = destino e retorno MP, receita
+// MP pela data da coleta (dt_carg). Centralizado para a importação de planilha
+// gravar exatamente o mesmo registro que a tela.
+function mpRegistroColeta(o){
+  var local = String(o.local||'').trim().toUpperCase(), uf = o.uf||'';
+  var peso = parseFloat(o.peso)||0, valor = parseFloat(o.valor)||0;
+  var rec = {
+    _id: 'v_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,9),
+    placa:String(o.placa||'').trim().toUpperCase(), categoria:o.categoria||'', dt_carg:o.dt_coleta,
+    origem_cidade:'SANTA FÉ DO SUL', origem_uf:'SP', origem:'SANTA FÉ DO SUL-SP',
+    destino_cidade:local, destino_uf:uf, destino:local+'-'+uf,
+    km_grupo:1, km_grupo_label:'GRUPO 1 (0 a 99)', km:0, peso_ent:0,
+    km_saida:null,
+    retorno:'Sim', dt_desc:o.dt_coleta, dt_base:o.dt_base,
+    dest_ret_cidade:local, dest_ret_uf:uf, dest_ret:local+'-'+uf,
+    tipo_ret:'MP', peso_ret:peso, vl_ton:(freteVtonDe(valor, peso)||0), vl_total:valor,
+    pagamento:'', conta:'', mp_tipo:o.tipo||'',
+    obs:'Coleta de Matéria-Prima — não é Frete Retorno.',
+    cliente:'', vl_ent:0, is_terceiro:false,
+    ft_origem:'',ft_destino:'',ft_peso:0,ft_vton:0,ft_valor:0,ft_pgto:'',ft_conta:'',ft_vl_total:0,ft_vl_pago:0,ft_pct_pago:0,ft_dt_pgto:'',
+    motorista:String(o.motorista||'').trim().toUpperCase(),
+    is_coleta_mp:true,
+  };
+  if(o.origem_lanc) rec.origem_lanc = o.origem_lanc;
+  return rec;
+}
+
+// ══ (04/11) IMPORTAÇÃO DE PLANILHA DE COLETAS DE MP ═════════════════════════
+// Fluxo: escolher .xlsx → ler e mapear colunas pelo cabeçalho → montar cada coleta
+// → conferência (status, pendências, duplicidade, edição) → gravar só o que for
+// confirmado, com o mesmo registro do lançamento manual (mpRegistroColeta).
+var MPIMP = {arquivo:'', linhas:[], filtro:'todas', editando:-1, colsIgnoradas:[]};
+var MPIMP_COLS = {
+  local:['LOCAL DA COLETA','LOCAL','CIDADE DA COLETA','CIDADE'],
+  uf:['UF','ESTADO'],
+  dt_coleta:['DATA DA COLETA','DATA COLETA'],
+  dt_base:['DATA RETORNO A BASE','DATA DE RETORNO A BASE','DATA RETORNO','RETORNO A BASE'],
+  peso:['PESO','PESO COLETADO','PESO (KG)','PESO KG','PESO COLETADO (KG)'],
+  valor:['VALOR TOTAL','VALOR','VALOR TOTAL DA COLETA','VALOR TOTAL DA COLETA MP','VALOR DO FRETE'],
+  tipo:['TIPO DE MP','TIPO MP','TIPO','MATERIA-PRIMA','MATERIA PRIMA'],
+  placa:['PLACA'],
+  categoria:['CATEGORIA'],
+  dt_carg:['DATA CARREGAMENTO','DATA DE CARREGAMENTO'],
+  km_saida:['KM DE SAIDA','KM SAIDA'],
+  motorista:['MOTORISTA']
+};
+var MPIMP_OBRIG = ['local','uf','dt_coleta','dt_base','peso','valor','tipo','placa','categoria'];
+var MPIMP_UFS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
+function mpImpNorm(t){ return String(t==null?'':t).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,' ').trim(); }
+function mpImpEsc(x){ return String(x==null?'':x).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+function mpImpData(v){
+  if(v==null || v==='') return '';
+  if(typeof v==='number' && isFinite(v)){            // número de série do Excel
+    var d = new Date(Math.round((v-25569)*86400000));
+    return isNaN(d) ? '' : d.toISOString().slice(0,10);
+  }
+  var s2 = String(v).trim(), m;
+  if((m = s2.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/))){
+    var a = m[3].length===2 ? '20'+m[3] : m[3];
+    var iso = a+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[1]).slice(-2);
+    return mpImpDataOk(iso) ? iso : '';
+  }
+  if((m = s2.match(/^(\d{4})-(\d{2})-(\d{2})/))) return mpImpDataOk(m[0]) ? m[0] : '';
+  return '';
+}
+function mpImpDataOk(iso){ if(!/^\d{4}-\d{2}-\d{2}$/.test(iso||'')) return false; var d=new Date(iso+'T12:00:00'); return !isNaN(d) && d.toISOString().slice(0,10)===iso; }
+function mpImpNum(v){
+  if(v==null || v==='') return 0;
+  if(typeof v==='number') return v;
+  var s2 = String(v).replace(/R\$/g,'').replace(/\s/g,'');
+  if(s2.indexOf(',')>=0) s2 = s2.replace(/\./g,'').replace(',','.');
+  var n = parseFloat(s2); return isFinite(n) ? n : 0;
+}
+function mpImpCategorias(){
+  var sel = g('fi-cat'); if(!sel) return [];
+  return [].slice.call(sel.options).map(function(o){ return o.value; }).filter(Boolean);
+}
+function mpImpCategoria(v){
+  var k = mpImpNorm(v).replace(/[\s°º]/g,'');
+  if(!k) return '';
+  var cats = mpImpCategorias();
+  for(var i=0;i<cats.length;i++){ if(mpImpNorm(cats[i]).replace(/[\s°º]/g,'')===k) return cats[i]; }
+  return null;
+}
+// Tipo de MP: usa a grafia já cadastrada (lista de tipos ou já usada em viagens),
+// para não criar "FARINHA DE PENA" e "Farinha de Pena" como tipos diferentes.
+function mpImpTipo(v){
+  var t = String(v==null?'':v).trim(); if(!t) return {tipo:'', novo:false};
+  var k = mpImpNorm(t);
+  var lista = (typeof MP_TIPOS!=='undefined' ? MP_TIPOS : []).slice();
+  for(var i=0;i<lista.length;i++){ if(mpImpNorm(lista[i])===k) return {tipo:lista[i], novo:false}; }
+  var usados = {};
+  (typeof DB!=='undefined'?DB:[]).forEach(function(r){ if(r.is_coleta_mp && r.mp_tipo && !r._excluida) usados[r.mp_tipo]=(usados[r.mp_tipo]||0)+1; });
+  var achado = Object.keys(usados).filter(function(x){ return mpImpNorm(x)===k; }).sort(function(a,b){ return usados[b]-usados[a]; })[0];
+  if(achado) return {tipo:achado, novo:false, cadastrar:true};   // já usado em viagens: só entra na lista deste computador
+  return {tipo:t.toUpperCase(), novo:true, cadastrar:true};
+}
+function mpImpEscolherArquivo(){ var f=g('fi-mp-imp-file'); if(f){ f.value=''; f.click(); } }
+function mpImpBaixarModelo(){
+  if(typeof XLSX==='undefined'){ toast('Leitor de planilhas não carregado — verifique a internet','error'); return; }
+  var ws = XLSX.utils.aoa_to_sheet([
+    ['LOCAL DA COLETA','UF','DATA DA COLETA','DATA RETORNO A BASE','PESO','VALOR TOTAL','TIPO DE MP','PLACA','CATEGORIA','KM DE SAIDA','MOTORISTA'],
+    ['VOTUPORANGA','SP','27/10/2026','27/10/2026',28819,2535.28,'FARINHA DE PENA','GAA0D97','LS',0,'NOME DO MOTORISTA']
+  ]);
+  ws['!cols'] = [18,5,14,18,10,12,22,10,12,11,24].map(function(w){ return {wch:w}; });
+  var wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Coletas MP');
+  XLSX.writeFile(wb, 'MODELO_COLETA_DE_MP.xlsx');
+}
+function mpImpLerArquivo(input){
+  var file = input.files && input.files[0]; if(!file) return;
+  if(typeof XLSX==='undefined'){ toast('Leitor de planilhas não carregado — verifique a internet','error'); return; }
+  var reader = new FileReader();
+  reader.onload = function(e){
+    try{
+      var wb = XLSX.read(new Uint8Array(e.target.result), {type:'array'});
+      var ws = wb.Sheets[wb.SheetNames[0]];
+      var rows = XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:''});
+      mpImpProcessar(rows, file.name);
+    }catch(err){ toast('Não foi possível ler a planilha: '+err.message,'error'); }
+    input.value = '';   // permite escolher o mesmo arquivo de novo
+  };
+  reader.readAsArrayBuffer(file);
+}
+function mpImpProcessar(rows, nomeArq){
+  // Cabeçalho: primeira linha que tenha pelo menos 3 colunas reconhecidas
+  var hIdx = -1, mapa = {}, ign = [];
+  for(var i=0;i<Math.min(rows.length,10) && hIdx<0;i++){
+    var mp = {}, n = 0;
+    (rows[i]||[]).forEach(function(c, j){
+      var k = mpImpNorm(c);
+      Object.keys(MPIMP_COLS).forEach(function(campo){ if(mp[campo]==null && MPIMP_COLS[campo].indexOf(k)>=0){ mp[campo]=j; n++; } });
+    });
+    if(n>=3){ hIdx=i; mapa=mp; }
+  }
+  if(hIdx<0){ toast('Cabeçalho não encontrado. Use as colunas do modelo (botão “Modelo”).','error'); return; }
+  (rows[hIdx]||[]).forEach(function(c, j){
+    var usada = Object.keys(mapa).some(function(k){ return mapa[k]===j; });
+    if(!usada && String(c).trim()) ign.push(String(c).trim());
+  });
+  var faltam = MPIMP_OBRIG.filter(function(c){ return mapa[c]==null; });
+  if(faltam.length){
+    var NOMES = {local:'Local da Coleta',uf:'UF',dt_coleta:'Data da Coleta',dt_base:'Data Retorno à Base',peso:'Peso',valor:'Valor Total',tipo:'Tipo de MP',placa:'Placa',categoria:'Categoria'};
+    toast('Planilha sem a(s) coluna(s): '+faltam.map(function(c){return NOMES[c];}).join(', '),'error'); return;
+  }
+  var linhas = [];
+  for(var r=hIdx+1;r<rows.length;r++){
+    var row = rows[r]||[];
+    if(!row.some(function(c){ return String(c).trim()!==''; })) continue;
+    var get = function(c){ return mapa[c]==null ? '' : row[mapa[c]]; };
+    var cat = mpImpCategoria(get('categoria'));
+    var tp = mpImpTipo(get('tipo'));
+    var local = String(get('local')||'').trim().toUpperCase().replace(/\s+/g,' ');
+    var uf = String(get('uf')||'').trim().toUpperCase();
+    if(!uf && local && typeof freteBuscarUfPorCidade==='function') uf = freteBuscarUfPorCidade(local)||'';
+    linhas.push({
+      linhaPlanilha: r+1,
+      local: local, uf: uf,
+      dt_coleta: mpImpData(get('dt_coleta')), dt_base: mpImpData(get('dt_base')),
+      dt_carg_planilha: mpImpData(get('dt_carg')),
+      peso: Math.round(mpImpNum(get('peso'))*1000)/1000, valor: Math.round(mpImpNum(get('valor'))*100)/100,
+      tipo: tp.tipo, tipoNovo: tp.novo, tipoCadastrar: !!tp.cadastrar,
+      placa: String(get('placa')||'').toUpperCase().replace(/[^A-Z0-9]/g,''),
+      categoria: cat===null ? '' : cat, categoriaOriginal: String(get('categoria')||'').trim(),
+      motorista: String(get('motorista')||'').trim().toUpperCase().replace(/\s+/g,' '),
+      gravada:false, incluir:true
+    });
+  }
+  if(!linhas.length){ toast('Nenhuma coleta encontrada na planilha','error'); return; }
+  MPIMP = {arquivo:nomeArq, linhas:linhas, filtro:'todas', editando:-1, colsIgnoradas:ign};
+  linhas.forEach(function(l, i){ mpImpValidar(i); l.incluir = !l.erros.length && !l.duplicada; });
+  mpImpRender();
+}
+// Validação de uma linha: erros (impedem gravar), avisos (só sinalizam) e duplicidade.
+function mpImpValidar(i){
+  var l = MPIMP.linhas[i], e = [], a = [];
+  if(!/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(l.placa)) e.push('Placa inválida');
+  if(!l.categoria) e.push(l.categoriaOriginal ? 'Categoria “'+l.categoriaOriginal+'” não existe' : 'Sem categoria');
+  if(!l.local) e.push('Sem local da coleta');
+  if(MPIMP_UFS.indexOf(l.uf)<0) e.push(l.uf ? 'UF inválida' : 'Sem UF');
+  if(!l.dt_coleta) e.push('Data da coleta inválida');
+  if(!l.dt_base) e.push('Data de retorno inválida');
+  if(l.dt_coleta && l.dt_base && l.dt_base < l.dt_coleta) e.push('Retorno antes da coleta');
+  if(!(l.peso>0)) e.push('Sem peso');
+  if(!(l.valor>0)) e.push('Sem valor');
+  if(!l.tipo) e.push('Sem tipo de MP');
+  var hoje = new Date().toISOString().slice(0,10);
+  if(l.dt_coleta && l.dt_coleta > hoje) a.push('Data da coleta no futuro');
+  if(!l.motorista) a.push('Sem motorista');
+  if(l.tipo && l.tipoNovo) a.push('Tipo de MP novo — será cadastrado');
+  if(l.dt_carg_planilha && l.dt_coleta && l.dt_carg_planilha!==l.dt_coleta) a.push('Data de carregamento difere da coleta (vale a da coleta)');
+  if(l.placa && typeof DB_FROTA!=='undefined' && DB_FROTA && DB_FROTA.length){
+    var pn = l.placa;
+    var cad = DB_FROTA.some(function(x){ return String(x.cavalo||'').replace(/[^A-Z0-9]/gi,'').toUpperCase()===pn; });
+    if(!cad) a.push('Placa fora do cadastro de frota');
+  }
+  // Duplicidade: mesma placa + data da coleta + local, já gravada ou repetida na planilha.
+  l.duplicada = '';
+  if(l.placa && l.dt_coleta && !l.gravada){
+    var noBanco = (typeof DB!=='undefined'?DB:[]).filter(function(r){
+      return !r._excluida && r.is_coleta_mp && r.placa===l.placa && r.dt_carg===l.dt_coleta && mpImpNorm(r.destino_cidade)===mpImpNorm(l.local);
+    });
+    if(noBanco.length) l.duplicada = 'Já existe na plataforma: coleta de '+l.placa+' em '+FD(l.dt_coleta)+' ('+l.local+')';
+    else {
+      var rep2 = MPIMP.linhas.some(function(o, j){ return j<i && o.placa===l.placa && o.dt_coleta===l.dt_coleta && mpImpNorm(o.local)===mpImpNorm(l.local); });
+      if(rep2) l.duplicada = 'Repetida na planilha (mesma placa, data e local de outra linha)';
+    }
+    if(!l.duplicada){
+      var outras = (typeof DB!=='undefined'?DB:[]).filter(function(r){ return !r._excluida && r.placa===l.placa && r.dt_carg===l.dt_coleta; });
+      if(outras.length) a.push('Placa já tem '+outras.length+' outra(s) viagem(ns) nesse dia');
+    }
+  }
+  l.erros = e; l.avisos = a;
+  l.vton = freteVtonDe(l.valor, l.peso);
+}
+function mpImpStatus(l){
+  if(l.gravada) return {k:'gravada', t:'✅ Gravada', bg:'#dcfce7', c:'#166534'};
+  if(l.erros.length) return {k:'erro', t:'Corrigir', bg:'#fee2e2', c:'#991b1b'};
+  if(l.duplicada) return {k:'dup', t:'Duplicada?', bg:'#fef3c7', c:'#92400e'};
+  if(l.avisos.length) return {k:'aviso', t:'Conferir', bg:'#fef9c3', c:'#713f12'};
+  return {k:'ok', t:'Pronta', bg:'#dbeafe', c:'#1e40af'};
+}
+function mpImpFechar(){
+  var pend = MPIMP.linhas.filter(function(l){ return !l.gravada; }).length;
+  var grav = MPIMP.linhas.length - pend;
+  if(pend && !confirm('Fechar a conferência? '+pend+' coleta(s) ainda não gravada(s) serão descartadas.'+(grav?' As '+grav+' já gravadas continuam salvas.':''))) return;
+  var o = g('mpimp-ovl'); if(o) o.remove();
+}
+function mpImpRender(){
+  var o = g('mpimp-ovl');
+  if(!o){
+    o = document.createElement('div'); o.id='mpimp-ovl';
+    o.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:10040;display:flex;align-items:center;justify-content:center;padding:14px';
+    document.body.appendChild(o);
+  }
+  var L = MPIMP.linhas, st = L.map(mpImpStatus);
+  var cnt = {todas:L.length, ok:0, aviso:0, dup:0, erro:0, gravada:0};
+  st.forEach(function(x){ cnt[x.k]++; });
+  var visiveis = L.map(function(l,i){ return i; }).filter(function(i){
+    var k = st[i].k, f = MPIMP.filtro;
+    return f==='todas' || (f==='pendencia' ? (k==='erro'||k==='dup'||k==='aviso') : k===f);
+  });
+  var sel = L.filter(function(l){ return l.incluir && !l.gravada && !l.erros.length; });
+  var totSel = sel.reduce(function(a,l){ return a+l.valor; },0), pesoSel = sel.reduce(function(a,l){ return a+l.peso; },0);
+  var chip = function(k, rot, n, cor){
+    var on = MPIMP.filtro===k;
+    return '<button type="button" onclick="MPIMP.filtro=\''+k+'\';MPIMP.editando=-1;mpImpRender()" style="padding:5px 11px;border-radius:14px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid '+(on?cor:'#d1d5db')+';background:'+(on?cor:'#fff')+';color:'+(on?'#fff':'#374151')+'">'+rot+' <b>'+n+'</b></button>';
+  };
+  var th = 'padding:8px 8px;text-align:left;font-size:10px;font-weight:800;color:#1e3a8a;text-transform:uppercase;letter-spacing:.3px;white-space:nowrap;background:#eff6ff;position:sticky;top:0;z-index:1';
+  var td = 'padding:8px 8px;font-size:11.5px;color:#1f2937;white-space:nowrap;border-top:1px solid #eef0ea;vertical-align:top';
+  var corpo = visiveis.map(function(i){
+    var l = L[i], s2 = st[i];
+    var pend = l.erros.map(function(x){ return '<div style="color:#991b1b">✖ '+mpImpEsc(x)+'</div>'; }).join('')
+      + (l.duplicada ? '<div style="color:#92400e">⚠ '+mpImpEsc(l.duplicada)+'</div>' : '')
+      + l.avisos.map(function(x){ return '<div style="color:#6b7280">• '+mpImpEsc(x)+'</div>'; }).join('');
+    var _bgL = l.gravada?'#f7fdf9':(l.erros.length?'#fffafa':'#fff');
+    var linha = '<tr style="background:'+_bgL+'">'
+      + '<td style="'+td+'"><input type="checkbox" '+(l.incluir&&!l.gravada&&!l.erros.length?'checked':'')+(l.gravada||l.erros.length?' disabled':'')+' onchange="MPIMP.linhas['+i+'].incluir=this.checked;mpImpRender()" title="Incluir na gravação" style="width:15px;height:15px;accent-color:#1e40af"></td>'
+      + '<td style="'+td+';color:#6b7280">'+l.linhaPlanilha+'</td>'
+      + '<td style="'+td+'"><span style="display:inline-block;padding:2px 8px;border-radius:9px;font-size:10px;font-weight:800;background:'+s2.bg+';color:'+s2.c+'">'+s2.t+'</span></td>'
+      + '<td style="'+td+';font-family:\'DM Mono\',monospace;font-weight:800;color:#024f2b">'+mpImpEsc(l.placa||'—')+'</td>'
+      + '<td style="'+td+'">'+mpImpEsc(l.categoria||l.categoriaOriginal||'—')+'</td>'
+      + '<td style="'+td+'">'+mpImpEsc(l.motorista||'—')+'</td>'
+      + '<td style="'+td+'"><b>'+mpImpEsc(l.local||'—')+'</b>/'+mpImpEsc(l.uf||'—')+'</td>'
+      + '<td style="'+td+'">'+(l.dt_coleta?FD(l.dt_coleta):'—')+'</td>'
+      + '<td style="'+td+'">'+(l.dt_base?FD(l.dt_base):'—')+'</td>'
+      + '<td style="'+td+';text-align:right">'+(l.peso>0?N(l.peso,0)+' kg':'—')+'</td>'
+      + '<td style="'+td+';text-align:right;font-weight:700">'+(l.valor>0?R(l.valor):'—')+'</td>'
+      + '<td style="'+td+';text-align:right;color:#6b7280">'+(l.vton!=null?R(l.vton):'—')+'</td>'
+      + '<td style="'+td+'">'+mpImpEsc(l.tipo||'—')+'</td>'
+      + '<td style="'+td+';white-space:normal;min-width:170px;font-size:10.5px;line-height:1.45">'+(pend||'<span style="color:#166534">Sem pendências</span>')+'</td>'
+      + '<td style="'+td+';position:sticky;right:0;background:'+_bgL+';box-shadow:-6px 0 8px -6px rgba(0,0,0,.15)">'+(l.gravada?'':'<div style="display:flex;gap:5px">'
+          +'<button type="button" onclick="MPIMP.editando='+(MPIMP.editando===i?-1:i)+';mpImpRender()" style="padding:5px 9px;border-radius:5px;border:1px solid #93c5fd;background:#fff;color:#1e40af;font-size:10.5px;font-weight:700;cursor:pointer">'+(MPIMP.editando===i?'Fechar':'Editar')+'</button>'
+          +'<button type="button" '+(l.erros.length?'disabled title="Corrija as pendências antes"':'')+' onclick="mpImpGravar(['+i+'])" style="padding:5px 9px;border-radius:5px;border:1px solid #024f2b;background:'+(l.erros.length?'#e5e7eb':'#024f2b')+';color:'+(l.erros.length?'#9ca3af':'#fff')+';font-size:10.5px;font-weight:700;cursor:'+(l.erros.length?'not-allowed':'pointer')+'">Gravar</button></div>')+'</td>'
+      + '</tr>';
+    if(MPIMP.editando===i) linha += '<tr><td colspan="15" style="padding:0;border-top:1px solid #eef0ea">'+mpImpFormEdicao(i)+'</td></tr>';
+    return linha;
+  }).join('');
+  o.innerHTML = '<div style="background:#fff;border-radius:10px;width:100%;max-width:1280px;max-height:94vh;display:flex;flex-direction:column;box-shadow:0 12px 44px rgba(0,0,0,.28);overflow:hidden;font-family:Inter,sans-serif">'
+    + '<div style="background:#024f2b;color:#fff;padding:13px 20px;display:flex;align-items:center;gap:12px">'
+      + '<div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:800">🌾 Conferência — Importação de Coletas de MP</div>'
+      + '<div style="font-size:11px;opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+mpImpEsc(MPIMP.arquivo)+' · '+L.length+' coleta'+(L.length!==1?'s':'')+' encontrada'+(L.length!==1?'s':'')+(MPIMP.colsIgnoradas.length?' · colunas não usadas: '+mpImpEsc(MPIMP.colsIgnoradas.join(', ')):'')+'</div></div>'
+      + '<button type="button" onclick="mpImpFechar()" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:6px;width:30px;height:30px;font-size:15px;cursor:pointer" title="Fechar">✕</button>'
+    + '</div>'
+    + '<div style="padding:12px 20px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;border-bottom:1px solid #eef0ea;background:#fafaf8">'
+      + chip('todas','Todas',cnt.todas,'#024f2b') + chip('ok','Prontas',cnt.ok,'#1e40af') + chip('aviso','Conferir',cnt.aviso,'#a16207')
+      + chip('dup','Duplicadas',cnt.dup,'#b45309') + chip('erro','Corrigir',cnt.erro,'#dc2626') + chip('gravada','Gravadas',cnt.gravada,'#166534')
+      + '<div style="flex:1"></div><div style="font-size:10.5px;color:#6b7280;max-width:520px;line-height:1.4">Nada é gravado até você confirmar. Linhas com <b style="color:#991b1b">Corrigir</b> precisam de edição; <b style="color:#92400e">Duplicadas</b> já existem na plataforma e vêm desmarcadas.</div>'
+    + '</div>'
+    + '<div style="overflow:auto;flex:1"><table style="width:100%;border-collapse:collapse"><thead><tr>'
+      + ['','Linha','Status','Placa','Categoria','Motorista','Local/UF','Coleta','Retorno','Peso','Valor','R$/t','Tipo de MP','Pendências',''].map(function(h, k, arr){ return '<th style="'+th+(k===arr.length-1?';right:0;z-index:2':'')+'">'+h+'</th>'; }).join('')
+    + '</tr></thead><tbody>'+(corpo||'<tr><td colspan="15" style="padding:30px;text-align:center;color:#9ca3af;font-size:12px">Nenhuma coleta neste filtro</td></tr>')+'</tbody></table></div>'
+    + '<div style="padding:12px 20px;border-top:1px solid #eef0ea;display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#fafaf8">'
+      + '<div style="font-size:12px;color:#374151"><b>'+sel.length+'</b> selecionada'+(sel.length!==1?'s':'')+' · '+N(pesoSel/1000,1)+' t · <b>'+R(totSel)+'</b></div>'
+      + '<div style="flex:1"></div>'
+      + '<button type="button" onclick="mpImpFechar()" style="padding:9px 16px;border-radius:6px;border:1px solid #d1d5db;background:#fff;color:#374151;font-size:12px;font-weight:700;cursor:pointer">Fechar</button>'
+      + '<button type="button" '+(sel.length?'':'disabled')+' onclick="mpImpGravarSelecionadas()" style="padding:9px 18px;border-radius:6px;border:none;background:'+(sel.length?'#024f2b':'#9ca3af')+';color:#fff;font-size:12px;font-weight:800;cursor:'+(sel.length?'pointer':'not-allowed')+'">✓ Gravar '+sel.length+' selecionada'+(sel.length!==1?'s':'')+'</button>'
+    + '</div></div>';
+}
+function mpImpFormEdicao(i){
+  var l = MPIMP.linhas[i];
+  var lbl = 'display:block;font-size:10px;font-weight:800;color:#1e3a8a;text-transform:uppercase;letter-spacing:.3px;margin-bottom:3px';
+  var inp = 'width:100%;box-sizing:border-box;padding:7px 8px;border:1px solid #bfdbfe;border-radius:5px;font-size:12px;background:#fff';
+  var campo = function(rot, html){ return '<div style="min-width:0">'+'<label style="'+lbl+'">'+rot+'</label>'+html+'</div>'; };
+  var opt = function(lista, v){ return '<option value="">Selecione…</option>'+lista.map(function(x){ return '<option'+(x===v?' selected':'')+'>'+mpImpEsc(x)+'</option>'; }).join(''); };
+  var tipos = (typeof MP_TIPOS!=='undefined'?MP_TIPOS:[]).slice();
+  if(l.tipo && tipos.indexOf(l.tipo)<0) tipos.push(l.tipo);
+  tipos.sort();
+  return '<div style="background:#eff6ff;padding:14px 16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;position:sticky;left:0;width:calc(min(1280px, 100vw - 28px) - 2px);box-sizing:border-box">'
+    + campo('Placa', '<input id="mpimp-e-placa" style="'+inp+'" value="'+mpImpEsc(l.placa)+'" oninput="this.value=this.value.toUpperCase()">')
+    + campo('Categoria', '<select id="mpimp-e-categoria" style="'+inp+'">'+opt(mpImpCategorias(), l.categoria)+'</select>')
+    + campo('Motorista', '<input id="mpimp-e-motorista" list="fi-motorista-list" style="'+inp+'" value="'+mpImpEsc(l.motorista)+'" oninput="this.value=this.value.toUpperCase()">')
+    + campo('Local da coleta', '<input id="mpimp-e-local" list="m-cidade-retorno-list" style="'+inp+'" value="'+mpImpEsc(l.local)+'" oninput="this.value=this.value.toUpperCase()">')
+    + campo('UF', '<select id="mpimp-e-uf" style="'+inp+'">'+opt(MPIMP_UFS, l.uf)+'</select>')
+    + campo('Data da coleta', '<input type="date" id="mpimp-e-dt_coleta" style="'+inp+'" value="'+mpImpEsc(l.dt_coleta)+'">')
+    + campo('Retorno à base', '<input type="date" id="mpimp-e-dt_base" style="'+inp+'" value="'+mpImpEsc(l.dt_base)+'">')
+    + campo('Peso (kg)', '<input type="number" step="1" min="0" id="mpimp-e-peso" style="'+inp+'" value="'+(l.peso||'')+'">')
+    + campo('Valor total (R$)', '<input type="number" step="0.01" min="0" id="mpimp-e-valor" style="'+inp+'" value="'+(l.valor||'')+'">')
+    + campo('Tipo de MP', '<select id="mpimp-e-tipo" style="'+inp+'">'+opt(tipos, l.tipo)+'</select>')
+    + '<div style="display:flex;align-items:flex-end;gap:6px"><button type="button" onclick="mpImpAplicarEdicao('+i+')" style="flex:1;padding:8px 12px;border-radius:5px;border:none;background:#1e40af;color:#fff;font-size:11.5px;font-weight:800;cursor:pointer">Aplicar</button></div>'
+    + '</div>';
+}
+function mpImpAplicarEdicao(i){
+  var l = MPIMP.linhas[i], v = function(id){ var el=g('mpimp-e-'+id); return el ? el.value : ''; };
+  l.placa = v('placa').toUpperCase().replace(/[^A-Z0-9]/g,'');
+  l.categoria = v('categoria'); l.categoriaOriginal = l.categoria;
+  l.motorista = v('motorista').trim().toUpperCase().replace(/\s+/g,' ');
+  l.local = v('local').trim().toUpperCase().replace(/\s+/g,' ');
+  l.uf = v('uf');
+  l.dt_coleta = mpImpDataOk(v('dt_coleta')) ? v('dt_coleta') : '';
+  l.dt_base = mpImpDataOk(v('dt_base')) ? v('dt_base') : '';
+  l.peso = parseFloat(v('peso'))||0; l.valor = Math.round((parseFloat(v('valor'))||0)*100)/100;
+  var tp = mpImpTipo(v('tipo')); l.tipo = tp.tipo; l.tipoNovo = tp.novo; l.tipoCadastrar = !!tp.cadastrar;
+  MPIMP.linhas.forEach(function(_, j){ mpImpValidar(j); });
+  l.incluir = !l.erros.length && !l.duplicada;
+  MPIMP.editando = -1;
+  mpImpRender();
+}
+function mpImpGravarSelecionadas(){
+  var idx = []; MPIMP.linhas.forEach(function(l, i){ if(l.incluir && !l.gravada && !l.erros.length) idx.push(i); });
+  var dups = idx.filter(function(i){ return MPIMP.linhas[i].duplicada; }).length;
+  if(dups && !confirm(dups+' coleta(s) selecionada(s) parecem já existir na plataforma. Gravar mesmo assim?')) return;
+  mpImpGravar(idx);
+}
+function mpImpGravar(idx){
+  if(window._mpImpGravando) return;
+  window._mpImpGravando = true;
+  try{
+    // Revalida contra a base atual (pode ter chegado coleta de outro computador)
+    MPIMP.linhas.forEach(function(_, j){ mpImpValidar(j); });
+    var ok = idx.filter(function(i){ var l=MPIMP.linhas[i]; return l && !l.gravada && !l.erros.length; });
+    if(idx.length===1 && ok.length===1 && MPIMP.linhas[ok[0]].duplicada){
+      if(!confirm(MPIMP.linhas[ok[0]].duplicada+'.\n\nGravar mesmo assim?')){ mpImpRender(); return; }
+    }
+    if(!ok.length){ toast('Nada para gravar — confira as pendências','error'); mpImpRender(); return; }
+    var novosTipos = {};
+    ok.forEach(function(i){
+      var l = MPIMP.linhas[i];
+      DB.push(mpRegistroColeta({placa:l.placa, categoria:l.categoria, local:l.local, uf:l.uf, dt_coleta:l.dt_coleta, dt_base:l.dt_base,
+        peso:l.peso, valor:l.valor, tipo:l.tipo, motorista:l.motorista, origem_lanc:'importacao_planilha'}));
+      l.gravada = true; l.incluir = false;
+      if(l.tipoNovo || l.tipoCadastrar) novosTipos[l.tipo] = true;
+      if(typeof freteRegistrarCidadeRetorno==='function'){ try{ freteRegistrarCidadeRetorno(l.local, l.uf); }catch(e){} }
+    });
+    Object.keys(novosTipos).forEach(function(t){
+      if(typeof MP_TIPOS!=='undefined' && !MP_TIPOS.some(function(x){ return mpImpNorm(x)===mpImpNorm(t); })){ MP_TIPOS.push(t); if(typeof mpSalvarTipos==='function') mpSalvarTipos(); }
+    });
+    if(typeof fiPopularMpTipoList==='function') fiPopularMpTipoList();
+    save(); initFilters(); renderRecs(); renderAll(); renderKanban();
+    if(typeof finRefreshSeVisivel==='function') finRefreshSeVisivel();
+    var tot = ok.reduce(function(a,i){ return a+MPIMP.linhas[i].valor; },0);
+    try{ if(typeof FB!=='undefined' && FB.registrarLog) FB.registrarLog('Importação de Coletas de MP', ok.length+' coleta(s) gravada(s) de '+MPIMP.arquivo+' · R$ '+tot.toFixed(2)); }catch(e){}
+    toast('✅ '+ok.length+' coleta'+(ok.length!==1?'s':'')+' de MP gravada'+(ok.length!==1?'s':'')+' ('+R(tot)+')','success');
+    MPIMP.linhas.forEach(function(_, j){ mpImpValidar(j); });
+    mpImpRender();
+  } finally { setTimeout(function(){ window._mpImpGravando = false; }, 600); }
+}
+
 function validateEtapa1(){
   const terceirizado = g('fi-terceirizado') && g('fi-terceirizado').checked;
   const coletaMP = g('fi-coleta-mp') && g('fi-coleta-mp').checked;
@@ -10867,6 +11263,8 @@ function fiToggleColetaMP(){
   var chk = document.getElementById('fi-coleta-mp');
   var grp = document.getElementById('fi-coleta-mp-grp');
   if(grp) grp.style.display = chk && chk.checked ? 'block' : 'none';
+  var _impGrp = document.getElementById('fi-mp-imp-grp');
+  if(_impGrp) _impGrp.style.display = chk && chk.checked ? 'flex' : 'none';
   if(chk && !chk.checked){
     ['fi-mp-local','fi-mp-uf','fi-mp-data-coleta','fi-mp-data-base','fi-mp-peso','fi-mp-vton','fi-mp-valor'].forEach(function(id){
       var el=document.getElementById(id); if(el) el.value='';
@@ -11906,27 +12304,11 @@ function saveEtapa1(){
     var mpDataColeta = g('fi-mp-data-coleta').value;
     var mpDataBase = g('fi-mp-data-base').value;
     var mpTipo = g('fi-mp-tipo') ? g('fi-mp-tipo').value : '';
-    DB.push({
-      _id: 'v_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,9),
-      placa:g('fi-placa').value.trim().toUpperCase(), categoria:g('fi-cat').value, dt_carg:mpDataColeta,
-      // Não existe "entrega" nessa atividade — origem/destino da viagem em si
-      // são o próprio ponto de coleta, pra Etapa 1 fechar sem inventar dado.
-      origem_cidade:'SANTA FÉ DO SUL', origem_uf:'SP', origem:'SANTA FÉ DO SUL-SP',
-      destino_cidade:mpLocal, destino_uf:mpUf, destino:mpLocal+'-'+mpUf,
-      km_grupo:1, km_grupo_label:'GRUPO 1 (0 a 99)', km:0, peso_ent:0,
-      km_saida:null,
-      retorno:'Sim', dt_desc:mpDataColeta, dt_base:mpDataBase,
-      dest_ret_cidade:mpLocal, dest_ret_uf:mpUf, dest_ret:mpLocal+'-'+mpUf,
-      tipo_ret:'MP', peso_ret:mpPeso, vl_ton:mpVton, vl_total:mpValor,
-      // CORREÇÃO: campo "Conta" removido — Coleta MP é receita interna, sem forma de
-      // pagamento/conta associada. No lugar, mp_tipo identifica a matéria-prima coletada.
-      pagamento:'', conta:'', mp_tipo:mpTipo,
-      obs:'Coleta de Matéria-Prima — não é Frete Retorno.',
-      cliente:'', vl_ent:0, is_terceiro:false,
-      ft_origem:'',ft_destino:'',ft_peso:0,ft_vton:0,ft_valor:0,ft_pgto:'',ft_conta:'',ft_vl_total:0,ft_vl_pago:0,ft_pct_pago:0,ft_dt_pgto:'',
-      motorista:g('fi-motorista')?g('fi-motorista').value.trim().toUpperCase():'',
-      is_coleta_mp:true,
-    });
+    DB.push(mpRegistroColeta({
+      placa:g('fi-placa').value, categoria:g('fi-cat').value, local:mpLocal, uf:mpUf,
+      dt_coleta:mpDataColeta, dt_base:mpDataBase, peso:mpPeso, valor:mpValor, tipo:mpTipo,
+      motorista:g('fi-motorista')?g('fi-motorista').value:''
+    }));
     // Cadastro inteligente: registra a cidade/UF da coleta na base compartilhada
     // com as pernas de Frete Retorno, pra próxima coleta na mesma cidade já vir
     // com a UF preenchida automaticamente — sem digitar de novo.
@@ -32195,6 +32577,7 @@ function manutDestroyChart(id){
 }
 
 function manutRender(){
+  if(typeof mntRecarregarPlacas==='function') mntRecarregarPlacas();
   if(typeof Chart === 'undefined') return;
   manutLoadForns();
   var data = manutFiltrados();
@@ -32943,28 +33326,93 @@ function mntImportar(input){
   reader.readAsArrayBuffer(file);
 }
 
+// ══ (03/11) Leitura do PDF "Custos de Manutenção" (por equipamento) ═══════════
+// Retorna {linhas:[{placa, meses[12], total}], falhas:[placas], conferencia:html}.
+function mntLerPdfEquipamentos(txt){
+  var limpo = String(txt||'')
+    .replace(/P[áa]gina\s+\d+\s+de\s+\d+/gi, ' ')
+    .replace(/Plataforma\s+NR\s+Group\s*-\s*Gest[ãa]o\s+de\s+Frotas/gi, ' ')
+    .replace(/Equipame\s*nto\s+Jan\s+Fev\s+Mar\s+Abr\s+Mai\s+Jun\s+Jul\s+Ago\s+Set\s+Out\s+Nov\s+Dez\s+Total/gi, ' ');
+  var toks = [];
+  limpo.split(/\s+/).forEach(function(t){
+    if(!t) return;
+    if(t.indexOf('R$')===0 && t.length>2){ toks.push('R$'); toks.push(t.slice(2)); }
+    else toks.push(t);
+  });
+  var RE_PLACA = /^[A-Z]{2,3}[0-9][A-Z0-9][0-9]{2}$/;
+  var completo = function(v){ return /^\d{1,3}(\.\d{3})*,\d{2}$/.test(v) || /^\d+,\d{2}$/.test(v); };
+  var pedaco   = function(t){ return /^[\d.,]+$/.test(t); };
+  var prefixoOk= function(v){ return /^\d[\d.]*(,\d{0,2})?$/.test(v); };
+  var num      = function(v){ return parseFloat(v.replace(/\./g,'').replace(',','.')); };
+  function lerLinha(j){
+    var vals = [], pend = [];
+    while(vals.length<13){
+      if(toks[j]!=='R$') return null;
+      var v = toks[j+1]; j += 2;
+      if(v==null || !pedaco(v)) return null;
+      var k = vals.length; vals.push(v);
+      if(completo(v)) continue;
+      if(pend.length){ pend.push(k); continue; }       // já há centavos pendentes: vêm depois, em ordem
+      while(!completo(vals[k]) && j<toks.length && toks[j]!=='R$' && pedaco(toks[j]) && prefixoOk(vals[k]+toks[j])){ vals[k] += toks[j]; j++; }
+      if(!completo(vals[k])) pend.push(k);
+    }
+    // Linha quebrada entre páginas: os centavos aparecem depois do cabeçalho da
+    // página seguinte, na mesma ordem dos valores incompletos.
+    for(var q=0; q<pend.length; q++){
+      var kk = pend[q], guard = 0;
+      while(!completo(vals[kk]) && guard<3 && j<toks.length && /^,?\d{1,2}$/.test(toks[j]) && prefixoOk(vals[kk]+toks[j])){ vals[kk] += toks[j]; j++; guard++; }
+    }
+    if(!vals.every(completo)) return null;
+    var n = vals.map(num), meses = n.slice(0,12), total = n[12];
+    var soma = meses.reduce(function(a,b){ return a+b; },0);
+    if(Math.abs(soma-total) > 0.05) return null;            // conferência da linha
+    return {meses:meses, total:total};
+  }
+  var linhas = [], falhas = [], vistos = {}, totalGeral = null;
+  for(var i=0;i<toks.length;i++){
+    if(toks[i]==='TOTAL' && toks[i+1]==='GERAL'){ var tg = lerLinha(i+2); if(tg) totalGeral = tg; continue; }
+    if(!RE_PLACA.test(toks[i]) || vistos[toks[i]]) continue;
+    if(toks[i+1]!=='R$') continue;
+    vistos[toks[i]] = true;
+    var lin = lerLinha(i+1);
+    if(lin) linhas.push({placa:toks[i], meses:lin.meses, total:lin.total});
+    else falhas.push(toks[i]);
+  }
+  var conferencia = '';
+  if(totalGeral){
+    var MES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'], dif = [];
+    for(var m=0;m<12;m++){
+      var s2 = linhas.reduce(function(a,l){ return a+l.meses[m]; },0);
+      if(Math.abs(s2-totalGeral.meses[m])>0.05) dif.push(MES[m]+': PDF '+R(totalGeral.meses[m])+' × lido '+R(s2));
+    }
+    conferencia = dif.length
+      ? '⚠️ <b>Conferência com o TOTAL GERAL do PDF não bateu</b> — '+dif.join(' · ')
+      : '✔️ Conferência: a soma das placas lidas bate com o TOTAL GERAL do PDF em todos os meses ('+R(totalGeral.total)+').';
+  }
+  return {linhas:linhas, falhas:falhas, conferencia:conferencia};
+}
 function mntParsePDF(txt, tipo){
   if(tipo === 'equipamento'){
-    // Padrão real: PLACA seguida de 13 valores R$ (Jan..Dez + Total).
-    // Tolera quebra de linha no meio do valor (ex: "R$ 14.212,3" + quebra + "7"),
-    // efeito comum de colunas estreitas no PDF exportado.
+    // (03/11) LEITOR REESCRITO. O anterior (uma regex por linha) perdia, sem avisar,
+    // as linhas que o PDF quebra entre duas páginas (os centavos vão para a página
+    // seguinte, depois do cabeçalho) e valores de 6 dígitos quebrados antes da
+    // vírgula ("R$ 100.420 ,93"). Essas placas ficavam com os valores antigos e o
+    // gráfico mensal divergia do PDF (ex.: out/26 R$ 152,7 mil × R$ 176,3 mil).
+    // Agora: lê por tokens, junta os pedaços de cada valor, confere cada linha
+    // (soma Jan..Dez = Total da linha) e confere o resultado com o TOTAL GERAL.
     var mntSeedRef = window.MNT_SEED_PLACAS || [];
+    var lido = mntLerPdfEquipamentos(txt);
     var updated = 0, added = 0;
-    var re = /\b([A-Z]{2,3}[0-9][A-Z0-9][0-9]{2})\s+((?:R\$\s*[\d.]+,\s*\d\s*\d\s*){13})/g;
-    var m;
-    while((m = re.exec(txt)) !== null){
-      var placa = m[1];
-      var valsRaw = m[2].match(/[\d.]+,\s*\d\s*\d/g) || [];
-      var vals = valsRaw.map(function(v){ return parseFloat(v.replace(/\s/g,'').replace(/\./g,'').replace(',','.')); });
-      if(vals.length >= 12){
-        var mesesVals = vals.slice(0,12); // Jan..Dez (vals[12] seria o Total, ignorado aqui)
-        var idx = mntSeedRef.findIndex(function(d){ return d[0]===placa; });
-        if(idx >= 0){ for(var mm=0; mm<12; mm++){ mntSeedRef[idx][mm+1]=mesesVals[mm]||0; } updated++; }
-        else { mntSeedRef.push([placa].concat(mesesVals)); added++; }
-      }
-    }
+    lido.linhas.forEach(function(l){
+      var idx = mntSeedRef.findIndex(function(d){ return d[0]===l.placa; });
+      if(idx >= 0){ for(var mm=0; mm<12; mm++){ mntSeedRef[idx][mm+1]=l.meses[mm]||0; } updated++; }
+      else { mntSeedRef.push([l.placa].concat(l.meses)); added++; }
+    });
     if(typeof mntSavePlacas==='function') mntSavePlacas();
-    return {msg: mntSeedRef.length+' equipamentos · '+updated+' atualizados · '+added+' novos', resumo: updated+' atualizados, '+added+' novos', totalMatched: updated+added};
+    var msg = mntSeedRef.length+' equipamentos · '+updated+' atualizados · '+added+' novos';
+    if(lido.falhas.length) msg += '<br>⚠️ <b>'+lido.falhas.length+' linha(s) não puderam ser lidas e mantiveram os valores anteriores:</b> '+lido.falhas.join(', ');
+    if(lido.conferencia) msg += '<br>'+lido.conferencia;
+    return {msg: msg, resumo: updated+' atualizados, '+added+' novos'+(lido.falhas.length?', '+lido.falhas.length+' com erro':''), totalMatched: updated+added};
   }
   if(tipo === 'fornecedor'){
     mntLoadForns();
@@ -34028,7 +34476,21 @@ function mntLoadPlacas(){
   }catch(e){}
 }
 function mntSavePlacas(){
-  try{ localStorage.setItem(MNT_PLACAS_KEY, JSON.stringify(MNT_SEED_PLACAS_BY_YEAR)); }catch(e){}
+  try{ var _raw = JSON.stringify(MNT_SEED_PLACAS_BY_YEAR); localStorage.setItem(MNT_PLACAS_KEY, _raw); window._mntPlacasRaw = _raw; }catch(e){}
+}
+// (03/11) Relê os custos por equipamento gravados (inclusive os que chegaram de outro
+// computador pela sincronização), mantendo o ano selecionado no dashboard.
+function mntRecarregarPlacas(){
+  try{
+    var raw = localStorage.getItem(MNT_PLACAS_KEY);
+    if(!raw || raw===window._mntPlacasRaw) return;
+    window._mntPlacasRaw = raw;
+    var salvo = JSON.parse(raw);
+    Object.keys(salvo).forEach(function(ano){ MNT_SEED_PLACAS_BY_YEAR[ano] = salvo[ano]; });
+    var anoEl = document.getElementById('mnt-d-ano');
+    var ano = (anoEl && anoEl.value) || '2026';
+    MNT_SEED_PLACAS = MNT_SEED_PLACAS_BY_YEAR[ano] || MNT_SEED_PLACAS_BY_YEAR['2026'] || MNT_SEED_PLACAS;
+  }catch(e){ console.warn('[Manutenção] recarga dos custos por equipamento falhou:', e.message); }
 }
 mntLoadPlacas();
 
@@ -34172,6 +34634,7 @@ function mntFiltrarDash(){
 
 function mntRenderDash(){
   if(typeof Chart==='undefined'){ setTimeout(function(){ mntRenderDash(); },200); return; }
+  if(typeof mntRecarregarPlacas==='function') mntRecarregarPlacas();
 
   var anoEl=document.getElementById('mnt-d-ano');
   if(anoEl && !anoEl.dataset.filled){
