@@ -60,6 +60,9 @@ if(location.protocol!=='file:'){
     // (03/11) Custos por Equipamento (PDF "Custos de Manutenção"): antes ficavam só no
     // navegador que importou — cada computador via um gráfico diferente.
     'raguife_mnt_placas_v1',
+    // (13/11) Categoria e motorista informados na importação de NFs para placas sem
+    // cadastro completo — reaproveitados nas próximas importações e lançamentos.
+    'raguife_placa_memoria_v1',
     'raguife_cx_lanc_v1',
     'raguife_mnt_leve_lanc_v1','raguife_mnt_leve_veic_v1',
     'raguife_v3',
@@ -8665,7 +8668,7 @@ const GML=dt=>{if(!dt)return'';const p=String(dt).slice(0,10).split('-');if(p.le
 //  · Fechada                → todos os campos de fechamento preenchidos
 // O status é sempre CALCULADO a partir dos dados (nunca digitado), então não
 // fica desatualizado e não exige migração da base.
-var PERNA_ST_LABEL = {aberta:'Em aberto', aguardando:'Aguardando informações', fechada:'Fechada'};
+var PERNA_ST_LABEL = {aberta:'Em aberto', aguardando:'Aguardando informações', pronta:'Pronta para fechar', fechada:'Fechada'};
 function pernaFaltando(p){
   p = p || {};
   var n = function(v){ var x = parseFloat(v); return isFinite(x) ? x : 0; };
@@ -8679,15 +8682,29 @@ function pernaFaltando(p){
   if(!(n(p.km_final)>0)) f.push('Km Final');
   return f;
 }
-function pernaStatus(p){
-  if(!pernaFaltando(p).length) return 'fechada';
+// (13/11) Perna com todos os campos preenchidos NÃO fecha sozinha: precisa de ação
+// explícita — botão "Fechar perna" ou "Salvar e concluir viagem". Antes, ao salvar
+// sem concluir uma perna completa (p.ex. com adiantamento lançado), ela virava
+// "Fechada" e a pendência sumia do Kanban.
+//  · Pernas antigas (sem criado_em, fluxo anterior): completas = fechadas (como antes).
+//  · Pernas novas: fechadas com p.fechada===true, ou se a viagem já foi concluída.
+function pernaFechada(p, r){
+  if(pernaFaltando(p).length) return false;
+  if(!p.criado_em) return true;
+  if(p.fechada===true) return true;
+  if(p.fechada===false) return false;
+  return !!(r && r.dt_desc && r.dt_base);
+}
+function pernaStatus(p, r){
+  if(pernaFechada(p, r)) return 'fechada';
+  if(!pernaFaltando(p).length) return 'pronta';
   return (parseFloat(p && p.km_final) > 0) ? 'aguardando' : 'aberta';
 }
 function viagemPernasPendentes(r){
   if(!r || r.retorno!=='Sim' || !Array.isArray(r.fretes_retorno)) return [];
   var out = [];
   r.fretes_retorno.forEach(function(p, i){
-    var st = pernaStatus(p);
+    var st = pernaStatus(p, r);
     if(st!=='fechada') out.push({i:i, p:p, st:st, falta:pernaFaltando(p)});
   });
   return out;
@@ -8716,7 +8733,7 @@ function tripFields(r){
   // as pernas estão Fechadas. Registros antigos sem pernas seguem a regra anterior.
   const _temPernas = r.retorno==='Sim' && Array.isArray(r.fretes_retorno) && r.fretes_retorno.length>0;
   const retornoOk = r.retorno==='Não' || (_temPernas
-    ? r.fretes_retorno.every(function(p){ return pernaStatus(p)==='fechada'; })
+    ? r.fretes_retorno.every(function(p){ return pernaStatus(p, r)==='fechada'; })
     : (r.retorno==='Sim' && !!r.dest_ret_cidade && !!r.dest_ret_uf &&
        !!r.tipo_ret && r.peso_ret>0 && r.vl_ton>0));
   const e2={
@@ -9646,7 +9663,7 @@ function renderKanbanCard(r, col){
     + pendPernas.map(function(x){
         return '<div style="font-size:11px;color:#7f1d1d;line-height:1.4"><b>Frete Retorno '+(x.i+1)+'</b>'
           +(x.p.cidade ? ' · '+x.p.cidade+(x.p.uf?'/'+x.p.uf:'') : '')+' — '+PERNA_ST_LABEL[x.st]
-          +'<div style="color:#991b1b;font-size:10.5px">Falta: '+x.falta.join(', ')+'</div></div>';
+          +'<div style="color:#991b1b;font-size:10.5px">'+(x.falta.length ? 'Falta: '+x.falta.join(', ') : 'Dados completos — falta fechar a perna (ou concluir a viagem)')+'</div></div>';
       }).join('')
     + '</div>';
   var pendBlock = '';
@@ -10040,9 +10057,10 @@ function mAdicionarPerna(){
   var _n = window._pernasRetorno.length;
   if(_n){
     var _ult = window._pernasRetorno[_n-1];
-    if(pernaStatus(_ult)!=='fechada'){
+    var _stU = pernaStatus(_ult, modalIdx>=0?DB[modalIdx]:null);
+    if(_stU!=='fechada'){
       mDestacarPerna(_n-1);
-      toast('Feche o Frete Retorno '+_n+' antes de abrir o próximo — falta: '+pernaFaltando(_ult).join(', '),'error');
+      toast(_stU==='pronta' ? 'Clique em “✓ Fechar perna” no Frete Retorno '+_n+' antes de abrir o próximo.' : 'Feche o Frete Retorno '+_n+' antes de abrir o próximo — falta: '+pernaFaltando(_ult).join(', '),'error');
       return;
     }
   }
@@ -10071,10 +10089,30 @@ function mDestacarPerna(i){
   setTimeout(function(){ el.style.outline = ''; el.style.outlineOffset = ''; }, 3500);
 }
 function mPernaStatusPill(p){
-  var st = pernaStatus(p), falta = pernaFaltando(p);
-  var c = {aberta:['#fef9c3','#713f12'], aguardando:['#fee2e2','#991b1b'], fechada:['#dcfce7','#166534']}[st];
+  var st = pernaStatus(p, modalIdx>=0?DB[modalIdx]:null), falta = pernaFaltando(p);
+  var c = {aberta:['#fef9c3','#713f12'], aguardando:['#fee2e2','#991b1b'], pronta:['#dbeafe','#1e40af'], fechada:['#dcfce7','#166534']}[st];
   return '<span style="display:inline-block;margin-left:8px;padding:2px 9px;border-radius:9px;font-size:10px;font-weight:800;background:'+c[0]+';color:'+c[1]+'">'+PERNA_ST_LABEL[st]+'</span>'
     + (falta.length ? '<span style="margin-left:8px;font-size:10.5px;font-weight:600;color:#6b7280">para fechar falta: '+falta.join(', ')+'</span>' : '');
+}
+// (13/11) Fechar / reabrir uma perna explicitamente.
+function mFecharPerna(i){
+  mColherPernasDaTela();
+  var p = (window._pernasRetorno||[])[i]; if(!p) return;
+  var f = pernaFaltando(p);
+  if(f.length){ mDestacarPerna(i); toast('Frete Retorno '+(i+1)+': para fechar falta '+f.join(', '),'error'); return; }
+  var r = modalIdx>=0 ? DB[modalIdx] : null;
+  var errKm = (r && hodRegraNovaVale(r)) ? mPernasErroHodometro(window._pernasRetorno.slice(0,i+1), parseFloat(r.km_saida)||0) : null;
+  if(errKm){ mDestacarPerna(errKm.i); toast(errKm.msg,'error'); return; }
+  p.fechada = true; p.fechado_em = new Date().toISOString().slice(0,10);
+  mRenderPernas();
+  toast('Frete Retorno '+(i+1)+' fechado. Clique em “Salvar fretes retorno” ou “Salvar e concluir viagem” para gravar.','success');
+}
+function mReabrirPerna(i){
+  mColherPernasDaTela();
+  var p = (window._pernasRetorno||[])[i]; if(!p) return;
+  p.fechada = false; delete p.fechado_em;
+  mRenderPernas();
+  toast('Frete Retorno '+(i+1)+' reaberto — volta a aparecer como pendente até ser fechado de novo.','success');
 }
 function mRemoverPerna(idx){
   if(window._pernasRetorno.length<=1){ toast('Precisa ter pelo menos uma perna — pra remover tudo, mude "Teve Retorno?" para Não.','error'); return; }
@@ -10181,10 +10219,15 @@ function mRenderPernas(){
     var kmInicial = i===0 ? kmSaidaViagem : (parseFloat(window._pernasRetorno[i-1].km_final)||0);
     var kmFinalAtual = parseFloat(p.km_final)||0;
     var kmRealPerna = (kmInicial && kmFinalAtual && kmFinalAtual>kmInicial) ? (kmFinalAtual-kmInicial) : null;
-    return '<div class="rec-panel" id="m-perna-'+i+'-box" style="padding:14px 16px;margin-bottom:12px;border-left:3px solid '+(pernaStatus(p)==='fechada'?'var(--gd)':'#f59e0b')+'">'
+    var _stP = pernaStatus(p, modalIdx>=0?DB[modalIdx]:null);
+    return '<div class="rec-panel" id="m-perna-'+i+'-box" style="padding:14px 16px;margin-bottom:12px;border-left:3px solid '+(_stP==='fechada'?'var(--gd)':'#f59e0b')+'">'
       +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'
         +'<div style="font-weight:700;color:var(--gd);font-size:12px">Frete Retorno '+(i+1)+mPernaStatusPill(p)+'</div>'
-        +(window._pernasRetorno.length>1 ? '<button type="button" class="btn-danger-sm" onclick="mRemoverPerna('+i+')">Remover</button>' : '')
+        +'<div style="display:flex;gap:6px;align-items:center">'
+          +(_stP==='pronta' ? '<button type="button" onclick="mFecharPerna('+i+')" title="Marca esta perna como finalizada" style="padding:5px 12px;border-radius:6px;border:none;background:var(--gd);color:#fff;font-size:11px;font-weight:800;cursor:pointer">✓ Fechar perna</button>' : '')
+          +(_stP==='fechada' && p.criado_em && !(DB[modalIdx] && DB[modalIdx].dt_desc && DB[modalIdx].dt_base && p.fechada!==true) ? '<button type="button" onclick="mReabrirPerna('+i+')" style="padding:5px 10px;border-radius:6px;border:1px solid #d1d5db;background:#fff;color:#6b7280;font-size:10.5px;font-weight:700;cursor:pointer">Reabrir</button>' : '')
+          +(window._pernasRetorno.length>1 ? '<button type="button" class="btn-danger-sm" onclick="mRemoverPerna('+i+')">Remover</button>' : '')
+        +'</div>'
       +'</div>'
       +'<div class="fg g4">'
         +'<div class="form-grp"><label class="form-lbl">Cidade Retorno <span class="req">*</span></label><input type="text" class="form-ctrl" id="m-perna-'+i+'-cidade" list="m-cidade-retorno-list" value="'+(p.cidade||'')+'" oninput="this.value=this.value.toUpperCase()" onblur="mPernaCidadeMudou('+i+')"></div>'
@@ -10333,7 +10376,7 @@ function mConsolidarPernas(r, pernas){
     }
     // Histórico da perna: só para pernas lançadas no fluxo novo (têm criado_em).
     if(p.criado_em){
-      if(pernaStatus(p)==='fechada'){ if(!p.fechado_em) p.fechado_em = hoje; }
+      if(pernaStatus(p, r)==='fechada'){ if(!p.fechado_em) p.fechado_em = hoje; }
       else delete p.fechado_em;
     }
   });
@@ -10382,7 +10425,7 @@ function saveEtapa2SoPernas(){
     if(!String(p.cidade||'').trim() || !p.uf){ mDestacarPerna(i); toast(rot+': informe ao menos Cidade e UF para registrar a perna','error'); return; }
     var _t = parseFloat(p.vl_total) || ((parseFloat(p.vton)||0)*(parseFloat(p.peso)||0)/1000) || 0;
     if((parseFloat(p.vl_total)>0 || parseFloat(p.vton)>0) && !p.tipo){ mDestacarPerna(i); toast(rot+': com valor informado, escolha o Tipo (Retorno / MP / Outros) — é ele que classifica a receita','error'); return; }
-    if(i<pernas.length-1 && pernaStatus(p)!=='fechada'){ mDestacarPerna(i); toast(rot+' precisa estar fechado antes do Frete Retorno '+(i+2)+' — falta: '+pernaFaltando(p).join(', '),'error'); return; }
+    if(i<pernas.length-1 && pernaStatus(p, r)!=='fechada'){ mDestacarPerna(i); toast(rot+' precisa estar fechado antes do Frete Retorno '+(i+2)+(pernaFaltando(p).length?' — falta: '+pernaFaltando(p).join(', '):' — clique em “✓ Fechar perna”'),'error'); return; }
     if(p.tipo!=='MP'){
       var _a=parseFloat(p.vl_adiant)||0, _f=parseFloat(p.vl_pgto_final)||0;
       if(_a<0||_f<0){ toast(rot+': adiantamento e pagamento não podem ser negativos','error'); return; }
@@ -10410,6 +10453,7 @@ function saveEtapa2SoPernas(){
   toast('💾 Fretes retorno salvos — '+(pend
     ? pend+' perna'+(pend!==1?'s':'')+' pendente'+(pend!==1?'s':'')+' de fechamento; a viagem continua Em Andamento.'
     : (st==='verde' ? 'viagem concluída.' : 'todas as pernas fechadas. Preencha as datas e clique em “Salvar e concluir viagem”.')), 'success');
+  // pend inclui pernas "Pronta para fechar": a pendência só sai com Fechar perna / Concluir.
 }
 
 function saveEtapa2(soPernas){
@@ -10481,6 +10525,8 @@ function saveEtapa2(soPernas){
         if(_a+_f > _t+0.01){ toast('Frete Retorno '+(i+1)+': adiantamento + pagamento ('+R(_a+_f)+') é maior que o valor do frete ('+R(_t)+')','error'); return; }
       }
     }
+    // (13/11) Concluir a viagem fecha todas as pernas (todas já validadas completas).
+    pernas.forEach(function(p){ if(p.criado_em && p.fechada!==true){ p.fechada = true; } });
     mConsolidarPernas(r, pernas);
 
     // Aprendizado automático + histórico de produtos e cidades, por perna.
@@ -11853,7 +11899,7 @@ function nfLoteRender(){
       +'<td style="padding:5px"><input type="checkbox" '+(r.sel?'checked':'')+(bloqueio?' disabled':'')+' onchange="NF_LOTE['+i+'].sel=this.checked;if(!this.checked)NF_LOTE['+i+']._desmarcadaManual=true;nfLoteContar()"></td>'
       +'<td style="padding:5px;font-weight:800;color:var(--gd)">'+(r.v['fi-nf']||'—')+(r.grupo?'<div style="font-size:10px;font-weight:700;color:#1d4ed8">🔗 '+r.grupo.length+' NFs · mesma carga</div><button type="button" onclick="nfLoteSeparar('+i+')" style="margin-top:3px;font-size:10px;padding:2px 6px;border:1px solid var(--gb);background:#fff;border-radius:4px;cursor:pointer">Separar</button>':'')+'</td>'
       +'<td style="padding:5px">'+(r.v['fi-dtc']?r.v['fi-dtc'].split('-').reverse().join('/'):'—')+'</td>'
-      +'<td style="padding:5px">'+inp(i,'fi-placa',80,'fi-placa-list')+'<div style="font-size:10px;color:var(--txl)">'+(r.v['fi-cat']||'')+'</div></td>'
+      +'<td style="padding:5px">'+inp(i,'fi-placa',80,'fi-placa-list')+nfLoteSelCategoria(i)+'</td>'
       +'<td style="padding:5px">'+inp(i,'fi-motorista',150,'fi-motorista-list')+av+'</td>'
       +'<td style="padding:5px;font-size:11px">'+(r.v['fi-cliente']||'—')+'<div style="color:var(--txl)">→ '+(r.v['fi-dest-cidade']||'?')+'/'+(r.v['fi-dest-uf']||'?')+'</div></td>'
       +'<td style="padding:5px;text-align:right">'+(r.v['fi-pe']?(+r.v['fi-pe']).toLocaleString('pt-BR')+' kg':'—')+'<div>'+fR(r.v['fi-vl-entrega'])+'</div></td>'
@@ -11869,14 +11915,38 @@ function nfLoteRender(){
     +'<div style="font-size:11px;color:var(--txl);margin-top:6px">Campos em laranja não constam na NF — preencha na própria tabela. Só as linhas marcadas viram viagens; cada uma passa pelas mesmas validações do lançamento manual.</div>';
   nfLoteContar();
 }
+// (13/11) Categoria editável na própria tabela da importação de NFs.
+function nfLoteSelCategoria(i){
+  var v = NF_LOTE[i].v['fi-cat']||'', sel = g('fi-cat');
+  var cats = sel ? [].slice.call(sel.options).map(function(o){ return o.value; }).filter(Boolean) : [];
+  return '<select onchange="nfLoteEditar('+i+',\'fi-cat\',this.value)" title="Categoria do veículo" style="display:block;margin-top:3px;width:100%;max-width:120px;padding:2px 4px;font-size:10.5px;border:1px solid '+(v?'var(--gb)':'#ea580c')+';background:'+(v?'#fff':'#fff7ed')+';border-radius:4px">'
+    + '<option value="">'+(v?'':'⚠ Categoria…')+'</option>'
+    + cats.map(function(c){ return '<option'+(c===v?' selected':'')+'>'+c+'</option>'; }).join('') + '</select>';
+}
 function nfLoteEditar(i, id, val){
-  var r=NF_LOTE[i]; r.v[id]=String(val).toUpperCase().trim();
+  var r=NF_LOTE[i]; r.v[id]= id==='fi-cat' ? String(val).trim() : String(val).toUpperCase().trim();
+  // (13/11) Categoria e motorista informados aqui ficam guardados para a placa e
+  // preenchem as outras linhas da mesma placa que estejam vazias.
+  var _pl = placaMemNorm(r.v['fi-placa']);
+  if(_pl && (id==='fi-cat' || id==='fi-motorista') && r.v[id]){
+    placaMemSalvar(_pl, id==='fi-cat'?'cat':'mot', r.v[id]);
+    NF_LOTE.forEach(function(o, j){
+      if(j!==i && o.v && placaMemNorm(o.v['fi-placa'])===_pl && !String(o.v[id]||'').trim()){
+        o.v[id] = r.v[id];
+        if(!nfLoteFaltas(o).length && !o.jaLancada && !o.repetidaNoLote && o.sel===false && !o._desmarcadaManual) o.sel = true;
+      }
+    });
+  }
+  if(id==='fi-placa' && _pl){
+    var _m = placaMemGet(_pl);
+    if(_m && _m.mot && !String(r.v['fi-motorista']||'').trim()) r.v['fi-motorista'] = _m.mot;
+  }
   if(id==='fi-km' && typeof freteGrupoDeIda==='function' && parseFloat(val)>0) r.v['fi-kmg']=String(freteGrupoDeIda(parseFloat(val)));
-  if(id==='fi-placa' && typeof FROTA_SEED!=='undefined'){ var p=r.v[id].replace(/-/g,''); var fv=FROTA_SEED.find(function(x){ return x.id.replace(/-/g,'').toUpperCase()===p; }); if(fv && typeof frotaMapTipoParaCategoria==='function') r.v['fi-cat']=frotaMapTipoParaCategoria(fv.tipo)||r.v['fi-cat']; }
+  if(id==='fi-placa' && typeof FROTA_SEED!=='undefined'){ var p=r.v[id].replace(/-/g,''); var fv=FROTA_SEED.find(function(x){ return x.id.replace(/-/g,'').toUpperCase()===p; }); if(fv && typeof frotaMapTipoParaCategoria==='function') r.v['fi-cat']=frotaMapTipoParaCategoria(fv.tipo)||r.v['fi-cat']; if(!r.v['fi-cat']){ var _mc=placaMemGet(p); if(_mc && _mc.cat) r.v['fi-cat']=_mc.cat; } }
   var falta=nfLoteFaltas(r); if(!falta.length && !r.jaLancada && !r.repetidaNoLote && r.sel===false && !r._desmarcadaManual) r.sel=true;
   nfLoteRender();
 }
-function nfLoteContar(){ var n=NF_LOTE.filter(function(r){ return r.sel && r.v; }).length; var b=g('nf-lote-gerar'); if(b){ b.textContent='Gerar '+n+' viagem'+(n===1?'':'s'); b.disabled=!n; b.style.opacity=n?1:.5; } }
+function nfLoteContar(){ var n=NF_LOTE.filter(function(r){ return r.sel && r.v; }).length; var b=g('nf-lote-gerar'); if(b){ b.textContent='Gerar '+n+' '+(n===1?'viagem':'viagens'); b.disabled=!n; b.style.opacity=n?1:.5; } }
 function nfLoteGerar(){
   var sel=NF_LOTE.filter(function(r){ return r.sel && r.v; });
   if(!sel.length) return;
@@ -12487,6 +12557,22 @@ function fiPopularPlacaList(){
 }
 // Ao sair do campo Placa: busca a placa na Gestão de Frota e preenche a Categoria
 // automaticamente com o tipo cadastrado lá — mesma fonte, sem duplicidade.
+// ══ (13/11) MEMÓRIA PLACA → CATEGORIA / MOTORISTA ═══════════════════════════
+// Quando a placa não tem categoria (Gestão de Frota) ou motorista vinculado
+// (Gestão de Pessoas), o que for informado na importação de NFs fica guardado e
+// é usado como sugestão nas próximas vezes. O cadastro oficial continua tendo
+// prioridade; esta memória só preenche o que ele não tem.
+var PLACA_MEM_KEY = 'raguife_placa_memoria_v1';
+function placaMemNorm(pl){ return String(pl||'').replace(/[^A-Z0-9]/gi,'').toUpperCase(); }
+function placaMemLer(){ try{ return JSON.parse(localStorage.getItem(PLACA_MEM_KEY)||'{}')||{}; }catch(e){ return {}; } }
+function placaMemGet(pl){ var m = placaMemLer()[placaMemNorm(pl)]; return m || null; }
+function placaMemSalvar(pl, campo, valor){
+  var k = placaMemNorm(pl); if(!k || !valor) return;
+  var m = placaMemLer(); m[k] = m[k] || {};
+  if(m[k][campo]===valor) return;
+  m[k][campo] = valor; m[k].em = new Date().toISOString().slice(0,10);
+  try{ localStorage.setItem(PLACA_MEM_KEY, JSON.stringify(m)); }catch(e){}
+}
 function fiPlacaLookup(){
   var hint = g('fi-placa-hint');
   var placaEl = g('fi-placa');
@@ -12494,14 +12580,22 @@ function fiPlacaLookup(){
   var placa = placaEl.value.trim().toUpperCase().replace(/-/g,'');
   if(!placa){ if(hint) hint.textContent=''; return; }
   var v = FROTA_SEED.find(function(x){ return x.id.replace(/-/g,'').toUpperCase()===placa; });
-  if(!v){ if(hint) hint.textContent='Placa não encontrada na Gestão de Frota — confira ou cadastre o veículo lá antes de continuar.'; return; }
+  if(!v){
+    var _mem = placaMemGet(placa);
+    if(_mem && _mem.cat && g('fi-cat')){ g('fi-cat').value = _mem.cat; if(hint) hint.textContent='Placa não está na Gestão de Frota — categoria preenchida com a última informada ('+_mem.cat+'). Cadastre o veículo lá quando puder.'; }
+    else if(hint) hint.textContent='Placa não encontrada na Gestão de Frota — confira ou cadastre o veículo lá antes de continuar.';
+    fiMotoristaLookupPorPlaca(placa);
+    return;
+  }
   if(v.ativo===false){ if(hint) hint.textContent='⚠ Placa encontrada, mas está INATIVA na Gestão de Frota.'; }
   var cat = frotaMapTipoParaCategoria(v.tipo);
   if(cat && g('fi-cat')){
     g('fi-cat').value = cat;
     if(v.ativo!==false && hint) hint.textContent = 'Veículo encontrado na Gestão de Frota — categoria preenchida automaticamente ('+cat+').';
-  } else if(hint && v.ativo!==false){
-    hint.textContent = 'Veículo encontrado, mas o tipo "'+v.tipo+'" não tem categoria correspondente — confira manualmente.';
+  } else {
+    var _memC = placaMemGet(placa);
+    if(_memC && _memC.cat && g('fi-cat')){ g('fi-cat').value = _memC.cat; if(hint) hint.textContent='Tipo "'+v.tipo+'" sem categoria correspondente — usada a última categoria informada para esta placa ('+_memC.cat+').'; }
+    else if(hint && v.ativo!==false) hint.textContent = 'Veículo encontrado, mas o tipo "'+v.tipo+'" não tem categoria correspondente — confira manualmente.';
   }
   fiMotoristaLookupPorPlaca(placa);
 }
@@ -12540,8 +12634,10 @@ function fiMotoristaLookupPorPlaca(placaNorm){
   if(m && m.nome){
     motEl.value = m.nome.toUpperCase();
     if(hintM) hintM.textContent = 'Motorista sugerido a partir da Gestão de Pessoas — confirme ou troque se for outro condutor.';
-  } else if(hintM){
-    hintM.textContent = 'Nenhum motorista cadastrado para essa placa na Gestão de Pessoas — preencha manualmente.';
+  } else {
+    var _memM = placaMemGet(placaNorm);
+    if(_memM && _memM.mot){ motEl.value = _memM.mot; if(hintM) hintM.textContent = 'Placa sem motorista na Gestão de Pessoas — sugerido o último informado para ela ('+_memM.mot+'). Confirme.'; }
+    else if(hintM) hintM.textContent = 'Nenhum motorista cadastrado para essa placa na Gestão de Pessoas — preencha manualmente.';
   }
 }
 function fiPopularMotoristaList(){
@@ -15236,12 +15332,16 @@ function hodValidar(l){
   if(l.pernas) er.push('Viagem com frete retorno em pernas — corrija o Km Final de cada perna na própria viagem');
   if(!(l.kf>l.ks)) er.push('Km Final precisa ser maior que o Km Saída');
   if(l.ks!==l.ksOrig) av.push('Km Saída com ponto de milhar: '+N(l.ksOrig,3)+' → '+N(l.ks,0));
-  if(l.prox!=null && l.kf>l.prox) er.push('Km Final passa da saída seguinte desta placa ('+N(l.prox,0)+') — confira');
+  var _conf = (l.prox!=null && l.kf>l.prox);
+  if(_conf) er.push('Km Final passa da saída seguinte desta placa ('+N(l.prox,0)+') — confira');
   if(l.prox!=null && l.prox-l.ks>5000) av.push('Saída seguinte bem maior ('+N(l.prox,0)+') — Km Saída pode ter dígito faltando');
   var esp = (parseFloat(r.km)||0)*2;
   var rod = l.kf-l.ks;
   if(esp>0 && rod>0 && (rod>esp*2.5+50)) av.push('Km rodados bem acima do previsto ('+N(esp,0)+' km ida e volta)');
   l.erros = er; l.avisos = av;
+  // (04/11) Exceção: o ÚNICO problema é passar da saída seguinte → pode ser aplicada
+  // "mesmo assim", com confirmação e registro da exceção na viagem.
+  l.soConflito = _conf && er.length===1 && !l.pernas && l.kf>l.ks;
   if(er.length) l.incluir = false;
 }
 function hodAbrir(){
@@ -15259,9 +15359,10 @@ function hodRender(){
   var inp='width:96px;padding:5px 6px;border:1px solid #cbd5c0;border-radius:5px;font-size:12px;font-weight:700;text-align:right';
   var sel = L.filter(function(l){ return l.incluir && !l.aplicada && !l.erros.length; });
   var nConf = L.filter(function(l){ return !l.aplicada && l.erros.length; }).length;
+  var nExc = L.filter(function(l){ return !l.aplicada && l.soConflito; }).length;
   var corpo = L.map(function(l, i){
     var r = DB[l.idx], rod = l.kf-l.ks;
-    var st = l.aplicada ? ['✅ Corrigida','#dcfce7','#166534'] : (l.erros.length ? ['Conferir','#fee2e2','#991b1b'] : (l.avisos.length ? ['Pronta*','#fef9c3','#713f12'] : ['Pronta','#dbeafe','#1e40af']));
+    var st = l.aplicada ? (DB[l.idx] && DB[l.idx]._hod_excecao ? ['✅ Exceção','#ffedd5','#9a3412'] : ['✅ Corrigida','#dcfce7','#166534']) : (l.erros.length ? ['Conferir','#fee2e2','#991b1b'] : (l.avisos.length ? ['Pronta*','#fef9c3','#713f12'] : ['Pronta','#dbeafe','#1e40af']));
     var pend = l.erros.map(function(x){ return '<div style="color:#991b1b">✖ '+x+'</div>'; }).join('') + l.avisos.map(function(x){ return '<div style="color:#6b7280">• '+x+'</div>'; }).join('');
     return '<tr style="background:'+(l.aplicada?'#f7fdf9':'#fff')+'">'
       +'<td style="'+td+'"><input type="checkbox" '+(l.incluir&&!l.aplicada&&!l.erros.length?'checked':'')+(l.aplicada||l.erros.length?' disabled':'')+' onchange="HODC.linhas['+i+'].incluir=this.checked;hodRender()" style="width:15px;height:15px;accent-color:#024f2b"></td>'
@@ -15276,7 +15377,11 @@ function hodRender(){
       +'<td style="'+td+';text-align:right;color:#6b7280">'+(l.prox!=null?N(l.prox,0):'—')+'</td>'
       +'<td style="'+td+';white-space:normal;min-width:200px;font-size:10.5px;line-height:1.45">'+(pend||'<span style="color:#166534">Sem pendências</span>')+'</td>'
       +'<td style="'+td+'">'+(l.aplicada?'':(l.pernas?'<button type="button" onclick="hodFechar();openModal('+l.idx+')" style="padding:5px 9px;border-radius:5px;border:1px solid #024f2b;background:#fff;color:#024f2b;font-size:10.5px;font-weight:700;cursor:pointer">Abrir viagem</button>'
-          :'<button type="button" '+(l.erros.length?'disabled':'')+' onclick="hodAplicar(['+i+'])" style="padding:5px 9px;border-radius:5px;border:1px solid #024f2b;background:'+(l.erros.length?'#e5e7eb':'#024f2b')+';color:'+(l.erros.length?'#9ca3af':'#fff')+';font-size:10.5px;font-weight:700;cursor:'+(l.erros.length?'not-allowed':'pointer')+'">Aplicar</button>'))+'</td>'
+          :(l.soConflito
+            ? '<div style="display:flex;flex-direction:column;gap:4px">'
+              +'<button type="button" onclick="hodUsarProxSaida('+i+')" title="Km Final = saída seguinte desta placa ('+N(l.prox,0)+')" style="padding:5px 9px;border-radius:5px;border:1px solid #024f2b;background:#fff;color:#024f2b;font-size:10.5px;font-weight:700;cursor:pointer;white-space:nowrap">Usar próx. saída</button>'
+              +'<button type="button" onclick="hodAplicar(['+i+'], true)" title="Grava os valores digitados mesmo passando da saída seguinte; fica registrado como exceção" style="padding:5px 9px;border-radius:5px;border:1px solid #b45309;background:#fff7ed;color:#92400e;font-size:10.5px;font-weight:700;cursor:pointer;white-space:nowrap">Aplicar mesmo assim</button></div>'
+            : '<button type="button" '+(l.erros.length?'disabled':'')+' onclick="hodAplicar(['+i+'])" style="padding:5px 9px;border-radius:5px;border:1px solid #024f2b;background:'+(l.erros.length?'#e5e7eb':'#024f2b')+';color:'+(l.erros.length?'#9ca3af':'#fff')+';font-size:10.5px;font-weight:700;cursor:'+(l.erros.length?'not-allowed':'pointer')+'">Aplicar</button>')))+'</td>'
       +'</tr>';
   }).join('');
   o.innerHTML = '<div style="background:#fff;border-radius:10px;width:100%;max-width:1280px;max-height:94vh;display:flex;flex-direction:column;box-shadow:0 12px 44px rgba(0,0,0,.28);overflow:hidden;font-family:Inter,sans-serif">'
@@ -15290,6 +15395,7 @@ function hodRender(){
     +'<div style="padding:12px 20px;border-top:1px solid #eef0ea;display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#fafaf8">'
     +'<div style="font-size:12px;color:#374151"><b>'+sel.length+'</b> selecionada(s)'+(nConf?' · <b style="color:#991b1b">'+nConf+'</b> para conferir':'')+'</div><div style="flex:1"></div>'
     +'<button type="button" onclick="hodFechar()" style="padding:9px 16px;border-radius:6px;border:1px solid #d1d5db;background:#fff;color:#374151;font-size:12px;font-weight:700;cursor:pointer">Fechar</button>'
+    +(nExc ? '<button type="button" onclick="hodAplicarExcecoes()" style="padding:9px 14px;border-radius:6px;border:1px solid #b45309;background:#fff7ed;color:#92400e;font-size:12px;font-weight:800;cursor:pointer">Aplicar '+nExc+' em conferir mesmo assim</button>' : '')
     +'<button type="button" '+(sel.length?'':'disabled')+' onclick="hodAplicarSelecionadas()" style="padding:9px 18px;border-radius:6px;border:none;background:'+(sel.length?'#024f2b':'#9ca3af')+';color:#fff;font-size:12px;font-weight:800;cursor:'+(sel.length?'pointer':'not-allowed')+'">✓ Aplicar '+sel.length+' correção(ões)</button>'
     +'</div></div>';
 }
@@ -15297,20 +15403,37 @@ function hodAplicarSelecionadas(){
   var idx=[]; HODC.linhas.forEach(function(l,i){ if(l.incluir && !l.aplicada && !l.erros.length && !l.pernas) idx.push(i); });
   hodAplicar(idx);
 }
-function hodAplicar(ids){
+function hodUsarProxSaida(i){
+  var l = HODC.linhas[i]; if(!l || l.prox==null) return;
+  l.kf = l.prox; hodValidar(l); l.incluir = !l.erros.length; hodRender();
+}
+function hodAplicarExcecoes(){
+  var idx=[]; HODC.linhas.forEach(function(l,i){ if(!l.aplicada && l.soConflito) idx.push(i); });
+  hodAplicar(idx, true);
+}
+function hodAplicar(ids, forcar){
   var feitas = 0, quando = new Date().toISOString(), log = [];
+  if(forcar){
+    var nF = ids.filter(function(i){ var l=HODC.linhas[i]; return l && !l.aplicada && l.soConflito; }).length;
+    if(!nF){ toast('Nada para aplicar como exceção','error'); return; }
+    if(!confirm('Aplicar '+nF+' viagem(ns) mesmo com o Km Final passando da saída seguinte da placa?\n\nOs km rodados ficam como digitados e a viagem fica marcada como EXCEÇÃO (o hodômetro da placa não fecha com a viagem seguinte). Os valores originais continuam guardados.')) return;
+  }
   ids.forEach(function(i){
     var l = HODC.linhas[i]; if(!l || l.aplicada || l.pernas) return;
-    hodValidar(l); if(l.erros.length) return;
+    hodValidar(l);
+    var exc = false;
+    if(l.erros.length){ if(forcar && l.soConflito) exc = true; else return; }
     var r = DB[l.idx]; if(!r) return;
     if(!r._hod_original) r._hod_original = {km_saida:r.km_saida, km_final:r.km_final, em:quando};
+    if(exc) r._hod_excecao = {motivo:'Km Final ('+l.kf+') acima da saída seguinte da placa ('+l.prox+') — aplicado como exceção', em:quando};
+    else delete r._hod_excecao;
     r.km_saida = l.ks; r.km_final = l.kf;
     if(r.retorno==='Sim'){
       var kmPadrao = (typeof freteIdaFromGrupo==='function' ? freteIdaFromGrupo(r.km_grupo||0) : (r.km_grupo||0)*100) * 2;
       r.km_desloc_retorno = (r.km_final - r.km_saida) - kmPadrao;
     } else r.km_desloc_retorno = null;
     l.aplicada = true; feitas++;
-    log.push(r.placa+' '+FD(r.dt_carg)+': saída '+l.ksOrig+'→'+l.ks+', final '+l.kfOrig+'→'+l.kf+' ('+N(l.kf-l.ks,0)+' km)');
+    log.push(r.placa+' '+FD(r.dt_carg)+': saída '+l.ksOrig+'→'+l.ks+', final '+l.kfOrig+'→'+l.kf+' ('+N(l.kf-l.ks,0)+' km)'+(exc?' [EXCEÇÃO]':''));
   });
   if(!feitas){ toast('Nada aplicado — confira as pendências','error'); return; }
   save();
