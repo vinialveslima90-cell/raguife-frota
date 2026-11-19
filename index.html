@@ -6195,7 +6195,12 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
     <div class="f-group"><span class="f-label">Categoria</span><input type="text" class="f-select" id="kb-cat" list="kb-cat-list" placeholder="Todas" autocomplete="off" onchange="renderKanban()" onblur="validarFiltroKbCat()"><datalist id="kb-cat-list"></datalist></div>
     <div class="f-group"><span class="f-label">Nº NF</span><input type="text" class="f-select" id="kb-nf" placeholder="🔎 Buscar NF…" autocomplete="off" oninput="kbBuscarNF()" style="width:130px"></div>
     <div class="f-group"><span class="f-label">Placa</span><input type="text" class="f-select" id="kb-placa" list="kb-placa-list" placeholder="Todas" autocomplete="off" onchange="renderKanban()" onblur="validarFiltroKbPlaca()"><datalist id="kb-placa-list"></datalist></div>
-    <div class="f-group"><label style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:#991b1b;cursor:pointer;white-space:nowrap" title="Viagens concluídas sem o valor do frete de entrega de Produto Acabado"><input type="checkbox" id="kb-sem-pa" onchange="renderKanban()" style="accent-color:#024f2b;width:14px;height:14px;margin:0"> Só concluídas sem frete PA</label></div>
+    <div class="f-group"><span class="f-label">Situação</span><select class="f-select" id="kb-situacao" onchange="renderKanban()" title="Filtra o Kanban por situação da viagem">
+      <option value="">Todas</option>
+      <option value="and">Em andamento</option>
+      <option value="and_ret">Em andamento com frete retorno</option>
+      <option value="sem_pa">Concluídas sem frete PA</option>
+    </select></div>
     <div class="f-sep"></div>
     <button class="btn-reset" onclick="resetKbFilters()"><svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 2A5 5 0 102 10"/><polyline points="10,2 10,5 7,5"/></svg>Limpar</button>
     <!-- Ferramentas de manutenção/limpeza de duplicatas — reativadas em 10/09
@@ -9515,7 +9520,12 @@ function renderKanban(){
   // (03/11) Filtro "Só concluídas sem frete PA": mostra só as concluídas sem valor
   // de frete de PA, no mês escolhido (ou em todos os meses, se o filtro de mês
   // estiver em "Todos") — para a conferência pegar também meses anteriores.
-  const kSemPA = !!(g('kb-sem-pa') && g('kb-sem-pa').checked);
+  // (19/11) Filtro "Situação": Em andamento (sem frete retorno pendente),
+  // Em andamento com frete retorno (há perna/retorno ainda não fechado) e
+  // Concluídas sem frete PA (antiga caixa "Só concluídas sem frete PA").
+  const kSit = g('kb-situacao') ? g('kb-situacao').value : '';
+  const kSemPA = kSit==='sem_pa';
+  const kAnd = kSit==='and' || kSit==='and_ret';
   // Concluídas: respeita o filtro de mês (reflete o desempenho do período analisado).
   // Se o filtro estiver em "Todos" (km vazio), usa o mês atual como padrão — mostrar
   // as 1000+ concluídas históricas de uma vez não é útil nem foi o comportamento
@@ -9540,6 +9550,13 @@ function renderKanban(){
       if(km && GM(r.dt_carg)!==km) return;
       cols.verde.push(r); return;
     }
+    if(kAnd){
+      if(s!=='amarelo') return;                       // como sempre, Em Andamento não é filtrado por mês
+      var _ret = kbTemRetornoPendente(r);
+      if(kSit==='and' && _ret) return;
+      if(kSit==='and_ret' && !_ret) return;
+      cols.amarelo.push(r); return;
+    }
     if(s==='verde'){
       if(kmConcluidas&&GM(r.dt_carg)!==kmConcluidas)return; // concluídas só do mês selecionado (ou do mês atual, se "Todos")
     }
@@ -9549,7 +9566,8 @@ function renderKanban(){
   Object.keys(cols).forEach(col=>{cols[col].sort((a,b)=>(b.dt_carg||'').localeCompare(a.dt_carg||''));});
   ['verde','amarelo','vermelho'].forEach(col=>{
     g(`kb-count-${col}`).textContent=cols[col].length;
-    g(`kb-${col}`).innerHTML=cols[col].length===0?'<div class="empty-col">'+(kSemPA&&col!=='verde'?'Filtro “Só concluídas sem frete PA” ativo':'Nenhuma viagem')+'</div>':cols[col].map(r=>renderKanbanCard(r,col)).join('');
+    var _filtroOutraCol = (kSemPA && col!=='verde') || (kAnd && col!=='amarelo');
+    g(`kb-${col}`).innerHTML=cols[col].length===0?'<div class="empty-col">'+(_filtroOutraCol?'Filtro de situação “'+g('kb-situacao').options[g('kb-situacao').selectedIndex].text+'” ativo':'Nenhuma viagem')+'</div>':cols[col].map(r=>renderKanbanCard(r,col)).join('');
   });
   const tot=cols.verde.length+cols.amarelo.length+cols.vermelho.length;
   const sumBar=g('kanban-summary');
@@ -9622,7 +9640,16 @@ function kbSalvarPA(idx){
   renderAll(); renderKanban(); renderRecs();
   toast('✅ Frete PA de '+r.placa+' informado: '+R(r.vl_ent)+'. Pendência removida.','success');
 }
-function kbToggleSemPA(v){ var el=g('kb-sem-pa'); if(el){ el.checked=!!v; } renderKanban(); }
+function kbToggleSemPA(v){ var el=g('kb-situacao'); if(el){ el.value = v ? 'sem_pa' : ''; } renderKanban(); }
+// (19/11) Viagem em andamento que ainda tem frete retorno por fechar: perna aberta,
+// aguardando informações ou pronta para fechar; ou, em registro antigo sem pernas,
+// retorno "Sim" com dados de retorno incompletos.
+function kbTemRetornoPendente(r){
+  if(viagemPernasPendentes(r).length) return true;
+  if(r.retorno==='Sim' && !(Array.isArray(r.fretes_retorno) && r.fretes_retorno.length))
+    return !(r.dest_ret_cidade && r.dest_ret_uf && r.tipo_ret && r.peso_ret>0 && r.vl_ton>0);
+  return false;
+}
 function renderKanbanCard(r, col){
   const idx = DB.indexOf(r);
   const {e1, e2, e1ok, e2ok} = tripFields(r);
@@ -10640,7 +10667,7 @@ const resetFilters=()=>{
   updatePlacaOptions(''); // reset placa options to all
   renderAll();
 };
-const resetKbFilters=()=>{['kb-mes','kb-cat','kb-placa'].forEach(id=>g(id).value='');if(g('kb-sem-pa'))g('kb-sem-pa').checked=false;renderKanban();};
+const resetKbFilters=()=>{['kb-mes','kb-cat','kb-placa'].forEach(id=>g(id).value='');if(g('kb-situacao'))g('kb-situacao').value='';renderKanban();};
 // ── Debounce: evita múltiplas renderizações em sequência ────
 var _renderAllTimer = null;
 // ── Performance Operacional de Viagens ──────────────────────
@@ -11307,6 +11334,13 @@ function validateEtapa1(){
     // Frete Próprio: validações originais dos campos de origem/destino + Km Saída e Km Exato,
     // que passam a ser obrigatórios (base para o cálculo de custo real por viagem).
     fields=fields.concat([['fi-orig-cidade','Cidade Origem'],['fi-orig-uf','UF Origem'],['fi-dest-cidade','Cidade Destino'],['fi-dest-uf','UF Destino'],['fi-kmg','Grupo KM'],['fi-km-saida','KM de Saída'],['fi-km','KM Exato'],['fi-motorista','Motorista']]);
+    // (19/11) Importação de NFs: decisão da operação — pode gravar sem Km Saída e sem
+    // motorista (como a importação de planilha); a conferência avisa e eles são
+    // completados depois na própria viagem.
+    if(window._nfEtapa1Flex===true){
+      fields = fields.filter(function(f){ return f[0]!=='fi-km-saida' && f[0]!=='fi-motorista'; });
+      ['fi-km-saida','fi-motorista'].forEach(function(id){ var el=g(id); if(el) el.classList.remove('err'); });
+    }
   }
   let ok=true;
   fields.forEach(([id])=>{const el=g(id);if(el&&!el.value.trim()){el.classList.add('err');ok=false;}else if(el)el.classList.remove('err');});
@@ -11871,7 +11905,7 @@ async function nfLoteImportar(files){
     });
     if(box) box.innerHTML='⏳ Lendo notas fiscais… '+(i+1)+'/'+files.length+' arquivo(s) · '+NF_LOTE.length+' NF(s)';
   }
-  clearForm(); nfLimparDestaques();
+  clearForm(); nfLimparDestaques(); if(g('fi-nf')) g('fi-nf').value='';
   nfLoteConsolidar();
   // NF repetida no próprio lote ou já lançada
   var vistas={};
@@ -11882,8 +11916,260 @@ async function nfLoteImportar(files){
     r.repetidaNoLote = ns.some(function(n){ return vistas[n]; }); ns.forEach(function(n){ vistas[n]=1; }); });
   nfLoteRender();
 }
-function nfLoteFaltas(r){ return Object.keys(NF_OBRIG).filter(function(id){ return !String(r.v[id]||'').trim(); }).map(function(id){ return NF_OBRIG[id]; }); }
-function nfLoteRender(){
+function nfLoteFaltas(r){ return Object.keys(NF_OBRIG).filter(function(id){ return id!=='fi-km-saida' && id!=='fi-motorista' && !String(r.v[id]||'').trim(); }).map(function(id){ return NF_OBRIG[id]; }); }
+// ══ (19/11) CONFERÊNCIA DA IMPORTAÇÃO DE NOTAS FISCAIS — padrão Coleta de MP ═══
+// Mesma tela, status e lógica da importação de Coleta de MP. Leitura das NFs,
+// junção da mesma carga (placa+motorista+data) e gravação continuam as mesmas:
+// cada viagem é gravada pelo saveEtapa1 (mesmo registro do lançamento manual).
+var NFCONF = {filtro:'todas', editando:-1};
+var NF_UFS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
+function nfConfEsc(x){ return String(x==null?'':x).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+function nfConfNfs(sv){ return String(sv||'').split(/\s*\/\s*/).map(function(x){ return x.replace(/^0+/,'').trim(); }).filter(Boolean); }
+// Recalcula duplicidade contra a base atual e dentro do lote.
+function nfConfRecalc(){
+  var lancadas={};
+  DB.forEach(function(x){ if(x && !x._excluida) nfConfNfs(x.nf).forEach(function(n){ lancadas[n]=1; }); });
+  var vistas={};
+  NF_LOTE.forEach(function(r){
+    if(!r.v) return;
+    var ns=nfConfNfs(r.v['fi-nf']);
+    if(r.gerada || r.atualizada || r.noFormulario){ ns.forEach(function(n){ vistas[n]=1; }); return; }
+    r.jaLancada = ns.some(function(n){ return lancadas[n]; });
+    r.repetidaNoLote = !r.jaLancada && ns.some(function(n){ return vistas[n]; });
+    ns.forEach(function(n){ vistas[n]=1; });
+    var falta = nfLoteFaltas(r);
+    if(r.sel===undefined) r.sel = !falta.length && !r.jaLancada && !r.repetidaNoLote;
+    if(falta.length || r.jaLancada || r.repetidaNoLote) r.sel = false;
+  });
+}
+function nfConfAvisos(r){
+  // Avisos da leitura da NF que pedem conferência (motorista citado/divergente etc.);
+  // notas só informativas (natureza da operação) e "já lançada" (vira Duplicada) ficam de fora.
+  var a = (r.avisos||[]).filter(function(x){ return /motorista|confira|não encontr|diverg/i.test(x) && !/já está lançada/i.test(x); });
+  if(!String(r.v['fi-motorista']||'').trim()) a.push('Sem motorista — a viagem é gravada e o motorista é informado depois');
+  if(!String(r.v['fi-km-saida']||'').trim()) a.push('Sem Km Saída — informe depois na viagem (sem ele não há km real)');
+  if(!(parseFloat(r.v['fi-vl-entrega'])>0)) a.push('Sem valor do frete — ficará em “Concluídas sem frete PA” ao concluir');
+  if(r.v['fi-placa'] && typeof FROTA_SEED!=='undefined'){
+    var pl = String(r.v['fi-placa']).replace(/[^A-Z0-9]/gi,'').toUpperCase();
+    if(!FROTA_SEED.some(function(x){ return String(x.id).replace(/[^A-Z0-9]/gi,'').toUpperCase()===pl; })) a.push('Placa fora da Gestão de Frota');
+  }
+  return a;
+}
+function nfConfStatus(r){
+  if(r.erro) return {k:'erro', t:'Erro de leitura', bg:'#fee2e2', c:'#991b1b'};
+  if(r.gerada) return {k:'gravada', t:'✅ Gravada', bg:'#dcfce7', c:'#166534'};
+  if(r.atualizada) return {k:'gravada', t:'✅ Atualizada', bg:'#dcfce7', c:'#166534'};
+  if(r.noFormulario) return {k:'gravada', t:'↗ No formulário', bg:'#e0e7ff', c:'#3730a3'};
+  if(r.jaLancada) return {k:'dup', t:'Duplicada?', bg:'#fef3c7', c:'#92400e'};   // já lançada: oferece "Atualizar existente"
+  if(nfLoteFaltas(r).length) return {k:'erro', t:'Corrigir', bg:'#fee2e2', c:'#991b1b'};
+  if(r.repetidaNoLote) return {k:'dup', t:'Duplicada?', bg:'#fef3c7', c:'#92400e'};
+  if(nfConfAvisos(r).length) return {k:'aviso', t:'Conferir', bg:'#fef9c3', c:'#713f12'};
+  return {k:'ok', t:'Pronta', bg:'#dbeafe', c:'#1e40af'};
+}
+function nfConfFechar(){
+  var pend = NF_LOTE.filter(function(r){ return r.v && !r.gerada && !r.atualizada && !r.noFormulario; }).length;
+  var o = g('nfconf-ovl'); if(o) o.remove();
+  nfConfResumo(pend);
+}
+function nfConfDescartar(){
+  var pend = NF_LOTE.filter(function(r){ return r.v && !r.gerada && !r.atualizada && !r.noFormulario; }).length;
+  if(pend && !confirm('Descartar as '+pend+' NF(s) ainda não gravada(s)? As já gravadas continuam salvas.')) return;
+  NF_LOTE=[]; var o = g('nfconf-ovl'); if(o) o.remove(); nfLimparDestaques();
+}
+function nfConfResumo(pend){
+  var box=g('nf-imp-resumo'); if(!box) return;
+  if(!NF_LOTE.length || !pend){ box.style.display='none'; box.innerHTML=''; return; }
+  box.style.display='block';
+  box.innerHTML='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><b style="color:var(--gd);flex:1">📄 '+pend+' nota(s) fiscal(is) ainda em conferência</b>'
+    +'<button type="button" onclick="nfConfRender()" style="padding:7px 14px;background:var(--gd);color:#fff;border:none;border-radius:6px;font-size:11.5px;font-weight:800;cursor:pointer">Abrir conferência</button>'
+    +'<button type="button" onclick="nfConfDescartar()" style="padding:7px 12px;border:1px solid var(--gb);background:#fff;border-radius:6px;font-size:11px;cursor:pointer">Descartar</button></div>';
+}
+function nfConfRender(){
+  nfConfRecalc();
+  var box=g('nf-imp-resumo'); if(box){ box.style.display='none'; box.innerHTML=''; }
+  var o = g('nfconf-ovl');
+  if(!o){
+    o=document.createElement('div'); o.id='nfconf-ovl';
+    o.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:10040;display:flex;align-items:center;justify-content:center;padding:14px';
+    document.body.appendChild(o);
+  }
+  var L = NF_LOTE, st = L.map(nfConfStatus);
+  var cnt = {todas:L.length, ok:0, aviso:0, dup:0, erro:0, gravada:0};
+  st.forEach(function(x){ cnt[x.k]++; });
+  var vis = L.map(function(_,i){ return i; }).filter(function(i){ var k=st[i].k, f=NFCONF.filtro; return f==='todas' || k===f; });
+  var sel = L.filter(function(r){ return r.v && r.sel && !r.gerada && !r.atualizada && !r.noFormulario && !nfLoteFaltas(r).length; });
+  var num = function(x){ var n=parseFloat(String(x||'').replace(',','.')); return isFinite(n)?n:0; };
+  var pesoSel = sel.reduce(function(a,r){ return a+num(r.v['fi-pe']); },0), frSel = sel.reduce(function(a,r){ return a+num(r.v['fi-vl-entrega']); },0);
+  var chip = function(k, rot, n, cor){ var on = NFCONF.filtro===k;
+    return '<button type="button" onclick="NFCONF.filtro=\''+k+'\';NFCONF.editando=-1;nfConfRender()" style="padding:5px 11px;border-radius:14px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid '+(on?cor:'#d1d5db')+';background:'+(on?cor:'#fff')+';color:'+(on?'#fff':'#374151')+'">'+rot+' <b>'+n+'</b></button>'; };
+  var th = 'padding:8px;text-align:left;font-size:10px;font-weight:800;color:#024f2b;text-transform:uppercase;letter-spacing:.3px;white-space:nowrap;background:#f0f5ec;position:sticky;top:0;z-index:1';
+  var td = 'padding:8px;font-size:11.5px;color:#1f2937;white-space:nowrap;border-top:1px solid #eef0ea;vertical-align:top';
+  var btnS = 'padding:5px 9px;border-radius:5px;font-size:10.5px;font-weight:700;cursor:pointer;white-space:nowrap;';
+  var corpo = vis.map(function(i){
+    var r = L[i], s2 = st[i], bg = (s2.k==='gravada')?'#f7fdf9':(s2.k==='erro'?'#fffafa':'#fff');
+    if(r.erro) return '<tr style="background:#fffafa"><td style="'+td+'"></td><td style="'+td+'"><span style="display:inline-block;padding:2px 8px;border-radius:9px;font-size:10px;font-weight:800;background:'+s2.bg+';color:'+s2.c+'">'+s2.t+'</span></td><td colspan="9" style="'+td+';white-space:normal;color:#991b1b">'+nfConfEsc(r.arquivo)+': '+nfConfEsc(r.erro)+'</td><td style="'+td+'"></td></tr>';
+    var v = r.v, falta = nfLoteFaltas(r), av = nfConfAvisos(r), fechada = s2.k==='gravada';
+    var dupTxt = r.jaLancada ? 'NF já lançada na plataforma' : (r.repetidaNoLote ? 'NF repetida neste lote' : '');
+    var pend = falta.map(function(x){ return '<div style="color:#991b1b">✖ Falta '+nfConfEsc(x)+'</div>'; }).join('')
+      + (dupTxt && !fechada ? '<div style="color:#92400e">⚠ '+dupTxt+'</div>' : '')
+      + av.map(function(x){ return '<div style="color:#6b7280">• '+x+'</div>'; }).join('');
+    var acoes = fechada ? '' : '<div style="display:flex;flex-direction:column;gap:4px">'
+      + '<div style="display:flex;gap:4px"><button type="button" onclick="NFCONF.editando='+(NFCONF.editando===i?-1:i)+';nfConfRender()" style="'+btnS+'border:1px solid #93c5fd;background:#fff;color:#1e40af">'+(NFCONF.editando===i?'Fechar':'Editar')+'</button>'
+      + (r.jaLancada
+          ? '<button type="button" onclick="nfConfAtualizarExistente('+i+')" title="Atualiza a viagem já lançada com os dados desta NF" style="'+btnS+'border:1px solid #b45309;background:#fff7ed;color:#92400e">Atualizar existente</button>'
+          : '<button type="button" '+(falta.length?'disabled title="Corrija as pendências antes"':'')+' onclick="nfConfGravar(['+i+'])" style="'+btnS+'border:1px solid #024f2b;background:'+(falta.length?'#e5e7eb':'#024f2b')+';color:'+(falta.length?'#9ca3af':'#fff')+';cursor:'+(falta.length?'not-allowed':'pointer')+'">Gravar</button>')
+      + '</div>'
+      + (r.grupo ? '<button type="button" onclick="nfLoteSeparar('+i+')" style="'+btnS+'border:1px solid #d1d5db;background:#fff;color:#374151">Separar NFs</button>' : '<button type="button" onclick="nfConfNoFormulario('+i+')" title="Carrega esta NF no formulário de Saída para completar à mão" style="'+btnS+'border:1px solid #d1d5db;background:#fff;color:#374151">Abrir no formulário</button>')
+      + '</div>';
+    var linha = '<tr style="background:'+bg+'">'
+      + '<td style="'+td+'"><input type="checkbox" '+(r.sel&&!fechada&&!falta.length?'checked':'')+(fechada||falta.length?' disabled':'')+' onchange="NF_LOTE['+i+'].sel=this.checked;if(!this.checked)NF_LOTE['+i+']._desmarcadaManual=true;nfConfRender()" style="width:15px;height:15px;accent-color:#024f2b"></td>'
+      + '<td style="'+td+'"><span style="display:inline-block;padding:2px 8px;border-radius:9px;font-size:10px;font-weight:800;background:'+s2.bg+';color:'+s2.c+'">'+s2.t+'</span></td>'
+      + '<td style="'+td+';font-weight:800;color:#024f2b">'+nfConfEsc(v['fi-nf']||'—')+(r.grupo?'<div style="font-size:10px;font-weight:700;color:#1d4ed8">🔗 '+r.grupo.length+' NFs · mesma carga</div>':'')+'</td>'
+      + '<td style="'+td+'"><span style="font-family:\'DM Mono\',monospace;font-weight:800;color:#024f2b">'+nfConfEsc(v['fi-placa']||'—')+'</span><div style="font-size:10.5px;color:#6b7280">'+nfConfEsc(v['fi-cat']||'sem categoria')+'</div></td>'
+      + '<td style="'+td+'">'+nfConfEsc(v['fi-motorista']||'—')+'</td>'
+      + '<td style="'+td+';white-space:normal;min-width:170px">'+nfConfEsc(v['fi-cliente']||'—')+'<div style="color:#6b7280;font-size:10.5px">→ <b>'+nfConfEsc(v['fi-dest-cidade']||'?')+'</b>/'+nfConfEsc(v['fi-dest-uf']||'?')+'</div></td>'
+      + '<td style="'+td+'">'+(v['fi-dtc']?v['fi-dtc'].split('-').reverse().join('/'):'—')+'</td>'
+      + '<td style="'+td+';text-align:right">'+(num(v['fi-pe'])>0?N(num(v['fi-pe']),0)+' kg':'—')+'</td>'
+      + '<td style="'+td+';text-align:right;font-weight:700">'+(num(v['fi-vl-entrega'])>0?R(num(v['fi-vl-entrega'])):'—')+'</td>'
+      + '<td style="'+td+';text-align:right">'+(num(v['fi-km'])>0?N(num(v['fi-km']),0)+' km':'—')+'<div style="font-size:10.5px;color:#6b7280">saída '+(v['fi-km-saida']?N(num(v['fi-km-saida']),0):'—')+'</div></td>'
+      + '<td style="'+td+';white-space:normal;min-width:200px;font-size:10.5px;line-height:1.45">'+(pend||'<span style="color:#166534">Sem pendências</span>')+'</td>'
+      + '<td style="'+td+';position:sticky;right:0;background:'+bg+';box-shadow:-6px 0 8px -6px rgba(0,0,0,.15)">'+acoes+'</td></tr>';
+    if(NFCONF.editando===i) linha += '<tr><td colspan="12" style="padding:0;border-top:1px solid #eef0ea">'+nfConfFormEdicao(i)+'</td></tr>';
+    return linha;
+  }).join('');
+  o.innerHTML = '<div style="background:#fff;border-radius:10px;width:100%;max-width:1320px;max-height:94vh;display:flex;flex-direction:column;box-shadow:0 12px 44px rgba(0,0,0,.28);overflow:hidden;font-family:Inter,sans-serif">'
+    + '<div style="background:#024f2b;color:#fff;padding:13px 20px;display:flex;align-items:center;gap:12px"><div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:800">📄 Conferência — Importação de Notas Fiscais (PA)</div>'
+    + '<div style="font-size:11px;opacity:.85">'+L.length+' viagem(ns) a partir das NFs lidas'+(L.some(function(r){return r.grupo;})?' · NFs da mesma placa, motorista e data foram juntadas numa viagem':'')+'</div></div>'
+    + '<button type="button" onclick="nfConfFechar()" title="Fechar (as NFs não gravadas continuam disponíveis)" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:6px;width:30px;height:30px;font-size:15px;cursor:pointer">✕</button></div>'
+    + '<div style="padding:12px 20px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;border-bottom:1px solid #eef0ea;background:#fafaf8">'
+      + chip('todas','Todas',cnt.todas,'#024f2b') + chip('ok','Prontas',cnt.ok,'#1e40af') + chip('aviso','Conferir',cnt.aviso,'#a16207')
+      + chip('dup','Duplicadas',cnt.dup,'#b45309') + chip('erro','Corrigir',cnt.erro,'#dc2626') + chip('gravada','Gravadas',cnt.gravada,'#166534')
+      + '<div style="flex:1"></div><div style="font-size:10.5px;color:#6b7280;max-width:520px;line-height:1.4">Nada é gravado até você confirmar. Linhas com <b style="color:#991b1b">Corrigir</b> precisam de edição; <b style="color:#92400e">Duplicadas</b> já existem na plataforma e vêm desmarcadas (dá para atualizar a viagem existente).</div>'
+    + '</div>'
+    + '<div style="overflow:auto;flex:1"><table style="width:100%;border-collapse:collapse"><thead><tr>'
+      + ['','Status','NF','Placa','Motorista','Cliente / Destino','Carreg.','Peso','Frete','Km','Pendências',''].map(function(h,k,arr){ return '<th style="'+th+(k===arr.length-1?';right:0;z-index:2':'')+'">'+h+'</th>'; }).join('')
+    + '</tr></thead><tbody>'+(corpo||'<tr><td colspan="12" style="padding:30px;text-align:center;color:#9ca3af;font-size:12px">Nenhuma NF neste filtro</td></tr>')+'</tbody></table></div>'
+    + '<div style="padding:12px 20px;border-top:1px solid #eef0ea;display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#fafaf8">'
+      + '<div style="font-size:12px;color:#374151"><b>'+sel.length+'</b> selecionada'+(sel.length!==1?'s':'')+' · '+N(pesoSel/1000,1)+' t · <b>'+R(frSel)+'</b></div><div style="flex:1"></div>'
+      + '<button type="button" onclick="nfConfDescartar()" style="padding:9px 14px;border-radius:6px;border:1px solid #fecaca;background:#fff;color:#991b1b;font-size:12px;font-weight:700;cursor:pointer">Descartar</button>'
+      + '<button type="button" onclick="nfConfFechar()" style="padding:9px 16px;border-radius:6px;border:1px solid #d1d5db;background:#fff;color:#374151;font-size:12px;font-weight:700;cursor:pointer">Fechar</button>'
+      + '<button type="button" '+(sel.length?'':'disabled')+' onclick="nfConfGravarSelecionadas()" style="padding:9px 18px;border-radius:6px;border:none;background:'+(sel.length?'#024f2b':'#9ca3af')+';color:#fff;font-size:12px;font-weight:800;cursor:'+(sel.length?'pointer':'not-allowed')+'">✓ Gravar '+sel.length+' selecionada'+(sel.length!==1?'s':'')+'</button>'
+    + '</div></div>';
+}
+function nfConfFormEdicao(i){
+  var v = NF_LOTE[i].v;
+  var lbl='display:block;font-size:10px;font-weight:800;color:#024f2b;text-transform:uppercase;letter-spacing:.3px;margin-bottom:3px';
+  var inp='width:100%;box-sizing:border-box;padding:7px 8px;border:1px solid #cbd5c0;border-radius:5px;font-size:12px;background:#fff';
+  var campo=function(rot,html){ return '<div style="min-width:0"><label style="'+lbl+'">'+rot+'</label>'+html+'</div>'; };
+  var txt=function(id,extra){ return '<input id="nfconf-e-'+id+'" '+(extra||'')+' style="'+inp+'" value="'+nfConfEsc(v[id]||'')+'">'; };
+  var opt=function(lista,val){ return '<option value="">Selecione…</option>'+lista.map(function(x){ return '<option'+(x===val?' selected':'')+'>'+nfConfEsc(x)+'</option>'; }).join(''); };
+  var cats = g('fi-cat') ? [].slice.call(g('fi-cat').options).map(function(o){ return o.value; }).filter(Boolean) : [];
+  return '<div style="background:#f0f5ec;padding:14px 16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;position:sticky;left:0;width:calc(min(1320px, 100vw - 28px) - 2px);box-sizing:border-box">'
+    + campo('Nº NF', txt('fi-nf'))
+    + campo('Data carregamento', '<input type="date" id="nfconf-e-fi-dtc" style="'+inp+'" value="'+nfConfEsc(v['fi-dtc']||'')+'">')
+    + campo('Placa', txt('fi-placa','list="fi-placa-list"'))
+    + campo('Categoria', '<select id="nfconf-e-fi-cat" style="'+inp+'">'+opt(cats, v['fi-cat'])+'</select>')
+    + campo('Motorista', txt('fi-motorista','list="fi-motorista-list"'))
+    + campo('Cliente', txt('fi-cliente','list="fi-cliente-list"'))
+    + campo('Cidade origem', txt('fi-orig-cidade'))
+    + campo('UF origem', '<select id="nfconf-e-fi-orig-uf" style="'+inp+'">'+opt(NF_UFS, v['fi-orig-uf'])+'</select>')
+    + campo('Cidade destino', txt('fi-dest-cidade'))
+    + campo('UF destino', '<select id="nfconf-e-fi-dest-uf" style="'+inp+'">'+opt(NF_UFS, v['fi-dest-uf'])+'</select>')
+    + campo('Km exato (ida)', '<input type="number" id="nfconf-e-fi-km" style="'+inp+'" value="'+nfConfEsc(v['fi-km']||'')+'">')
+    + campo('Km saída (hodômetro)', '<input type="number" id="nfconf-e-fi-km-saida" style="'+inp+'" value="'+nfConfEsc(v['fi-km-saida']||'')+'">')
+    + campo('Peso (kg)', '<input type="number" id="nfconf-e-fi-pe" style="'+inp+'" value="'+nfConfEsc(v['fi-pe']||'')+'">')
+    + campo('Valor do frete (R$)', '<input type="number" step="0.01" id="nfconf-e-fi-vl-entrega" style="'+inp+'" value="'+nfConfEsc(v['fi-vl-entrega']||'')+'">')
+    + '<div style="display:flex;align-items:flex-end"><button type="button" onclick="nfConfAplicarEdicao('+i+')" style="flex:1;padding:8px 12px;border-radius:5px;border:none;background:#024f2b;color:#fff;font-size:11.5px;font-weight:800;cursor:pointer">Aplicar</button></div>'
+    + '</div>';
+}
+function nfConfAplicarEdicao(i){
+  ['fi-nf','fi-dtc','fi-placa','fi-cat','fi-motorista','fi-cliente','fi-orig-cidade','fi-orig-uf','fi-dest-cidade','fi-dest-uf','fi-km','fi-km-saida','fi-pe','fi-vl-entrega'].forEach(function(id){
+    var el = g('nfconf-e-'+id); if(!el) return;
+    if(String(NF_LOTE[i].v[id]||'') !== String(el.value)) nfLoteSetCampo(i, id, el.value);
+  });
+  var r = NF_LOTE[i]; r.sel = undefined; r._desmarcadaManual = false;
+  NFCONF.editando = -1;
+  nfConfRender();
+}
+function nfConfNoFormulario(i){
+  var r = NF_LOTE[i]; if(!r || !r.v) return;
+  if(r.grupo){ toast('Separe as NFs antes de abrir uma no formulário','error'); return; }
+  clearForm();
+  NF_CAMPOS.forEach(function(id){ var e=g(id); if(e) e.value=r.v[id]||''; });
+  var vf=g('fi-vl-entrega'); if(vf && vf.value) vf.dispatchEvent(new Event('input',{bubbles:true}));
+  r.noFormulario = true; r.sel = false;
+  nfConfFechar();
+  try{ g('fi-placa').scrollIntoView({behavior:'smooth', block:'center'}); }catch(e){}
+  toast('NF '+(r.v['fi-nf']||'')+' carregada no formulário — complete e clique em “Salvar Etapa 1”.','success');
+}
+function nfConfGravarSelecionadas(){
+  var idx=[]; NF_LOTE.forEach(function(r,i){ if(r.v && r.sel && !r.gerada && !r.atualizada && !r.noFormulario && !nfLoteFaltas(r).length) idx.push(i); });
+  if(!idx.length) return;
+  var semKm = idx.filter(function(i){ var v=NF_LOTE[i].v; return !String(v['fi-km-saida']||'').trim() || !String(v['fi-motorista']||'').trim(); }).length;
+  if(!confirm('Gravar '+idx.length+' viagem(ns) a partir das NFs conferidas?'+(semKm?'\n\n'+semKm+' sem Km Saída e/ou motorista — serão completadas depois na viagem.':''))) return;
+  nfConfGravar(idx, true);
+}
+function nfConfGravar(ids, jaConfirmado){
+  if(window._nfConfGravando) return;
+  nfConfRecalc();
+  var lista = ids.filter(function(i){ var r=NF_LOTE[i]; return r && r.v && !r.gerada && !r.atualizada && !r.noFormulario && !nfLoteFaltas(r).length; });
+  if(!lista.length){ toast('Nada para gravar — confira as pendências','error'); nfConfRender(); return; }
+  if(!jaConfirmado && lista.length===1 && (NF_LOTE[lista[0]].jaLancada || NF_LOTE[lista[0]].repetidaNoLote)){
+    if(!confirm('Esta NF parece já estar lançada ou repetida neste lote. Gravar mesmo assim?')) return;
+  }
+  window._nfConfGravando = true;
+  var confirmOrig=window.confirm, criadas=0, falhas=[];
+  window.confirm=function(){ return true; }; // mesma placa no mesmo dia: já sinalizado na conferência
+  try{
+    lista.forEach(function(i){
+      var r = NF_LOTE[i];
+      clearForm();
+      NF_CAMPOS.forEach(function(id){ var e=g(id); if(e) e.value=r.v[id]||''; });
+      var vf=g('fi-vl-entrega'); if(vf && vf.value) vf.dispatchEvent(new Event('input',{bubbles:true}));
+      var antes=DB.length;
+      window._saveEtapa1EmAndamento=false;
+      window._nfObsPendente = r.obs || '';
+      window._nfEtapa1Flex = true;
+      try{ saveEtapa1(); } finally { window._nfObsPendente=''; window._nfEtapa1Flex=false; }
+      if(DB.length>antes){ criadas++; r.gerada=true; r.sel=false; } else falhas.push(r.v['fi-nf']||r.arquivo);
+    });
+  } finally { window.confirm=confirmOrig; window._saveEtapa1EmAndamento=false; clearForm(); nfLimparDestaques(); if(g('fi-nf')) g('fi-nf').value=''; setTimeout(function(){ window._nfConfGravando=false; }, 400); }
+  try{ if(window.FB_SYNC && FB_SYNC.registrarLog) FB_SYNC.registrarLog('Gerou viagens por importação de NFs', criadas+' viagens'+(falhas.length?' · falharam: '+falhas.join(', '):'')); }catch(e){}
+  toast(criadas+' viagem(ns) gravada(s) a partir das NFs'+(falhas.length?' · '+falhas.length+' não salva(s): '+falhas.join(', '):'')+(criadas?' ✅':''), falhas.length?'warning':'success');
+  nfConfRender();
+}
+// Atualizar a viagem já lançada com a mesma NF (como a reimportação da planilha):
+// destino, cliente, km, peso e frete da NF; Km Saída e motorista só se estiverem vazios.
+function nfConfAtualizarExistente(i){
+  var r = NF_LOTE[i]; if(!r || !r.v) return;
+  var ns = nfConfNfs(r.v['fi-nf']);
+  var alvo = DB.filter(function(x){ return x && !x._excluida && nfConfNfs(x.nf).some(function(n){ return ns.indexOf(n)>=0; }); });
+  if(alvo.length!==1){ toast(alvo.length ? 'Mais de uma viagem tem essa NF ('+alvo.map(function(x){ return x.placa+' '+FD(x.dt_carg); }).join(', ')+') — atualize manualmente.' : 'Viagem com essa NF não encontrada.','error'); return; }
+  var x = alvo[0], v = r.v, num=function(s){ var n=parseFloat(String(s||'').replace(',','.')); return isFinite(n)?n:0; };
+  var novo = {destino_cidade:String(v['fi-dest-cidade']||'').toUpperCase(), destino_uf:v['fi-dest-uf']||'', cliente:v['fi-cliente']||'',
+    km:num(v['fi-km']), km_grupo:parseInt(v['fi-kmg'])||x.km_grupo, peso_ent:num(v['fi-pe']), vl_ent:num(v['fi-vl-entrega'])};
+  var mud = [];
+  var rot = {destino_cidade:'Destino', destino_uf:'UF destino', cliente:'Cliente', km:'Km exato', km_grupo:'Grupo km', peso_ent:'Peso', vl_ent:'Frete'};
+  Object.keys(novo).forEach(function(k){ if(String(x[k]==null?'':x[k])!==String(novo[k]) && !(novo[k]===''||novo[k]===0)) mud.push(rot[k]+': '+(x[k]||'—')+' → '+novo[k]); });
+  if(!x.km_saida && num(v['fi-km-saida'])>0) mud.push('Km Saída: — → '+v['fi-km-saida']);
+  if(!x.motorista && v['fi-motorista']) mud.push('Motorista: — → '+v['fi-motorista']);
+  if(!mud.length){ r.atualizada = true; r.sel=false; toast('A viagem '+x.placa+' '+FD(x.dt_carg)+' já está igual à NF — nada a atualizar.','success'); nfConfRender(); return; }
+  if(!confirm('Atualizar a viagem '+x.placa+' de '+FD(x.dt_carg)+(tripStatus(x)==='verde'?' (já CONCLUÍDA)':'')+' com os dados desta NF?\n\n'+mud.join('\n'))) return;
+  Object.keys(novo).forEach(function(k){ if(!(novo[k]===''||novo[k]===0)) x[k]=novo[k]; });
+  x.destino = x.destino_cidade+(x.destino_uf?'-'+x.destino_uf:'');
+  var kmLow = (x.km_grupo-1)*100; x.km_grupo_label = 'GRUPO '+x.km_grupo+' ('+kmLow+' a '+(kmLow+99)+')';
+  x.vton_ent = freteVtonDe(x.vl_ent, x.peso_ent)||0;
+  if(!x.km_saida && num(v['fi-km-saida'])>0) x.km_saida = num(v['fi-km-saida']);
+  if(!x.motorista && v['fi-motorista']) x.motorista = String(v['fi-motorista']).toUpperCase();
+  save(); try{ renderAll(); renderKanban(); renderRecs(); }catch(e){}
+  if(typeof finRefreshSeVisivel==='function') finRefreshSeVisivel();
+  try{ if(window.FB_SYNC && FB_SYNC.registrarLog) FB_SYNC.registrarLog('Viagem atualizada pela importação de NF', x.placa+' '+FD(x.dt_carg)+' · NF '+v['fi-nf']+' · '+mud.join(' | ')); }catch(e){}
+  r.atualizada = true; r.sel = false;
+  toast('✅ Viagem '+x.placa+' '+FD(x.dt_carg)+' atualizada com a NF '+v['fi-nf'],'success');
+  nfConfRender();
+}
+function nfLoteRender(){ nfConfRender(); }
+function nfLoteRenderAntigo(){
   var box=g('nf-imp-resumo'); if(!box) return;
   var fR=function(v){ v=parseFloat(v); return v>0?'R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'—'; };
   var inp=function(i,id,w,lista){ var v=NF_LOTE[i].v[id]||''; var falta=!String(v).trim();
@@ -11923,8 +12209,9 @@ function nfLoteSelCategoria(i){
     + '<option value="">'+(v?'':'⚠ Categoria…')+'</option>'
     + cats.map(function(c){ return '<option'+(c===v?' selected':'')+'>'+c+'</option>'; }).join('') + '</select>';
 }
-function nfLoteEditar(i, id, val){
-  var r=NF_LOTE[i]; r.v[id]= id==='fi-cat' ? String(val).trim() : String(val).toUpperCase().trim();
+function nfLoteEditar(i, id, val){ nfLoteSetCampo(i, id, val); nfLoteRender(); }
+function nfLoteSetCampo(i, id, val){
+  var r=NF_LOTE[i]; r.v[id]= (id==='fi-cat' || id==='fi-dtc') ? String(val).trim() : String(val).toUpperCase().trim();
   // (13/11) Categoria e motorista informados aqui ficam guardados para a placa e
   // preenchem as outras linhas da mesma placa que estejam vazias.
   var _pl = placaMemNorm(r.v['fi-placa']);
@@ -11944,7 +12231,6 @@ function nfLoteEditar(i, id, val){
   if(id==='fi-km' && typeof freteGrupoDeIda==='function' && parseFloat(val)>0) r.v['fi-kmg']=String(freteGrupoDeIda(parseFloat(val)));
   if(id==='fi-placa' && typeof FROTA_SEED!=='undefined'){ var p=r.v[id].replace(/-/g,''); var fv=FROTA_SEED.find(function(x){ return x.id.replace(/-/g,'').toUpperCase()===p; }); if(fv && typeof frotaMapTipoParaCategoria==='function') r.v['fi-cat']=frotaMapTipoParaCategoria(fv.tipo)||r.v['fi-cat']; if(!r.v['fi-cat']){ var _mc=placaMemGet(p); if(_mc && _mc.cat) r.v['fi-cat']=_mc.cat; } }
   var falta=nfLoteFaltas(r); if(!falta.length && !r.jaLancada && !r.repetidaNoLote && r.sel===false && !r._desmarcadaManual) r.sel=true;
-  nfLoteRender();
 }
 function nfLoteContar(){ var n=NF_LOTE.filter(function(r){ return r.sel && r.v; }).length; var b=g('nf-lote-gerar'); if(b){ b.textContent='Gerar '+n+' '+(n===1?'viagem':'viagens'); b.disabled=!n; b.style.opacity=n?1:.5; } }
 function nfLoteGerar(){
@@ -11973,7 +12259,7 @@ function nfLoteGerar(){
   toast(criadas+' viagem(ns) gerada(s) a partir das NFs'+(falhas.length?' · '+falhas.length+' não salva(s): '+falhas.join(', '):'')+' ✅', falhas.length?'warning':'success');
 }
 
-function nfImportarVarios(files){ files=Array.prototype.slice.call(files||[]); if(!files.length) return; if(files.length===1) nfImportarArquivo(files[0]); else nfLoteImportar(files); }
+function nfImportarVarios(files){ files=Array.prototype.slice.call(files||[]); if(!files.length) return; nfLoteImportar(files); }
 function nfDropInit(){
   var z=g('nf-drop'); if(!z || z._nfInit) return; z._nfInit=true;
   ['dragenter','dragover'].forEach(function(ev){ z.addEventListener(ev,function(e){ e.preventDefault(); z.classList.add('nf-drag'); }); });
