@@ -6250,6 +6250,18 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
   </div>
   </div>
   <div id="subpanel-frete-terceiros-lanc" style="display:none;flex-direction:column;gap:16px">
+  <!-- (24/11) Importação de fretes terceiros fechados (planilha) -->
+  <div id="ftimp-card" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:var(--wh);border:1px dashed var(--gb);border-radius:10px;padding:12px 18px"
+       ondragover="event.preventDefault();this.style.borderColor='var(--gd)'" ondragleave="this.style.borderColor=''" ondrop="event.preventDefault();this.style.borderColor='';ftImpLerArquivo(event.dataTransfer.files&&event.dataTransfer.files[0])">
+    <div style="font-size:22px;line-height:1">📥</div>
+    <div style="flex:1;min-width:220px">
+      <div style="font-size:12.5px;font-weight:800;color:var(--gd)">Importar fretes fechados (planilha)</div>
+      <div style="font-size:10.5px;color:var(--txl)">Arraste o .xlsx aqui ou clique em Importar. Os fretes são conferidos antes de gravar; o saving (Valor Tabela − Valor Fechado) é calculado por carga.</div>
+    </div>
+    <button type="button" onclick="ftImpEscolher()" style="padding:8px 16px;background:var(--gd);color:#fff;border:none;border-radius:6px;font-size:11.5px;font-weight:800;cursor:pointer">Importar planilha</button>
+    <button type="button" onclick="ftImpBaixarModelo()" style="padding:8px 12px;background:#fff;color:var(--gd);border:1px solid var(--gb);border-radius:6px;font-size:11.5px;font-weight:700;cursor:pointer">Modelo</button>
+    <input type="file" id="ftimp-file" accept=".xlsx,.xls,.csv" style="display:none" onchange="ftImpLerArquivo(this.files&&this.files[0]);this.value=''">
+  </div>
   <!-- Step indicator -->
   <div style="display:flex;gap:0;background:var(--wh);border:1px solid var(--gb);border-radius:10px;overflow:hidden">
     <div id="ft-etapa-1-btn" onclick="ftTryEtapa1()" style="flex:1;padding:12px 20px;display:flex;align-items:center;gap:10px;cursor:pointer;background:var(--bg-chip);border-bottom:3px solid var(--brand-primary)">
@@ -6320,6 +6332,10 @@ td.grd-today{box-shadow:inset 0 0 0 2px var(--go);background:rgba(115,150,48,.06
         <div class="form-grp"><label class="form-lbl">Saving (%)</label>
           <input type="text" class="form-ctrl" id="ft-sav-pct" readonly tabindex="-1" placeholder="—" style="background:var(--gg);font-weight:800">
           <div id="ft-sav-status" style="font-size:10.5px;font-weight:800;min-height:13px;margin-top:3px"></div></div>
+      </div>
+      <div class="fg g3">
+        <div class="form-grp"><label class="form-lbl">Valor de Tabela informado (R$) <span style="font-weight:600;text-transform:none;color:var(--txl)">(opcional — substitui o cálculo automático)</span></label>
+          <input type="number" class="form-ctrl" id="ft-vtab-man" min="0" step="0.01" placeholder="Deixe vazio para usar a Tabela de Fretes"></div>
       </div>
       <div class="fg g3" id="ft-kmref-row" style="display:none">
         <div class="form-grp"><label class="form-lbl">Km do destino <span style="font-weight:600;text-transform:none;color:#b45309">(destino não cadastrado na Base de Localidades)</span></label>
@@ -18989,15 +19005,29 @@ function ftSavingLerForm(){
 // R() devolve "—" para zero; no saving, zero é um resultado válido (fechado = tabela).
 function ftRS(v){ v=Math.round((v||0)*100)/100; return (v>0?'+':'')+'R$ '+N(v,2); }
 function ftSavingFmtPct(p){ return (p>=0?'+':'')+N(p,1)+'%'; }
+// (24/11) Valor de Tabela informado à mão no lançamento manual: prevalece sobre a
+// Tabela de Fretes (Precifica). Saving = valor informado − valor fechado.
+function ftVtabManual(){ var e=document.getElementById('ft-vtab-man'); var v=e?parseFloat(e.value):0; return (isFinite(v)&&v>0)?Math.round(v*100)/100:0; }
+function ftSavingComManual(r, man){
+  var peso=parseFloat((document.getElementById('ft-peso')||{}).value)||0;
+  var out={ok:true, manual:true, motivo:'', km:r.km, kmManual:r.kmManual||0, grupo:r.grupo, ton:peso>0?Math.round(man/(peso/1000)*100)/100:0, vtab:man,
+           versaoId:null, versaoNome:'Valor informado', calcAuto:(r&&r.ok)?r.vtab:null, fechado:r.fechado, saving:null, pct:null, status:''};
+  if(out.fechado>0){ out.saving=Math.round((man-out.fechado)*100)/100; out.pct=out.saving/man*100; out.status=out.saving>0.005?'economia':(out.saving<-0.005?'sobrepreco':'igual'); }
+  return out;
+}
 function ftSavingForm(){
   var v=document.getElementById('ft-vtab'); if(!v) return null;
-  var r=ftSavingLerForm(), hint=document.getElementById('ft-vtab-hint'), rs=document.getElementById('ft-sav-rs'), pc=document.getElementById('ft-sav-pct'), st=document.getElementById('ft-sav-status'), row=document.getElementById('ft-kmref-row');
+  var r=ftSavingLerForm(); var _man=ftVtabManual(); if(_man>0) r=ftSavingComManual(r,_man);
+  var hint=document.getElementById('ft-vtab-hint'), rs=document.getElementById('ft-sav-rs'), pc=document.getElementById('ft-sav-pct'), st=document.getElementById('ft-sav-status'), row=document.getElementById('ft-kmref-row');
   if(row) row.style.display = (r.motivo==='destino_nao_cadastrado' || r.kmManual>0) ? '' : 'none';
   v.value=''; rs.value=''; pc.value=''; rs.style.color=''; pc.style.color=''; st.textContent=''; st.style.color='';
   var msg={exterior:'Frete exterior — sem valor de tabela', sem_destino:'Informe cidade e UF do destino para buscar a tabela', sem_peso:'Informe o peso para calcular o valor de tabela', destino_nao_cadastrado:'Destino fora da Base de Localidades — informe o Km do destino abaixo', sem_tabela:'Nenhuma Tabela de Fretes cadastrada', sem_valor_grupo:'A Tabela de Fretes não tem valor para o grupo '+r.grupo+' ('+(r.km?N(r.km,0)+' km':'')+') — saving não calculado'};
   if(!r.ok){ hint.style.color=r.motivo==='sem_destino'||r.motivo==='sem_peso'||r.motivo==='exterior'?'var(--txl)':'#b45309'; hint.textContent=msg[r.motivo]||''; window._ftSav=r; return r; }
   v.value=R(r.vtab);
-  hint.style.color='var(--gd)'; hint.textContent=N(r.km,0)+' km · Grupo '+r.grupo+' · R$ '+N(r.ton,2)+'/t × '+N(o_pesoT(),1)+' t · '+r.versaoNome+(r.kmManual?' · Km informado':'');
+  hint.style.color='var(--gd)';
+  hint.textContent = r.manual
+    ? 'Valor informado manualmente'+(r.calcAuto!=null?' · Tabela de Fretes calcularia '+R(r.calcAuto):'')
+    : N(r.km,0)+' km · Grupo '+r.grupo+' · R$ '+N(r.ton,2)+'/t × '+N(o_pesoT(),1)+' t · '+r.versaoNome+(r.kmManual?' · Km informado':'');
   if(r.saving==null){ st.style.color='var(--txl)'; st.textContent='Informe o Valor Total do Frete (fechado) para calcular o saving'; }
   else {
     var cor=r.status==='economia'?'#166534':(r.status==='sobrepreco'?'#991b1b':'var(--txl)');
@@ -19010,8 +19040,8 @@ function o_pesoT(){ var e=document.getElementById('ft-peso'); return (parseFloat
 // Dados gravados no lançamento (instantâneo): permite auditar e não muda se a tabela mudar depois.
 function ftSavingSnapshot(){
   var r=ftSavingForm()||ftSavingLerForm();
-  if(!r || !r.ok) return {vtab:0, vtab_ton:0, vtab_grupo:0, vtab_km:0, vtab_kmmanual:0, vtab_versao:null};
-  return {vtab:r.vtab, vtab_ton:r.ton, vtab_grupo:r.grupo, vtab_km:r.km, vtab_kmmanual:r.kmManual||0, vtab_versao:r.versaoId};
+  if(!r || !r.ok) return {vtab:0, vtab_ton:0, vtab_grupo:0, vtab_km:0, vtab_kmmanual:0, vtab_versao:null, vtab_origem:''};
+  return {vtab:r.vtab, vtab_ton:r.ton, vtab_grupo:r.grupo||0, vtab_km:r.km||0, vtab_kmmanual:r.kmManual||0, vtab_versao:r.versaoId, vtab_origem:r.manual?((window._ftVtabOrigEdicao&&window._ftVtabOrigEdicao.origem==='planilha'&&Math.abs(window._ftVtabOrigEdicao.valor-r.vtab)<0.005)?'planilha':'manual'):'precifica'};
 }
 // Saving de um lançamento já gravado (null quando não há valor de tabela registrado).
 function ftSavingDoRegistro(r){
@@ -19021,7 +19051,7 @@ function ftSavingDoRegistro(r){
   return {saving:s, pct:s/t*100, tabela:t, fechado:f, status:s>0.005?'economia':(s<-0.005?'sobrepreco':'igual')};
 }
 (function(){
-  var ids=['ft-peso','ft-vfr','ft-cid-input','ft-uf-input','ft-kmref','ft-exterior'];
+  var ids=['ft-peso','ft-vfr','ft-cid-input','ft-uf-input','ft-kmref','ft-exterior','ft-vtab-man'];
   var h=function(e){ if(e.target && ids.indexOf(e.target.id)>=0){ try{ ftSavingForm(); }catch(x){} } };
   ['input','change','focusout'].forEach(function(ev){ document.addEventListener(ev,h,true); });
 })();
@@ -19649,6 +19679,372 @@ function ftToggleExterior(){
     var ufEl = document.getElementById('ft-uf-input'); if(ufEl) ufEl.value='';
   }
 }
+// ══ (24/11) IMPORTAÇÃO DE FRETES TERCEIROS FECHADOS ═════════════════════════
+// Planilha (modelo "Modelo") → conferência no padrão da Coleta de MP / NFs →
+// gravação com o MESMO registro do lançamento manual (Etapa 1 + Etapa 2).
+//  · Valor Fechado da planilha = vfr (preservado); R$/t = vfr ÷ t.
+//  · Valor Tabela: da planilha; se vier vazio, calculado pelo Precifica (como no
+//    manual); pode ser digitado na conferência. Origem gravada em vtab_origem.
+//  · Saving = Valor Tabela − Valor Fechado (ftSavingDoRegistro, já consolidado no painel).
+//  · Pagamento: com Data Pagamento (ou Valor Pago) → Pago/Adiantamento como na Etapa 2,
+//    exige Aprovador; sem dados de pagamento → Sem pagamento.
+//  · Duplicidade: NF + transportadora; sem NF, data + placa + cliente + destino + peso.
+//    Existente → "Atualizar existente" com confirmação e Log.
+var FTIMP = {arquivo:'', linhas:[], filtro:'todas', editando:-1, ignoradas:[]};
+var FTIMP_COLS = {
+  dt:['DATA CARREGAMENTO','DATA DE CARREGAMENTO','DATA'],
+  cli:['CLIENTE'],
+  cid:['CIDADE DESTINO','DESTINO','CIDADE'],
+  uf:['UF DESTINO','UF'],
+  car:['TIPO DE CARGA','TIPO CARGA','CARGA'],
+  peso:['PESO (KG)','PESO','PESO KG','PESO BALANCA','PESO BALANCA (KG)'],
+  vtab:['VALOR TABELA (R$)','VALOR TABELA','VALOR DE TABELA','TABELA'],
+  vfr:['VALOR FECHADO (R$)','VALOR FECHADO','VALOR TOTAL','VALOR DO FRETE','VALOR FRETE'],
+  transp:['TRANSPORTADORA'],
+  conj:['PLACA','CONJUNTO'],
+  cat:['CATEGORIA'],
+  mot:['MOTORISTA'],
+  nf:['NF','NOTA FISCAL','N NF'],
+  obs:['OBSERVACAO','OBS'],
+  dt_pgto:['DATA PAGAMENTO','DATA DO PAGAMENTO'],
+  vl_pgto:['VALOR PAGO (R$)','VALOR PAGO'],
+  fmt_pgto:['FORMATO PAGAMENTO','FORMATO'],
+  aprovador:['APROVADOR','QUEM APROVOU']
+};
+var FTIMP_OBRIG = ['dt','cli','cid','peso','vfr'];
+var FTIMP_UFS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
+function ftImpNorm(t){ return String(t==null?'':t).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[*º°]/g,'').replace(/\s+/g,' ').trim(); }
+function ftImpData(v){
+  if(v==null||v==='') return '';
+  if(typeof v==='number'&&isFinite(v)){ var d=new Date(Math.round((v-25569)*86400000)); return isNaN(d)?'':d.toISOString().slice(0,10); }
+  var s2=String(v).trim(), m;
+  if((m=s2.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/))){ var a=m[3].length===2?'20'+m[3]:m[3]; var iso=a+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[1]).slice(-2); return ftImpDataOk(iso)?iso:''; }
+  if((m=s2.match(/^(\d{4})-(\d{2})-(\d{2})/))) return ftImpDataOk(m[0])?m[0]:'';
+  return '';
+}
+function ftImpDataOk(iso){ if(!/^\d{4}-\d{2}-\d{2}$/.test(iso||'')) return false; var d=new Date(iso+'T12:00:00'); return !isNaN(d)&&d.toISOString().slice(0,10)===iso; }
+function ftImpNum(v){
+  if(v==null||v==='') return 0; if(typeof v==='number') return v;
+  var s2=String(v).replace(/R\$/gi,'').replace(/\s/g,'');
+  if(s2.indexOf(',')>=0) s2=s2.replace(/\./g,'').replace(',','.');
+  else if(/^\d{1,3}(\.\d{3})+$/.test(s2)) s2=s2.replace(/\./g,'');
+  var n=parseFloat(s2); return isFinite(n)?n:0;
+}
+function ftImpCategorias(){ var e=document.getElementById('ft-cat-vei'); return e?[].slice.call(e.options).map(function(o){return o.value;}).filter(Boolean):[]; }
+function ftImpCategoria(v){ var k=ftImpNorm(v).replace(/\s/g,''); if(!k) return ''; var l=ftImpCategorias(); for(var i=0;i<l.length;i++){ if(ftImpNorm(l[i]).replace(/\s/g,'')===k) return l[i]; } return null; }
+function ftImpTipoCarga(v){ if(!String(v||'').trim()) return ''; var t=normCarTipo(String(v)); return t==='Matéria Prima'?'MATÉRIA PRIMA':'PRODUTO ACABADO'; }
+function ftImpOpcao(selId, v){ var k=ftImpNorm(v); if(!k) return ''; var e=document.getElementById(selId); var l=e?[].slice.call(e.options).map(function(o){return o.value;}).filter(Boolean):[]; for(var i=0;i<l.length;i++){ if(ftImpNorm(l[i])===k) return l[i]; } return null; }
+function ftImpEscolher(){ var f=document.getElementById('ftimp-file'); if(f){ f.value=''; f.click(); } }
+function ftImpBaixarModelo(){
+  if(typeof XLSX==='undefined'){ toast('Leitor de planilhas não carregado — verifique a internet','error'); return; }
+  var H=['DATA CARREGAMENTO *','CLIENTE *','CIDADE DESTINO *','UF DESTINO *','TIPO DE CARGA','PESO (KG) *','VALOR TABELA (R$)','VALOR FECHADO (R$) *','SAVING (R$)','TRANSPORTADORA','PLACA','CATEGORIA','MOTORISTA','NF','OBSERVAÇÃO','DATA PAGAMENTO','VALOR PAGO (R$)','FORMATO PAGAMENTO','APROVADOR'];
+  var ws=XLSX.utils.aoa_to_sheet([H,['18/11/2026','CLIENTE EXEMPLO LTDA','RIO VERDE','GO','PRODUTO ACABADO',32000,10000,9200,null,'TRANSPORTADORA EXEMPLO','ABC1D23','BITREM','NOME DO MOTORISTA','123456','LINHA DE EXEMPLO — APAGUE ANTES DE IMPORTAR','','','','']]);
+  ws['I2']={t:'n', f:'IF(OR(G2="",H2=""),"",G2-H2)', v:800};
+  ws['!cols']=[16,30,20,10,18,12,16,17,14,26,11,13,24,11,30,15,15,18,13].map(function(w){return {wch:w};});
+  var wi=XLSX.utils.aoa_to_sheet([['Como preencher'],['• Uma linha por frete fechado. Apague a linha de exemplo antes de importar.'],['• Obrigatórias (*): Data Carregamento, Cliente, Cidade e UF Destino, Peso e Valor Fechado.'],['• Valor Tabela = preço de referência; Valor Fechado = valor negociado. Saving = Valor Tabela − Valor Fechado.'],['• Sem Valor Tabela, a plataforma calcula pelo Precifica (destino → km → grupo × toneladas).'],['• Pagamento (opcional): com Data Pagamento e Aprovador o frete entra como Pago; Valor Pago vazio = valor fechado.'],['• Exterior: Cidade Destino = EXTERIOR e UF Destino = EX.'],['• Categorias: TRUCK, BITRUCK, LS, 4° EIXO, BITREM, RODOTREM · Formato: Extratta, NF, Outro · Aprovador: Newton, Vinícius, Outro.']]);
+  wi['!cols']=[{wch:110}];
+  var wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Fretes Terceiros'); XLSX.utils.book_append_sheet(wb,wi,'Instruções');
+  XLSX.writeFile(wb,'MODELO_FRETES_TERCEIROS.xlsx');
+}
+function ftImpLerArquivo(file){
+  if(!file) return;
+  if(typeof XLSX==='undefined'){ toast('Leitor de planilhas não carregado — verifique a internet','error'); return; }
+  var reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      var wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+      var nome=wb.SheetNames.find(function(n){ return ftImpNorm(n)!=='INSTRUCOES'; })||wb.SheetNames[0];
+      ftImpProcessar(XLSX.utils.sheet_to_json(wb.Sheets[nome],{header:1,raw:true,defval:''}), file.name);
+    }catch(err){ toast('Não foi possível ler a planilha: '+err.message,'error'); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+function ftImpProcessar(rows, nomeArq){
+  ftGarantirDB();
+  var hIdx=-1, mapa={};
+  for(var i=0;i<Math.min(rows.length,10)&&hIdx<0;i++){
+    var mp={}, n=0;
+    (rows[i]||[]).forEach(function(c,j){ var k=ftImpNorm(c).replace(/\s*\*$/,''); Object.keys(FTIMP_COLS).forEach(function(campo){ if(mp[campo]==null && FTIMP_COLS[campo].indexOf(k)>=0){ mp[campo]=j; n++; } }); });
+    if(n>=3){ hIdx=i; mapa=mp; }
+  }
+  if(hIdx<0){ toast('Cabeçalho não reconhecido. Use o modelo (botão “Modelo”).','error'); return; }
+  var faltam=FTIMP_OBRIG.filter(function(c){ return mapa[c]==null; });
+  if(faltam.length){ var NM={dt:'Data Carregamento',cli:'Cliente',cid:'Cidade Destino',peso:'Peso',vfr:'Valor Fechado'}; toast('Planilha sem a(s) coluna(s): '+faltam.map(function(c){return NM[c];}).join(', ')+'. Use o modelo.','error'); return; }
+  var ign=[]; (rows[hIdx]||[]).forEach(function(c,j){ var usada=Object.keys(mapa).some(function(k){ return mapa[k]===j; }); var k=ftImpNorm(c); if(!usada && k && k.indexOf('SAVING')<0) ign.push(String(c).trim()); });
+  var linhas=[];
+  for(var r=hIdx+1;r<rows.length;r++){
+    var row=rows[r]||[];
+    if(!row.some(function(c){ return String(c).trim()!==''; })) continue;
+    var get=function(c){ return mapa[c]==null?'':row[mapa[c]]; };
+    if(/LINHA DE EXEMPLO/i.test(String(get('obs')||''))) continue;     // linha de exemplo do modelo
+    var cid=String(get('cid')||'').trim().toUpperCase().replace(/\s+/g,' '), uf=String(get('uf')||'').trim().toUpperCase();
+    var ext = ftImpNorm(cid)==='EXTERIOR' || uf==='EX';
+    var catV=ftImpCategoria(get('cat')), fmtV=ftImpOpcao('ft-fmt-pgto',get('fmt_pgto')), aprV=ftImpOpcao('ft-aprovador',get('aprovador'));
+    var tr=String(get('transp')||'').replace(/\s+/g,' ').trim();
+    var peso=ftImpNum(get('peso')); if(typeof get('peso')==='string' && /^\d+\.\d{3}$/.test(String(get('peso')).trim())) peso=Math.round(parseFloat(get('peso'))*1000);
+    linhas.push({
+      linhaPlanilha:r+1,
+      dt:ftImpData(get('dt')), cli:String(get('cli')||'').trim().toUpperCase().replace(/\s+/g,' '),
+      cid: ext?'EXTERIOR':cid, uf: ext?'':uf, exterior:ext,
+      car:ftImpTipoCarga(get('car')), carOriginal:String(get('car')||'').trim(),
+      peso:Math.round(peso*1000)/1000,
+      vtabPlanilha:Math.round(ftImpNum(get('vtab'))*100)/100, vtabManual:0,
+      vfr:Math.round(ftImpNum(get('vfr'))*100)/100,
+      transp: tr ? (ftTranspCanon(tr)||tr.toUpperCase()) : '', transpNova: tr ? !ftTranspCanon(tr) : false,
+      conj:String(get('conj')||'').toUpperCase().replace(/[^A-Z0-9]/g,''),
+      cat: catV===null?'':catV, catOriginal:String(get('cat')||'').trim(),
+      mot:String(get('mot')||'').trim().toUpperCase().replace(/\s+/g,' '),
+      nf:String(get('nf')==null?'':get('nf')).trim(), obs:String(get('obs')||'').trim(),
+      dt_pgto:ftImpData(get('dt_pgto')), dt_pgtoOriginal:String(get('dt_pgto')||'').trim(),
+      vl_pgto:Math.round(ftImpNum(get('vl_pgto'))*100)/100,
+      fmt_pgto: fmtV===null?'':fmtV, fmtOriginal:String(get('fmt_pgto')||'').trim(),
+      aprovador: aprV===null?'':aprV, aprOriginal:String(get('aprovador')||'').trim(),
+      gravada:false, atualizada:false, incluir:undefined
+    });
+  }
+  if(!linhas.length){ toast('Nenhum frete encontrado na planilha','error'); return; }
+  FTIMP={arquivo:nomeArq, linhas:linhas, filtro:'todas', editando:-1, ignoradas:ign};
+  linhas.forEach(function(_,i){ ftImpValidar(i); });
+  ftImpRender();
+}
+// Valor de tabela efetivo: digitado na conferência > planilha > Precifica.
+function ftImpTabela(l){
+  var calc = ftSavingCalc({cid:l.cid, uf:l.uf, pesoKg:l.peso, fechado:l.vfr, kmRef:'', exterior:l.exterior, versaoId:null});
+  if(l.vtabManual>0) return {valor:l.vtabManual, origem:'manual', calc:calc};
+  if(l.vtabPlanilha>0) return {valor:l.vtabPlanilha, origem:'planilha', calc:calc};
+  if(calc && calc.ok) return {valor:calc.vtab, origem:'precifica', calc:calc};
+  return {valor:0, origem:'', calc:calc};
+}
+function ftImpChave(o){
+  var nf=String(o.nf||'').replace(/^0+/,'').trim();
+  if(nf) return 'NF|'+nf+'|'+ftNormNome(o.transp||o.conj||'');
+  return 'SN|'+o.dt+'|'+String(o.conj||'').replace(/[^A-Z0-9]/gi,'').toUpperCase()+'|'+ftNormNome(o.cli)+'|'+ftNormNome(o.cid)+'|'+String(o.uf||'').toUpperCase()+'|'+Math.round(parseFloat(o.peso)||0);
+}
+function ftImpExistente(l){
+  var k=ftImpChave(l);
+  for(var i=0;i<DB_FT.length;i++){ if(ftImpChave(DB_FT[i])===k) return i; }
+  return -1;
+}
+function ftImpTemPgto(l){ return !!(l.dt_pgto || l.vl_pgto>0 || l.dt_pgtoOriginal); }
+function ftImpValidar(i){
+  var l=FTIMP.linhas[i], e=[], a=[];
+  if(!l.dt) e.push('Data de carregamento inválida');
+  if(!l.cli) e.push('Sem cliente');
+  if(!l.exterior){ if(!l.cid) e.push('Sem cidade de destino'); if(FTIMP_UFS.indexOf(l.uf)<0) e.push(l.uf?'UF inválida':'Sem UF de destino'); }
+  if(!(l.peso>0)) e.push('Sem peso');
+  else if(l.peso<1000) e.push('Peso de '+N(l.peso,1)+' kg parece estar em toneladas — informe em kg (ex.: '+N(Math.round(l.peso*1000),0)+')');
+  if(!(l.vfr>0)) e.push('Sem valor fechado');
+  if(l.peso>=1000 && l.vfr>0 && (l.vfr/(l.peso/1000))>1500) a.push('R$/t muito alto ('+R(l.vfr/(l.peso/1000))+') — confira peso e valor');
+  if(l.catOriginal && !l.cat) e.push('Categoria “'+l.catOriginal+'” não existe no FT');
+  if(ftImpTemPgto(l)){
+    if(l.dt_pgtoOriginal && !l.dt_pgto) e.push('Data de pagamento inválida');
+    if(!l.aprovador) e.push(l.aprOriginal ? 'Aprovador “'+l.aprOriginal+'” não reconhecido' : 'Pagamento sem aprovador');
+    if(l.vl_pgto > l.vfr+0.01) e.push('Valor pago maior que o valor fechado');
+    if(l.fmtOriginal && !l.fmt_pgto) e.push('Formato “'+l.fmtOriginal+'” não reconhecido');
+  }
+  var tb=ftImpTabela(l);
+  if(!tb.valor){ var mot={exterior:'frete Exterior',destino_nao_cadastrado:'destino sem km na Base de Localidades',sem_tabela:'sem tabela ativa',sem_valor_grupo:'grupo de km sem valor na tabela'}[tb.calc&&tb.calc.motivo]||'sem dados para calcular'; a.push('Sem valor de tabela ('+mot+') — saving não será calculado; dá para digitar em Editar'); }
+  else if(tb.origem==='precifica') a.push('Valor de tabela calculado pelo Precifica ('+R(tb.valor)+')');
+  if(!l.transp) a.push('Sem transportadora'); else if(l.transpNova) a.push('Transportadora nova — será cadastrada');
+  if(!l.conj) a.push('Sem placa');
+  if(!l.car) a.push('Sem tipo de carga — conta como “N/C” nos indicadores por tipo');
+  l.tabela=tb;
+  l.existente = (l.gravada||l.atualizada) ? -1 : ftImpExistente(l);
+  l.repetida = false;
+  if(!l.gravada && !l.atualizada){
+    var k=ftImpChave(l);
+    l.repetida = FTIMP.linhas.some(function(o,j){ return j<i && !o.gravada && ftImpChave(o)===k; });
+  }
+  l.erros=e; l.avisos=a;
+  if(l.incluir===undefined) l.incluir = !e.length && l.existente<0 && !l.repetida;
+  if(e.length || l.existente>=0 || l.repetida) l.incluir=false;
+}
+function ftImpStatus(l){
+  if(l.gravada) return {k:'gravada',t:'✅ Gravada',bg:'#dcfce7',c:'#166534'};
+  if(l.atualizada) return {k:'gravada',t:'✅ Atualizada',bg:'#dcfce7',c:'#166534'};
+  if(l.existente>=0) return {k:'dup',t:'Duplicada?',bg:'#fef3c7',c:'#92400e'};
+  if(l.erros.length) return {k:'erro',t:'Corrigir',bg:'#fee2e2',c:'#991b1b'};
+  if(l.repetida) return {k:'dup',t:'Duplicada?',bg:'#fef3c7',c:'#92400e'};
+  if(l.avisos.some(function(x){ return !/calculado pelo Precifica/.test(x); })) return {k:'aviso',t:'Conferir',bg:'#fef9c3',c:'#713f12'};
+  return {k:'ok',t:'Pronta',bg:'#dbeafe',c:'#1e40af'};
+}
+// Registro igual ao do lançamento manual (ftSaveEtapa1 + ftSaveEtapa2).
+function ftImpRegistro(l, base){
+  var tb=ftImpTabela(l), c=tb.calc||{};
+  var adt=0, pg=0, temPg=ftImpTemPgto(l);
+  if(temPg) pg = l.vl_pgto>0 ? l.vl_pgto : l.vfr;
+  var pct = l.vfr>0 ? (adt+pg)/l.vfr : 0;
+  var rec=Object.assign({}, base||{_user:true,dt_adt:'',vl_adt:0,fmt_adt:'',dt_pgto:'',vl_pgto:0,fmt_pgto:'',aprovador:'',status_pgto:'SEM_PGTO'}, {
+    conj:l.conj, cat:l.cat, mot:l.mot, dt:l.dt, mes:l.dt.slice(5,7)+'/'+l.dt.slice(0,4), ano:parseInt(l.dt.slice(0,4)),
+    cli:l.cli, cid:l.cid, uf:l.uf, exterior:l.exterior, car:l.car, peso:l.peso,
+    vton:(freteVtonDe(l.vfr, l.peso)||0), vfr:l.vfr, nf:l.nf, obs:l.obs, transp:l.transp, cnt:'RAGUIFE',
+    vtab:tb.valor||0, vtab_ton:(tb.valor>0&&l.peso>0)?Math.round(tb.valor/(l.peso/1000)*100)/100:0,
+    vtab_grupo:c.grupo||0, vtab_km:c.km||0, vtab_kmmanual:0, vtab_versao:(tb.origem==='precifica'?c.versaoId:null), vtab_origem:tb.origem||'',
+    origem_lanc:'importacao_planilha'
+  });
+  if(temPg || !base){
+    rec.dt_adt=''; rec.vl_adt=0; rec.fmt_adt='';
+    rec.dt_pgto=temPg?(l.dt_pgto||''):''; rec.vl_pgto=pg; rec.fmt_pgto=temPg?l.fmt_pgto:''; rec.aprovador=temPg?l.aprovador:'';
+    rec.status_pgto=(adt+pg)===0?'SEM_PGTO':(pct>=0.99?'PAGO':'ADIANTAMENTO');
+  }
+  ftPrepararIdentidade(rec, base||null);
+  return rec;
+}
+function ftImpPosGravar(transps){
+  ftSaveToDB(); try{ ftPopulateFilters(); ftRenderLancTable(); ftRenderKanban(); }catch(e){}
+  (transps||[]).forEach(function(t){ try{ ftRegistrarTransportadora(t); }catch(e){} });
+  try{ ftRender(); }catch(e){}
+}
+function ftImpGravarSelecionadas(){
+  var idx=[]; FTIMP.linhas.forEach(function(l,i){ if(l.incluir && !l.gravada && !l.atualizada && !l.erros.length && l.existente<0) idx.push(i); });
+  if(!idx.length) return;
+  if(!confirm('Gravar '+idx.length+' frete(s) terceiro(s)?')) return;
+  ftImpGravar(idx, true);
+}
+function ftImpGravar(ids, jaConf){
+  if(window._ftImpGravando) return;
+  FTIMP.linhas.forEach(function(_,j){ ftImpValidar(j); });
+  var ok=ids.filter(function(i){ var l=FTIMP.linhas[i]; return l && !l.gravada && !l.atualizada && !l.erros.length && l.existente<0; });
+  if(!ok.length){ toast('Nada para gravar — confira as pendências','error'); ftImpRender(); return; }
+  if(!jaConf && ok.length===1 && FTIMP.linhas[ok[0]].repetida && !confirm('Este frete está repetido na planilha. Gravar mesmo assim?')) return;
+  window._ftImpGravando=true;
+  try{
+    var transps=[], tot=0, sav=0;
+    ok.forEach(function(i){
+      var l=FTIMP.linhas[i], rec=ftImpRegistro(l, null);
+      DB_FT.unshift(rec); l.gravada=true; l.incluir=false; tot+=rec.vfr; if(rec.vtab>0) sav+=rec.vtab-rec.vfr;
+      if(rec.transp) transps.push(rec.transp);
+    });
+    ftImpPosGravar(transps);
+    try{ if(window.FB_SYNC && FB_SYNC.registrarLog) FB_SYNC.registrarLog('Frete Terceiros — importação de planilha', ok.length+' frete(s) de '+FTIMP.arquivo+' · R$ '+tot.toFixed(2)+' · saving R$ '+sav.toFixed(2)); }catch(e){}
+    toast('✅ '+ok.length+' frete(s) importado(s) · '+R(tot)+' · saving '+(sav>=0?'':'-')+R(Math.abs(sav)),'success');
+  } finally { setTimeout(function(){ window._ftImpGravando=false; },500); }
+  FTIMP.linhas.forEach(function(_,j){ ftImpValidar(j); });
+  ftImpRender();
+}
+function ftImpAtualizarExistente(i){
+  var l=FTIMP.linhas[i]; if(!l || l.existente<0) return;
+  if(l.erros.length){ toast('Corrija as pendências da linha antes de atualizar','error'); return; }
+  var idx=l.existente, base=DB_FT[idx], novo=ftImpRegistro(l, base);
+  var rot={dt:'Data',cli:'Cliente',cid:'Cidade',uf:'UF',car:'Tipo de carga',peso:'Peso',vfr:'Valor fechado',vtab:'Valor tabela',transp:'Transportadora',conj:'Placa',cat:'Categoria',mot:'Motorista',nf:'NF',obs:'Obs.',status_pgto:'Pagamento',vl_pgto:'Valor pago',dt_pgto:'Data pagto',aprovador:'Aprovador'};
+  var mud=Object.keys(rot).filter(function(k){ return String(base[k]==null?'':base[k])!==String(novo[k]==null?'':novo[k]); }).map(function(k){ return rot[k]+': '+(base[k]||'—')+' → '+(novo[k]||'—'); });
+  if(!mud.length){ l.atualizada=true; l.incluir=false; toast('O frete já está igual à planilha — nada a atualizar','success'); ftImpRender(); return; }
+  if(!confirm('Atualizar o frete existente ('+ftResumoRegistro(base)+') com os dados da planilha?\n\n'+mud.join('\n'))) return;
+  var antes=JSON.stringify(base);
+  DB_FT[idx]=novo; l.atualizada=true; l.incluir=false;
+  ftImpPosGravar(novo.transp?[novo.transp]:[]);
+  try{ if(window.FB_SYNC && FB_SYNC.registrarLog) FB_SYNC.registrarLog('Frete Terceiros — atualizado pela importação', ftResumoRegistro(novo)+' | '+mud.join(' | ')+' | antes: '+antes); }catch(e){}
+  toast('✅ Frete atualizado: '+ftResumoRegistro(novo),'success');
+  FTIMP.linhas.forEach(function(_,j){ ftImpValidar(j); });
+  ftImpRender();
+}
+function ftImpFechar(){
+  var pend=FTIMP.linhas.filter(function(l){ return !l.gravada && !l.atualizada; }).length, g2=FTIMP.linhas.length-pend;
+  if(pend && !confirm('Fechar a conferência? '+pend+' frete(s) não gravado(s) serão descartados.'+(g2?' Os '+g2+' já gravados continuam salvos.':''))) return;
+  var o=document.getElementById('ftimp-ovl'); if(o) o.remove();
+}
+function ftImpRender(){
+  var o=document.getElementById('ftimp-ovl');
+  if(!o){ o=document.createElement('div'); o.id='ftimp-ovl'; o.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:10040;display:flex;align-items:center;justify-content:center;padding:14px'; document.body.appendChild(o); }
+  var L=FTIMP.linhas, st=L.map(ftImpStatus), cnt={todas:L.length,ok:0,aviso:0,dup:0,erro:0,gravada:0};
+  st.forEach(function(x){ cnt[x.k]++; });
+  var vis=L.map(function(_,i){return i;}).filter(function(i){ var k=st[i].k,f=FTIMP.filtro; return f==='todas'||k===f; });
+  var sel=L.filter(function(l){ return l.incluir && !l.gravada && !l.atualizada && !l.erros.length && l.existente<0; });
+  var totSel=sel.reduce(function(a,l){return a+l.vfr;},0), savSel=sel.reduce(function(a,l){ return a+(l.tabela&&l.tabela.valor>0?l.tabela.valor-l.vfr:0); },0);
+  var chip=function(k,rot,n,cor){ var on=FTIMP.filtro===k; return '<button type="button" onclick="FTIMP.filtro=\''+k+'\';FTIMP.editando=-1;ftImpRender()" style="padding:5px 11px;border-radius:14px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid '+(on?cor:'#d1d5db')+';background:'+(on?cor:'#fff')+';color:'+(on?'#fff':'#374151')+'">'+rot+' <b>'+n+'</b></button>'; };
+  var th='padding:8px;text-align:left;font-size:10px;font-weight:800;color:#024f2b;text-transform:uppercase;letter-spacing:.3px;white-space:nowrap;background:#f0f5ec;position:sticky;top:0;z-index:1';
+  var td='padding:8px;font-size:11.5px;color:#1f2937;white-space:nowrap;border-top:1px solid #eef0ea;vertical-align:top';
+  var btnS='padding:5px 9px;border-radius:5px;font-size:10.5px;font-weight:700;cursor:pointer;white-space:nowrap;';
+  var corpo=vis.map(function(i){
+    var l=L[i], s2=st[i], fechada=s2.k==='gravada', bg=fechada?'#f7fdf9':(s2.k==='erro'?'#fffafa':'#fff');
+    var tb=l.tabela||{valor:0}, sv=tb.valor>0?Math.round((tb.valor-l.vfr)*100)/100:null;
+    var dupTxt = l.existente>=0 ? 'Já existe na plataforma: '+ftEsc(ftResumoRegistro(DB_FT[l.existente])) : (l.repetida ? 'Repetido nesta planilha' : '');
+    var pend=l.erros.map(function(x){ return '<div style="color:#991b1b">✖ '+ftEsc(x)+'</div>'; }).join('')+(dupTxt&&!fechada?'<div style="color:#92400e">⚠ '+dupTxt+'</div>':'')+l.avisos.map(function(x){ return '<div style="color:#6b7280">• '+ftEsc(x)+'</div>'; }).join('');
+    var acoes=fechada?'':'<div style="display:flex;gap:4px"><button type="button" onclick="FTIMP.editando='+(FTIMP.editando===i?-1:i)+';ftImpRender()" style="'+btnS+'border:1px solid #93c5fd;background:#fff;color:#1e40af">'+(FTIMP.editando===i?'Fechar':'Editar')+'</button>'
+      +(l.existente>=0
+        ? '<button type="button" onclick="ftImpAtualizarExistente('+i+')" style="'+btnS+'border:1px solid #b45309;background:#fff7ed;color:#92400e">Atualizar existente</button>'
+        : '<button type="button" '+(l.erros.length?'disabled':'')+' onclick="ftImpGravar(['+i+'])" style="'+btnS+'border:1px solid #024f2b;background:'+(l.erros.length?'#e5e7eb':'#024f2b')+';color:'+(l.erros.length?'#9ca3af':'#fff')+';cursor:'+(l.erros.length?'not-allowed':'pointer')+'">Gravar</button>')+'</div>';
+    var pg=ftImpTemPgto(l)?'<span style="color:#166534;font-weight:700">Pago</span><div style="font-size:10px;color:#6b7280">'+(l.dt_pgto?FD(l.dt_pgto):'')+(l.aprovador?' · '+ftEsc(l.aprovador):'')+'</div>':'<span style="color:#6b7280">Sem pagamento</span>';
+    var origemTb={planilha:'planilha',precifica:'Precifica',manual:'digitado'}[tb.origem]||'';
+    var linha='<tr style="background:'+bg+'">'
+      +'<td style="'+td+'"><input type="checkbox" '+(l.incluir&&!fechada&&!l.erros.length&&l.existente<0?'checked':'')+(fechada||l.erros.length||l.existente>=0?' disabled':'')+' onchange="FTIMP.linhas['+i+'].incluir=this.checked;ftImpRender()" style="width:15px;height:15px;accent-color:#024f2b"></td>'
+      +'<td style="'+td+';color:#6b7280">'+l.linhaPlanilha+'</td>'
+      +'<td style="'+td+'"><span style="display:inline-block;padding:2px 8px;border-radius:9px;font-size:10px;font-weight:800;background:'+s2.bg+';color:'+s2.c+'">'+s2.t+'</span></td>'
+      +'<td style="'+td+'">'+(l.dt?FD(l.dt):'—')+'</td>'
+      +'<td style="'+td+';white-space:normal;min-width:160px"><b>'+ftEsc(l.cli||'—')+'</b><div style="font-size:10.5px;color:#6b7280">→ '+(l.exterior?'Exterior':ftEsc(l.cid||'?')+'/'+ftEsc(l.uf||'?'))+(l.car?' · '+(l.car==='MATÉRIA PRIMA'?'MP':'PA'):'')+'</div></td>'
+      +'<td style="'+td+';white-space:normal;min-width:130px">'+ftEsc(l.transp||'—')+'<div style="font-size:10.5px;color:#6b7280"><span style="font-family:\'DM Mono\',monospace">'+ftEsc(l.conj||'—')+'</span>'+(l.cat?' · '+ftEsc(l.cat):'')+'</div></td>'
+      +'<td style="'+td+';text-align:right">'+(l.peso>0?N(l.peso,0)+' kg':'—')+'</td>'
+      +'<td style="'+td+';text-align:right">'+(tb.valor>0?R(tb.valor):'—')+(origemTb?'<div style="font-size:9.5px;color:#6b7280">'+origemTb+'</div>':'')+'</td>'
+      +'<td style="'+td+';text-align:right;font-weight:700">'+(l.vfr>0?R(l.vfr):'—')+'</td>'
+      +'<td style="'+td+';text-align:right;font-weight:800;color:'+(sv==null?'#9ca3af':(sv>0.005?'#166534':(sv<-0.005?'#991b1b':'#374151')))+'">'+(sv==null?'—':(sv<0?'-':'')+R(Math.abs(sv)))+'</td>'
+      +'<td style="'+td+'">'+pg+'</td>'
+      +'<td style="'+td+';white-space:normal;min-width:200px;font-size:10.5px;line-height:1.45">'+(pend||'<span style="color:#166534">Sem pendências</span>')+'</td>'
+      +'<td style="'+td+';position:sticky;right:0;background:'+bg+';box-shadow:-6px 0 8px -6px rgba(0,0,0,.15)">'+acoes+'</td></tr>';
+    if(FTIMP.editando===i) linha+='<tr><td colspan="13" style="padding:0;border-top:1px solid #eef0ea">'+ftImpFormEdicao(i)+'</td></tr>';
+    return linha;
+  }).join('');
+  o.innerHTML='<div style="background:#fff;border-radius:10px;width:100%;max-width:1340px;max-height:94vh;display:flex;flex-direction:column;box-shadow:0 12px 44px rgba(0,0,0,.28);overflow:hidden;font-family:Inter,sans-serif">'
+    +'<div style="background:#024f2b;color:#fff;padding:13px 20px;display:flex;align-items:center;gap:12px"><div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:800">🚚 Conferência — Importação de Fretes Terceiros fechados</div>'
+    +'<div style="font-size:11px;opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+ftEsc(FTIMP.arquivo)+' · '+L.length+' frete(s)'+(FTIMP.ignoradas.length?' · colunas não usadas: '+ftEsc(FTIMP.ignoradas.join(', ')):'')+'</div></div>'
+    +'<button type="button" onclick="ftImpFechar()" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:6px;width:30px;height:30px;font-size:15px;cursor:pointer">✕</button></div>'
+    +'<div style="padding:12px 20px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;border-bottom:1px solid #eef0ea;background:#fafaf8">'
+      +chip('todas','Todas',cnt.todas,'#024f2b')+chip('ok','Prontas',cnt.ok,'#1e40af')+chip('aviso','Conferir',cnt.aviso,'#a16207')+chip('dup','Duplicadas',cnt.dup,'#b45309')+chip('erro','Corrigir',cnt.erro,'#dc2626')+chip('gravada','Gravadas',cnt.gravada,'#166534')
+      +'<div style="flex:1"></div><div style="font-size:10.5px;color:#6b7280;max-width:520px;line-height:1.4">Nada é gravado até você confirmar. <b>Saving = Valor Tabela − Valor Fechado</b>. Sem Valor Tabela na planilha, ele é calculado pelo Precifica — e pode ser digitado em Editar.</div></div>'
+    +'<div style="overflow:auto;flex:1"><table style="width:100%;min-width:1480px;border-collapse:collapse"><thead><tr>'
+      +['','Linha','Status','Carreg.','Cliente / Destino','Transportadora / Placa','Peso','Valor Tabela','Valor Fechado','Saving','Pagamento','Pendências',''].map(function(h,k,arr){ return '<th style="'+th+(k===arr.length-1?';right:0;z-index:2':'')+'">'+h+'</th>'; }).join('')
+    +'</tr></thead><tbody>'+(corpo||'<tr><td colspan="13" style="padding:30px;text-align:center;color:#9ca3af;font-size:12px">Nenhum frete neste filtro</td></tr>')+'</tbody></table></div>'
+    +'<div style="padding:12px 20px;border-top:1px solid #eef0ea;display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#fafaf8">'
+      +'<div style="font-size:12px;color:#374151"><b>'+sel.length+'</b> selecionado(s) · <b>'+R(totSel)+'</b> · saving <b style="color:'+(savSel>=0?'#166534':'#991b1b')+'">'+(savSel<0?'-':'')+R(Math.abs(savSel))+'</b></div><div style="flex:1"></div>'
+      +'<button type="button" onclick="ftImpFechar()" style="padding:9px 16px;border-radius:6px;border:1px solid #d1d5db;background:#fff;color:#374151;font-size:12px;font-weight:700;cursor:pointer">Fechar</button>'
+      +'<button type="button" '+(sel.length?'':'disabled')+' onclick="ftImpGravarSelecionadas()" style="padding:9px 18px;border-radius:6px;border:none;background:'+(sel.length?'#024f2b':'#9ca3af')+';color:#fff;font-size:12px;font-weight:800;cursor:'+(sel.length?'pointer':'not-allowed')+'">✓ Gravar '+sel.length+' selecionado(s)</button>'
+    +'</div></div>';
+}
+function ftImpFormEdicao(i){
+  var l=FTIMP.linhas[i];
+  var lbl='display:block;font-size:10px;font-weight:800;color:#024f2b;text-transform:uppercase;letter-spacing:.3px;margin-bottom:3px';
+  var inp='width:100%;box-sizing:border-box;padding:7px 8px;border:1px solid #cbd5c0;border-radius:5px;font-size:12px;background:#fff';
+  var campo=function(rot,html){ return '<div style="min-width:0"><label style="'+lbl+'">'+rot+'</label>'+html+'</div>'; };
+  var txt=function(id,v,extra){ return '<input id="ftimp-e-'+id+'" '+(extra||'')+' style="'+inp+'" value="'+ftEsc(v==null?'':v)+'">'; };
+  var opt=function(lista,v){ return '<option value="">Selecione…</option>'+lista.map(function(x){ return '<option'+(x===v?' selected':'')+'>'+ftEsc(x)+'</option>'; }).join(''); };
+  var lst=function(id){ var e=document.getElementById(id); return e?[].slice.call(e.options).map(function(o){return o.value;}).filter(Boolean):[]; };
+  var tb=ftImpTabela(Object.assign({},l,{vtabManual:0}));
+  return '<div style="background:#f0f5ec;padding:14px 16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;position:sticky;left:0;width:calc(min(1340px, 100vw - 28px) - 2px);box-sizing:border-box">'
+    +campo('Data carregamento','<input type="date" id="ftimp-e-dt" style="'+inp+'" value="'+ftEsc(l.dt)+'">')
+    +campo('Cliente',txt('cli',l.cli))
+    +campo('Cidade destino',txt('cid',l.cid,'list="ft-cid-list"'))
+    +campo('UF destino','<select id="ftimp-e-uf" style="'+inp+'"><option value="EX"'+(l.exterior?' selected':'')+'>Exterior</option>'+FTIMP_UFS.map(function(u){ return '<option'+(u===l.uf&&!l.exterior?' selected':'')+'>'+u+'</option>'; }).join('')+'<option value=""'+(!l.uf&&!l.exterior?' selected':'')+'>—</option></select>')
+    +campo('Tipo de carga','<select id="ftimp-e-car" style="'+inp+'">'+opt(['PRODUTO ACABADO','MATÉRIA PRIMA'],l.car)+'</select>')
+    +campo('Peso (kg)','<input type="number" id="ftimp-e-peso" style="'+inp+'" value="'+(l.peso||'')+'">')
+    +campo('Valor fechado (R$)','<input type="number" step="0.01" id="ftimp-e-vfr" style="'+inp+'" value="'+(l.vfr||'')+'">')
+    +campo('Valor tabela (R$)'+(tb.valor>0?' <span style="font-weight:600;text-transform:none;color:#6b7280">('+(tb.origem==='planilha'?'planilha':'Precifica')+': '+R(tb.valor)+')</span>':''),'<input type="number" step="0.01" id="ftimp-e-vtab" placeholder="'+(tb.valor>0?'vazio = '+R(tb.valor):'digite o valor de tabela')+'" style="'+inp+'" value="'+(l.vtabManual||'')+'">')
+    +campo('Transportadora',txt('transp',l.transp,'list="ft-transp-list"'))
+    +campo('Placa',txt('conj',l.conj))
+    +campo('Categoria','<select id="ftimp-e-cat" style="'+inp+'">'+opt(lst('ft-cat-vei'),l.cat)+'</select>')
+    +campo('Motorista',txt('mot',l.mot))
+    +campo('NF',txt('nf',l.nf))
+    +campo('Data pagamento','<input type="date" id="ftimp-e-dt_pgto" style="'+inp+'" value="'+ftEsc(l.dt_pgto)+'">')
+    +campo('Valor pago (R$)','<input type="number" step="0.01" id="ftimp-e-vl_pgto" placeholder="vazio = valor fechado" style="'+inp+'" value="'+(l.vl_pgto||'')+'">')
+    +campo('Formato','<select id="ftimp-e-fmt_pgto" style="'+inp+'">'+opt(lst('ft-fmt-pgto'),l.fmt_pgto)+'</select>')
+    +campo('Aprovador','<select id="ftimp-e-aprovador" style="'+inp+'">'+opt(lst('ft-aprovador'),l.aprovador)+'</select>')
+    +'<div style="display:flex;align-items:flex-end"><button type="button" onclick="ftImpAplicarEdicao('+i+')" style="flex:1;padding:8px 12px;border-radius:5px;border:none;background:#024f2b;color:#fff;font-size:11.5px;font-weight:800;cursor:pointer">Aplicar</button></div>'
+    +'</div>';
+}
+function ftImpAplicarEdicao(i){
+  var l=FTIMP.linhas[i], v=function(id){ var e=document.getElementById('ftimp-e-'+id); return e?e.value:''; };
+  l.dt=ftImpDataOk(v('dt'))?v('dt'):'';
+  l.cli=v('cli').trim().toUpperCase().replace(/\s+/g,' ');
+  var uf=v('uf'); l.exterior = uf==='EX' || ftImpNorm(v('cid'))==='EXTERIOR';
+  l.cid = l.exterior?'EXTERIOR':v('cid').trim().toUpperCase().replace(/\s+/g,' '); l.uf = l.exterior?'':uf;
+  l.car=v('car'); l.peso=parseFloat(v('peso'))||0; l.vfr=Math.round((parseFloat(v('vfr'))||0)*100)/100;
+  l.vtabManual=Math.round((parseFloat(v('vtab'))||0)*100)/100;
+  var tr=v('transp').replace(/\s+/g,' ').trim(); l.transp = tr?(ftTranspCanon(tr)||tr.toUpperCase()):''; l.transpNova = tr?!ftTranspCanon(tr):false;
+  l.conj=v('conj').toUpperCase().replace(/[^A-Z0-9]/g,''); l.cat=v('cat'); l.catOriginal=l.cat; l.mot=v('mot').trim().toUpperCase(); l.nf=v('nf').trim();
+  l.dt_pgto=ftImpDataOk(v('dt_pgto'))?v('dt_pgto'):''; l.dt_pgtoOriginal=l.dt_pgto; l.vl_pgto=Math.round((parseFloat(v('vl_pgto'))||0)*100)/100;
+  l.fmt_pgto=v('fmt_pgto'); l.fmtOriginal=l.fmt_pgto; l.aprovador=v('aprovador'); l.aprOriginal=l.aprovador;
+  l.incluir=undefined; FTIMP.editando=-1;
+  FTIMP.linhas.forEach(function(_,j){ ftImpValidar(j); });
+  ftImpRender();
+}
 function ftSaveEtapa1(){
   var dt=document.getElementById('ft-dt').value;
   var cli=document.getElementById('ft-cli-input').value.trim();
@@ -19682,7 +20078,7 @@ function ftEditRecord(idx){
   selectModule('lancamento','frete-terceiros-lanc');
   setTimeout(function(){
     var set=function(id,val){var el=document.getElementById(id);if(el)el.value=val||'';};
-    set('ft-conj',r.conj);set('ft-cat-vei',r.cat);set('ft-mot',r.mot);set('ft-transp',r.transp);ftTranspDica();window._ftVersaoEdicao=r.vtab_versao||null;set('ft-kmref',r.vtab_kmmanual||'');set('ft-dt',r.dt);
+    set('ft-conj',r.conj);set('ft-cat-vei',r.cat);set('ft-mot',r.mot);set('ft-transp',r.transp);ftTranspDica();window._ftVersaoEdicao=r.vtab_versao||null;set('ft-kmref',r.vtab_kmmanual||'');set('ft-vtab-man',(r.vtab_origem==='manual'||r.vtab_origem==='planilha')&&r.vtab>0?r.vtab:'');window._ftVtabOrigEdicao={origem:r.vtab_origem||'',valor:parseFloat(r.vtab)||0};set('ft-dt',r.dt);
     set('ft-cli-input',r.cli);
     var chkExt=document.getElementById('ft-exterior'); if(chkExt) chkExt.checked=!!r.exterior;
     ftToggleExterior();
@@ -20082,7 +20478,7 @@ function ftClearForm(){
   var chkExt=document.getElementById('ft-exterior'); if(chkExt) chkExt.checked=false;
   if(typeof ftToggleExterior==='function') ftToggleExterior();
   if(typeof ftTranspDica==='function') ftTranspDica();
-  window._ftVersaoEdicao=null; var _kr=document.getElementById('ft-kmref'); if(_kr) _kr.value='';
+  window._ftVersaoEdicao=null; var _kr=document.getElementById('ft-kmref'); if(_kr) _kr.value=''; var _vm=document.getElementById('ft-vtab-man'); if(_vm) _vm.value=''; window._ftVtabOrigEdicao=null;
   if(typeof ftSavingForm==='function') ftSavingForm();
 }
 
